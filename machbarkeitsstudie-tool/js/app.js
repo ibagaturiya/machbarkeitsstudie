@@ -91,25 +91,33 @@
     });
   });
 
-  // Renders the same A3 sheets inline so the layout can be checked without
-  // opening the print dialog every time.
+  // Export flow: "PDF exportieren" composes the presentation document (one
+  // argument per page, each with its plans and its sources) and opens it as
+  // a full-screen preview. Only there, next to "Zurück", sits "PDF
+  // speichern" — which hands the composed document to the print dialog.
+  const printToolbarEl = document.getElementById('print-toolbar');
+  const printBackBtn = document.getElementById('print-back-btn');
+  const printSaveBtn = document.getElementById('print-save-btn');
+
+  function closePrintPreview() {
+    printDocEl.classList.remove('preview');
+    printToolbarEl.classList.remove('open');
+  }
+
   previewPdfBtn.addEventListener('click', async () => {
-    if (printDocEl.classList.contains('preview')) {
-      printDocEl.classList.remove('preview');
-      previewPdfBtn.textContent = 'Layout ansehen';
-      return;
-    }
     previewPdfBtn.disabled = true;
     try {
       if (await composePrintDoc()) {
         printDocEl.classList.add('preview');
-        previewPdfBtn.textContent = 'Layout schliessen';
-        printDocEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        printToolbarEl.classList.add('open');
+        printDocEl.scrollTop = 0;
       }
     } finally {
       previewPdfBtn.disabled = false;
     }
   });
+  printBackBtn.addEventListener('click', closePrintPreview);
+  printSaveBtn.addEventListener('click', () => window.print());
 
   // The commune is detected from the parcel itself, so the dropdown is only
   // an override -- useful on a commune boundary, or to see what a zone would
@@ -1512,8 +1520,7 @@
       runToken++; // and any run still in flight is now stale
       resultsEl.style.display = 'none';
       previewPdfBtn.style.display = 'none';
-      printDocEl.classList.remove('preview');
-      previewPdfBtn.textContent = 'Layout ansehen';
+      closePrintPreview();
       lastResult = null;
       lastFlags = [];
       storeyChoice = null;
@@ -1538,8 +1545,7 @@
     e.preventDefault();
     resultsEl.style.display = 'none';
     previewPdfBtn.style.display = 'none';
-    printDocEl.classList.remove('preview');
-    previewPdfBtn.textContent = 'Layout ansehen';
+    closePrintPreview();
     mapSectionEl.style.display = 'none';
     closeOptions();
     const typed = addressInput.value.trim();

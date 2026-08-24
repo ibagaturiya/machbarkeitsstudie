@@ -24,15 +24,34 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     return Math.round(n).toLocaleString('de-CH');
   }
 
-  function sheet(title, kicker, bodyHtml, footerHtml) {
+  function sheet(title, kicker, bodyHtml, footerHtml, sourcesHtml) {
     return `<section class="sheet">
       <header class="sheet-head">
         <div class="kicker">${esc(kicker)}</div>
         <h2>${esc(title)}</h2>
       </header>
       <div class="sheet-body">${bodyHtml}</div>
+      ${sourcesHtml ? `<div class="sheet-sources">${sourcesHtml}</div>` : ''}
       <footer class="sheet-foot">${footerHtml || ''}</footer>
     </section>`;
+  }
+
+  // One compact line naming the legal sources this sheet's argument rests on
+  // — document, article and page, from the provenance records. Every sheet
+  // carries its own sources so each page of the export is self-supporting.
+  function sourcesLine(rules, entries) {
+    const parts = [];
+    for (const [label, ...keys] of entries) {
+      let prov = null;
+      for (const k of keys) {
+        prov = T.getProvenance ? T.getProvenance(rules, k) : null;
+        if (prov) break;
+      }
+      if (prov) {
+        parts.push(`${esc(label)}: ${esc(prov.article || '')}${prov.page ? `, S. ${prov.page}` : ''}${prov.title ? ` (${esc(prov.title)})` : ''}`);
+      }
+    }
+    return parts.length ? `<b>Quellen:</b> ${parts.join(' · ')}` : '';
   }
 
   function kpi(label, value, sub) {
@@ -122,12 +141,16 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     const zoneBbox = T.buildMapBbox(centerE, centerN, Math.max(wideSpan * 1.6, 260), 1, 1);
     const zoneFeatures = await T.fetchZonePolygons(zoneBbox);
 
+    // The PDF must show the SAME building the screen shows: the massing model
+    // (chosen storeys, GFA-constrained), not the abstract legal hull — the
+    // hull overstated volume and cost by a large factor on AZ-bound parcels.
     const envelopePng = setbackFootprint
       ? T.renderEnvelopeToDataURL({
           footprintFeature: setbackFootprint,
           parcelFeature: merged,
           removedFeature: waldRemoved,
           heightM: rules.heightM,
+          massing: massingModel,
         }, 1600, 1450)
       : null;
 
@@ -140,11 +163,14 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     const BINDING = {
       grundabstand: 'Grundabstand',
       gruenflaechenziffer: 'Grünflächenziffer',
+      ueberbauungsziffer: 'Überbauungsziffer',
       ausnuetzungsziffer: 'Ausnützungsziffer',
     };
     const binding = BINDING[reconciled.bindingConstraint] || reconciled.bindingConstraint;
 
-    const envelopeVolumeM3 = reconciled.usableFootprintAreaM2 * rules.heightM;
+    // Cost from the built massing (same figure as on screen); the hull only
+    // as fallback when no massing model exists.
+    const envelopeVolumeM3 = massingModel ? massingModel.volumeM3 : reconciled.usableFootprintAreaM2 * rules.heightM;
     const cost = T.estimateCost(envelopeVolumeM3);
     const dateStr = new Date().toLocaleDateString('de-CH');
     const foot = `${esc(rules.gemeinde)} · ${esc(rulesData.version)} · erstellt ${dateStr}`;
@@ -185,23 +211,43 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
         <div>${mapBlock(rings, centerE, centerN, wideSpan, ['cadastre'], null, 900, 1300)}
           <div class="caption">Situationsplan — ${multi ? 'gewählte Parzellen' : 'Parzelle'} rot markiert. Amtliche Vermessung (swisstopo / Kantone).</div>
         </div>
-      </div>`, foot);
+      </div>`, foot,
+      sourcesLine(rules, [
+        ['Ausnützungsziffer', 'ausnuetzungsziffer_max_pct'],
+        ['Vollgeschosse', 'vollgeschosse_max'],
+        ['Höhe', rules.heightRegime ? 'gebaeudehoehe_max_m_bzo2016' : 'traufseitige_fassadenhoehe_max_m', 'gebaeudehoehe_max_m'],
+        ['Regime', 'negative_vorwirkung'],
+      ]));
 
     // ---- Sheet 2: Volumetrie ----------------------------------------------
+    const abz = r.flaechenAbzuege || {};
     const derivation = [
       [multi ? 'Fläche zusammengefasst' : 'Parzellenfläche', fmt(reconciled.parcelAreaM2) + ' m²', ''],
-      [`Fussabdruck nach Grundabstand (${rules.grundabstand_min_m} m)`, fmt(footprintBeforeWaldM2) + ' m²', 'minus'],
     ];
+    if (abz.waldM2 > 0.5) {
+      derivation.push(['Abzug Wald (§ 259 PBG: fällt ausser Ansatz)', '− ' + fmt(abz.waldM2) + ' m²', 'minus']);
+    }
+    derivation.push(['Anrechenbare Grundstücksfläche', fmt(reconciled.anrechenbareFlaecheM2) + ' m²', '']);
+    derivation.push([`Fussabdruck nach Grundabstand (${fmt(r.grundabstandUsedM ?? rules.grundabstand_min_m)} m)`, fmt(footprintBeforeWaldM2) + ' m²', 'minus']);
     if (waldLossInFootprintM2 > 0.5) {
       derivation.push(['Abzug Waldabstand', '− ' + fmt(waldLossInFootprintM2) + ' m²', 'minus']);
       derivation.push(['Fussabdruck nach Waldabstand', fmt(reconciled.setbackFootprintAreaM2) + ' m²', '']);
     }
     derivation.push(['Deckel Grünflächenziffer',
       reconciled.hasGreenCap ? fmt(reconciled.footprintAfterGreenCapAreaM2) + ' m²' : '— nicht vorhanden', '']);
+    if (reconciled.hasUeberbauungsCap) {
+      derivation.push([`Deckel Überbauungsziffer (${rules.ueberbauungsziffer_hauptgebaeude_max_pct} %)`,
+        fmt(reconciled.footprintAfterUeberbauungsCapM2) + ' m²', '']);
+    }
     derivation.push(['Nutzbarer Fussabdruck', fmt(reconciled.usableFootprintAreaM2) + ' m²', 'result']);
-    derivation.push(['Max. Geschossfläche (AZ ' + rules.ausnuetzungsziffer_max_pct + '%)', fmt(reconciled.maxGfaM2) + ' m²', '']);
+    derivation.push(['Max. anrechenbare Geschossfläche (AZ ' + rules.ausnuetzungsziffer_max_pct + '%)', fmt(reconciled.maxGfaM2) + ' m²', '']);
     derivation.push(['Erreichbare Vollgeschosse',
       reconciled.fullFloorsAchievable ? String(rules.vollgeschosse_max) : fmt(reconciled.achievableFloors, 2) + ' von ' + rules.vollgeschosse_max, 'result']);
+    if (massingModel && (massingModel.attikaStoreys > 0 || massingModel.ugStoreys > 0)) {
+      derivation.push(['Freibetrag Dach-/Attika-/UG (§ 255 Abs. 3 PBG)',
+        `je Geschoss bis ${fmt(massingModel.perStoreyFreeM2)} m² frei`, '']);
+      derivation.push(['Nutzbare Geschossfläche total', fmt(massingModel.nutzflaecheTotalM2) + ' m²', 'result']);
+    }
 
     const s2 = sheet('Volumetrie', 'Wie die Zahl zustande kommt',
       `<div class="cols c-4555">
@@ -218,7 +264,15 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
           ${envelopePng ? `<img class="render" src="${envelopePng}" alt="Isometrie">` : '<div class="empty">Kein Volumen darstellbar.</div>'}
           ${waldRemoved ? legend([['background:#b08b4f;', 'zulässige Hüllform'],['background:rgba(198,40,40,.35);border:1px solid #c62828;', 'durch Waldabstand entfallen'],['background:transparent;border:1px solid #333;', 'Parzellengrenze']]) : ''}<div class="caption">Maximal zulässige Hüllform, auf ${esc(rules.heightMetric)} ${rules.heightM} m extrudiert.${waldRemoved ? ' Der rot dargestellte Teil ist durch die boolesche Differenz mit der Waldabstands-Fläche entfallen und in den Zahlen links bereits abgezogen.' : ''} Flaches Dach ist eine Vereinfachung der Darstellung.</div>
         </div>
-      </div>`, foot);
+      </div>`, foot,
+      sourcesLine(rules, [
+        ['Anrechenbare Fläche', 'massgebliche_grundflaeche', 'anrechenbare_grundstuecksflaeche', 'massgebliche_grundflaeche_altrecht'],
+        ['Grundabstand', 'grundabstand_min_m'],
+        ['Grünflächenziffer', 'gruenflaechenziffer_min_pct'],
+        ['Überbauungsziffer', 'ueberbauungsziffer_hauptgebaeude_max_pct'],
+        ['Ausnützungsziffer', 'ausnuetzungsziffer_max_pct'],
+        ['Freibetrag', 'dach_attika_ug_freibetrag'],
+      ]));
 
     // ---- Sheet 3: Grundriss ------------------------------------------------
     const fpDims = (() => {
@@ -265,7 +319,15 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
             innerhalb dieser Fläche frei wählbar.
           </div>
         </div>
-      </div>`, foot);
+      </div>`, foot,
+      sourcesLine(rules, [
+        ['Grundabstand', 'grundabstand_min_m'],
+        ['Grosser Grenzabstand', 'grosser_grenzabstand_min_m'],
+        ['Hauptfassaden', 'grosser_grenzabstand_suedseiten'],
+        ['Mehrlängenzuschlag', 'mehrlaengenzuschlag'],
+        ['Gebäudelänge', 'gesamtlaenge_max_m', 'gebaeudelaenge_inkl_klein_anbauten_max_m'],
+        ['Waldabstand', 'waldabstand'],
+      ]));
 
     // ---- Sheet 3: Zonenplan ------------------------------------------------
     const s3 = sheet('Zonenplan', 'Grundlage der Zonenzuordnung',
@@ -290,7 +352,12 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
             Grenzabstand / Grünflächenziffer: ${esc(rules.source.article)}, ${esc(rules.source.version)}.
           </div>
         </div>
-      </div>`, foot);
+      </div>`, foot,
+      sourcesLine(rules, [
+        ['Grundmasse', 'ausnuetzungsziffer_max_pct'],
+        ['Höhe', rules.heightRegime ? 'gebaeudehoehe_max_m_bzo2016' : 'traufseitige_fassadenhoehe_max_m', 'gebaeudehoehe_max_m'],
+        ['Regime', 'negative_vorwirkung'],
+      ]));
 
     // ---- Sheet 4: Einschränkungen -----------------------------------------
     // Show the Waldabstand geometry where it actually bites; otherwise fall
@@ -324,7 +391,13 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
         </div>
         <div>${restrictionMap}</div>
       </div>`,
-      foot);
+      foot,
+      sourcesLine(rules, [
+        ['Waldabstand', 'waldabstand'],
+        ['Strassenabstand', 'strassenabstand_ohne_baulinien_m'],
+        ['Begrünung', 'begruenung_perimeter_min_pct'],
+        ['Attika', 'attika_profil_ueberhoehung_m'],
+      ]));
 
     // ---- Sheet 5: Kosten ---------------------------------------------------
     const s5 = sheet('Grobe Kostenschätzung', 'Sehr grob — keine Kostenplanung',
@@ -352,7 +425,8 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
           </table>
           <div class="note-box small">${esc(cost.note)}</div>
         </div>
-      </div>`, foot);
+      </div>`, foot,
+      '<b>Quellen:</b> Kostenkennwert ist eine Werkzeug-Annahme (Bandbreite CHF 800–1000/m³ BKP 2), kein Gesetzeswert. Volumen aus dem oben hergeleiteten Baukörper.');
 
     // ---- Sheet 6: Quellen & Vorbehalte ------------------------------------
     const s6 = sheet('Quellen und Vorbehalte', 'Grundlage und Grenzen dieser Auswertung',
