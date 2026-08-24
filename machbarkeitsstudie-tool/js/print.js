@@ -13,16 +13,10 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
 
 (function () {
   const T = window.MachbarkeitTool;
+  // Shared with app.js — see js/format.js. The local copy of esc used to
+  // leave the single quote unescaped; this one does not.
+  const esc = T.esc, fmt = T.fmt, fmtInt = T.fmtInt;
 
-  function esc(s) {
-    return String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  }
-  function fmt(n, d = 1) {
-    return typeof n === 'number' && isFinite(n) ? n.toFixed(d) : String(n);
-  }
-  function fmtInt(n) {
-    return Math.round(n).toLocaleString('de-CH');
-  }
 
   function sheet(title, kicker, bodyHtml, footerHtml, sourcesHtml) {
     return `<section class="sheet">

@@ -24,11 +24,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   // (turf.booleanIntersects === false) crashed this renderer before this
   // fix, because it assumed a single exterior ring. Returns one exterior
   // ring per disconnected part.
-  function exteriorRingsOf(feature) {
-    return feature.geometry.type === 'Polygon'
-      ? [feature.geometry.coordinates[0]]
-      : feature.geometry.coordinates.map((poly) => poly[0]);
-  }
+  const exteriorRingsOf = T.exteriorRingsOf; // js/coordinates.js
 
   // Scene frame: X = East, Y = up, Z = SOUTH (i.e. -north). Three.js is
   // right-handed with Y up, so east/up/north would be a LEFT-handed basis --

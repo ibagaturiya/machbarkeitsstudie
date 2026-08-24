@@ -10,6 +10,8 @@
 // README.md for what that deliberately leaves on the table.
 (function () {
   const T = window.MachbarkeitTool;
+  // Shared with print.js and evidence.js — see js/format.js.
+  const esc = T.esc, fmt = T.fmt;
 
   const form = document.getElementById('address-form');
   const statusEl = document.getElementById('status');
@@ -263,9 +265,6 @@
     return attika > 0 ? `${base} + ${attika} Attika` : base;
   }
 
-  function fmt(n, digits = 1) {
-    return typeof n === 'number' ? n.toFixed(digits) : String(n);
-  }
 
   const COMPASS = ['Nord', 'Nordost', 'Ost', 'Südost', 'Süd', 'Südwest', 'West', 'Nordwest'];
   function compassLabel(bearingDeg) {
@@ -279,13 +278,6 @@
     ausnuetzungsziffer: 'Ausnützungsziffer (Ausnützungs-Maximum)',
   };
 
-  // All user- and API-sourced strings pass through here before innerHTML.
-  // (print.js has its own copy; the sinks here used to interpolate raw.)
-  function esc(s) {
-    return String(s ?? '').replace(/[&<>"']/g, (c) => (
-      { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
-    ));
-  }
 
   // The canton writes its zone names lowercase ("dreigeschossige Wohnzone");
   // as a headline they read as a sentence, so lift the first letter.
@@ -395,7 +387,9 @@
     // (grosser_grenzabstand_suedseiten = 2), elsewhere to one.
     const hasDirectional = rules.grosser_grenzabstand_min_m != null
       && rules.grosser_grenzabstand_min_m > rules.grundabstand_min_m;
-    const suedCount = rules.grosser_grenzabstand_suedseiten || 1;
+    // No `|| 1` fallback: rules.js refuses a zone that has a grosser
+    // Grenzabstand without saying how many sides it covers.
+    const suedCount = rules.grosser_grenzabstand_suedseiten;
     const chosenIdx = southFacadeIdx != null ? southFacadeIdx : (facadeEdges ? facadeEdges.suggestedIndex : null);
     // The user's pick (or the auto suggestion) is the primary Hauptfassade;
     // where the zone demands a second one it comes from the automatic
@@ -421,15 +415,33 @@
     const mlz = rules.mehrlaengenzuschlag;
     let mehrlaengen = null;
 
-    const runSetback = (smallM) => (hasDirectional && chosenEdges.length
-      ? T.anisotropicSetbackMulti(merged, chosenEdges, smallM, rules.grosser_grenzabstand_min_m)
-      : T.bufferLV95(merged, -smallM));
+    // Returns { feature, degradedTo } — degradedTo is set only when the
+    // differential offset could not be built for one or more Hauptfassaden.
+    // The fallback is then the grosse Grenzabstand on ALL sides: a failure of
+    // the geometry must never hand back MORE buildable area than the law
+    // allows, and applying the larger distance everywhere is the only variant
+    // that cannot overstate. render() turns degradedTo into a flag — the user
+    // sees a smaller, explained footprint instead of a silently wrong one.
+    const runSetback = (smallM) => {
+      if (!(hasDirectional && chosenEdges.length)) {
+        return { feature: T.bufferLV95(merged, -smallM), degradedTo: null };
+      }
+      const bigM = rules.grosser_grenzabstand_min_m;
+      const res = T.anisotropicSetbackMulti(merged, chosenEdges, smallM, bigM);
+      if (!res.failedEdges) return { feature: res.feature, degradedTo: null };
+      return {
+        feature: T.bufferLV95(merged, -bigM),
+        degradedTo: { appliedM: bigM, failedEdges: res.failedEdges, edgeCount: chosenEdges.length },
+      };
+    };
 
     // One full derivation pass at a given Grundabstand — everything from the
     // setback ring to the placed massing. Runs once normally, twice when the
     // Mehrlängenzuschlag kicks in.
     const computePass = (grundabstandUsedM) => {
-    let setbackFootprint = runSetback(grundabstandUsedM);
+    const setbackResult = runSetback(grundabstandUsedM);
+    let setbackFootprint = setbackResult.feature;
+    const grenzabstandDegraded = setbackResult.degradedTo;
 
     let footprintBeforeWaldM2 = setbackFootprint ? T.planarAreaAnyLV95(setbackFootprint) : 0;
     // The slice the cut actually takes out of the buildable footprint -- kept
@@ -680,7 +692,7 @@
              footprintAfterWaldM2, waldLossInFootprintM2, lengthLimitM, areaRect, lengthExceeded,
              gebaeudeabstandM, massing, buildableArea, footprintRect, lengthLossM2,
              setbackFootprintAreaM2, reconciled, massingModel, hasDirectional, chosenIdx,
-             chosenIndices, grundabstandUsedM };
+             chosenIndices, grundabstandUsedM, grenzabstandDegraded };
     }; // end computePass
 
     let pass = computePass(rules.grundabstand_min_m);
@@ -791,7 +803,7 @@
 
     // A new shape invalidates any facade the user had picked by hand.
     southFacadeIndex = null;
-    const facadeEdges = T.pickSouthFacade(merged, rules.grosser_grenzabstand_suedseiten || 1);
+    const facadeEdges = T.pickSouthFacade(merged, rules.grosser_grenzabstand_suedseiten);
 
     const derived = deriveFootprint({
       merged, parcelAreaM2, anrechenbareFlaecheM2, flaechenAbzuege, rules, wald, baulinien, facadeEdges,
@@ -844,7 +856,8 @@
              gebaeudeabstandM: derived.gebaeudeabstandM, areaRect: derived.areaRect,
              massingModel: derived.massingModel, baulinienRemoved: derived.baulinienRemoved,
              baulinienLossM2: derived.baulinienLossM2, setbackFootprint: derived.setbackFootprint,
-             hasDirectional: derived.hasDirectional };
+             hasDirectional: derived.hasDirectional,
+             grenzabstandDegraded: derived.grenzabstandDegraded };
   }
 
   // Kept separate so a tab switch can redraw it: three.js sizes the canvas
@@ -1542,6 +1555,14 @@
       flags.push(`${esc(rules.gemeinde)} kennt zwei Grenzabstände (Art. 18 BZO ${esc(rules.gemeinde)}): ${rules.grundabstand_min_m} m normal, ${rules.grosser_grenzabstand_min_m} m an der Hauptfassade${two ? 'n' : ''}. ${two ? `In dieser Zone gilt der grosse Grenzabstand für die BEIDEN am meisten gegen Süden gerichteten Gebäudeseiten (Art. 18 Abs. 1)` : (autoChosen ? 'Automatisch die am stärksten südorientierte Seite' : 'Die von Ihnen gewählte Seite')} (${edgeDescr}) — dort wurde mit ${rules.grosser_grenzabstand_min_m} m gerechnet, alle anderen Seiten mit ${rules.grundabstand_min_m} m. Im Grundriss anklickbar, falls eine andere Seite die tatsächliche Hauptfassade ist. Hinweis: massgebend sind laut Art. 18 Abs. 2 die Seiten des GEBÄUDES (flächenkleinstes Rechteck), gemessen nach § 22 ABV rechtwinklig zur Fassade — die Näherung über die Parzellenkanten ist eine Vereinfachung auf der sicheren Seite.`);
     } else if (r.hasDirectional && (!r.facadeEdges || !r.facadeEdges.edges.length)) {
       flags.push(`${esc(rules.gemeinde)} kennt einen grossen Grenzabstand an der Hauptfassade, aber die Parzelle hat keine auswertbare Fassadenkante (alle Kanten unter 3 m). Es wurde einheitlich mit dem kleinen Grenzabstand gerechnet — der reale Fussabdruck ist auf der Südseite kleiner. Manuell prüfen.`);
+    }
+    // The differential offset failed geometrically. Reported, never absorbed:
+    // the alternative (carrying on with the uncut band) would have quietly
+    // handed back a footprint that is too large on exactly the side where the
+    // law is strictest.
+    if (r.grenzabstandDegraded) {
+      const d = r.grenzabstandDegraded;
+      flags.push(`Der seitenweise Grenzabstand liess sich auf ${d.failedEdges} von ${d.edgeCount} Hauptfassade${d.edgeCount > 1 ? 'n' : ''} geometrisch nicht bilden (unregelmässige Parzellengeometrie). Ersatzweise wurde der GROSSE Grenzabstand von ${fmt(d.appliedM)} m ringsum angewandt — das ist konservativ: der wirkliche bebaubare Bereich ist eher grösser als der hier gezeigte. Nicht als Ergebnis verwenden, ohne die Situation von Hand zu prüfen.`);
     }
     if (multi && !isSingleShape) {
       flags.push('Die gewählten Parzellen berühren sich nicht durchgehend. Sie werden trotzdem zusammen gerechnet, bilden aber baurechtlich kein zusammenhängendes Grundstück — Zahlen entsprechend vorsichtig verwenden.');

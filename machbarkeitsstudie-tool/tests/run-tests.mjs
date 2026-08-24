@@ -87,6 +87,29 @@ function check(name, actual, expected, tol = 0.01) {
 }
 
 // ---------------------------------------------------------------------------
+// 1b) Eine Zone mit grossem Grenzabstand MUSS sagen, für wie viele Seiten er
+//     gilt (Art. 18 Abs. 1 BZO Zumikon: W2/25 zwei, W2/35-60 eine). Fehlt die
+//     Angabe, wurde früher stillschweigend 1 angenommen — genau der Fehler,
+//     der für W2/25 schon einmal behoben werden musste (REGELN.md §8).
+{
+  const rules = await T.getZoneRules({ zone: 'W2/25', gemeinde: 'Zumikon', kantonaleWerte: {} });
+  check('Zumikon W2/25: Südseiten-Angabe vorhanden', rules.grosser_grenzabstand_suedseiten, 2);
+
+  // Same lookup against a zone whose Südseiten-Angabe has been removed.
+  const zumikon = await T.loadGemeindeData('Zumikon');
+  const saved = zumikon['W2/25'].grosser_grenzabstand_suedseiten;
+  delete zumikon['W2/25'].grosser_grenzabstand_suedseiten;
+  let halted = false;
+  try {
+    await T.getZoneRules({ zone: 'W2/25', gemeinde: 'Zumikon', kantonaleWerte: {} });
+  } catch (e) {
+    halted = /grosser_grenzabstand_suedseiten/.test(e.message);
+  }
+  zumikon['W2/25'].grosser_grenzabstand_suedseiten = saved;
+  check('fehlende Südseiten-Angabe bricht ab statt zu raten', halted, true);
+}
+
+// ---------------------------------------------------------------------------
 // 2) Zürich W2bI — Art. 62 E-BZO / Art. 13+14 BZO 2016, § 234 PBG stricter-of
 {
   const rules = await T.getZoneRules({ zone: 'W2bI', gemeinde: 'Zürich', kantonaleWerte: {} });

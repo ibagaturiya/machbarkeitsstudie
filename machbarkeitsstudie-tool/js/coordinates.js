@@ -21,6 +21,31 @@
 window.MachbarkeitTool = window.MachbarkeitTool || {};
 
 (function () {
+  // A turf op that may throw on degenerate geometry (self-touching rings left
+  // by a buffer, zero-area slivers), with an explicit fallback. Was copied
+  // into massing.js, grenzabstand.js and waldabstand.js.
+  //
+  // The fallback is a legal decision, not a formality: callers must pick one
+  // that cannot overstate what may be built, and must surface the failure
+  // (CLAUDE.md §4 — no silent fallthrough). `onFail` is called with the error
+  // so the caller can count and report it.
+  function safeOp(fn, fallback, onFail) {
+    try {
+      return fn();
+    } catch (e) {
+      if (onFail) onFail(e);
+      return fallback;
+    }
+  }
+
+  // Outer ring(s) of a Polygon/MultiPolygon, holes dropped. Was copied into
+  // grenzabstand.js and viewer.js.
+  function exteriorRingsOf(feature) {
+    return feature.geometry.type === 'Polygon'
+      ? [feature.geometry.coordinates[0]]
+      : feature.geometry.coordinates.map((poly) => poly[0]);
+  }
+
   function lv95ToWgs84(easting, northing) {
     const yPrime = (easting - 2600000) / 1000000;
     const xPrime = (northing - 1200000) / 1000000;
@@ -486,6 +511,8 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     return { attikaBlocks, attikaAreaM2, requestedAreaM2, anyImpossible, diagnostics };
   }
 
+  window.MachbarkeitTool.safeOp = safeOp;
+  window.MachbarkeitTool.exteriorRingsOf = exteriorRingsOf;
   window.MachbarkeitTool.computeAttikaFootprints = computeAttikaFootprints;
   window.MachbarkeitTool.rectangleFromCenterLV95 = rectangleFromCenterLV95;
   window.MachbarkeitTool.MIN_PRIMITIVE_WIDTH_M = MIN_PRIMITIVE_WIDTH_M;
