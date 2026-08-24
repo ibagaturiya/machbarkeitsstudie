@@ -643,6 +643,14 @@
         massingModel.attikaDiagnostics = attikaResult.diagnostics;
         massingModel.hangUphillBearingDeg = hangUphillBearingDeg;
         massingModel.hang = hang || null;
+        // Nothing survived the 45° profile on any Baukörper: there is no
+        // Attika to draw, so there is no Attika to REPORT either. Height,
+        // Volumen and Nutzfläche all fall back to the Vollgeschosse (the
+        // flag below explains why), which keeps the panel, the 3D height
+        // dimension and the printed sheet describing the same building.
+        if (attikaResult.anyImpossible && attikaResult.attikaAreaM2 <= 0) {
+          T.suppressAttikaStorey(massingModel);
+        }
       }
     }
 
@@ -1228,14 +1236,27 @@
         `<div class="choice-label">Geschosse — freie Entwurfsentscheidung, die Ausnützungsziffer begrenzt nur die Geschossfläche (${fmt(mm.gfaUsedM2)} m²), nicht die Geschosszahl.${attikaNote}</div>` +
         `<div class="choice-row">` +
         mm.storeyOptions.map((n) => {
-          const plate = mm.gfaUsedM2 / n;
-          const cov = plate / reconciled.parcelAreaM2 * 100;
           const ordinary = Math.min(n, mm.ordinaryMax);
           const attika = Math.max(0, n - mm.ordinaryMax);
-          const heightM = ordinary * mm.ordinaryStoreyHeightM + attika * mm.attikaStoreyHeightM;
-          return `<button type="button" class="choice${n === mm.storeys ? ' active' : ''}" data-storeys="${n}">`
+          // Same arithmetic buildMassingModel does for the chosen option: the
+          // AZ is spent by the ORDINARY storeys only (§ 255 Abs. 2/3 PBG).
+          // Dividing the permitted GFA by the TOTAL storey count sold the
+          // Attika variant short -- the card advertised 74.3 m² je Geschoss
+          // for a building the tool then drew with 111.5 m² plates.
+          const plate = Math.min(reconciled.maxGfaM2, reconciled.usableFootprintAreaM2 * ordinary) / ordinary;
+          const cov = plate / reconciled.parcelAreaM2 * 100;
+          // Whether an Attika survives the 45° profile is only known for the
+          // option that was actually built (its footprint decides it), so the
+          // active card is the one that can carry the verdict.
+          const suppressedHere = !!mm.attikaSuppressed && n === mm.requestedStoreys;
+          const heightM = ordinary * mm.ordinaryStoreyHeightM
+            + (suppressedHere ? 0 : attika) * mm.attikaStoreyHeightM;
+          const active = n === (mm.requestedStoreys != null ? mm.requestedStoreys : mm.storeys);
+          return `<button type="button" class="choice${active ? ' active' : ''}${suppressedHere ? ' unavailable' : ''}" data-storeys="${n}">`
             + `<b>${storeyCountLabel(ordinary, attika)}</b><span>${fmt(plate)} m² je Geschoss</span>`
-            + `<span>${fmt(cov, 0)} % überbaut · ${fmt(heightM)} m hoch</span></button>`;
+            + `<span>${fmt(cov, 0)} % überbaut · ${fmt(heightM)} m hoch</span>`
+            + (suppressedHere ? `<span class="choice-warn">Attika hier nicht darstellbar — gerechnet mit ${storeyCountLabel(ordinary, 0)}</span>` : '')
+            + `</button>`;
         }).join('') +
         `</div>`;
       storeySelEl.querySelectorAll('.choice').forEach((b) => b.addEventListener('click', () => {
@@ -1320,7 +1341,10 @@
     // they come first.
     for (const d of (r.degraded || [])) flags.push(esc(d));
     const mmForFlags = r.massingModel;
-    if (mmForFlags && mmForFlags.attikaStoreys > 0) {
+    // attikaSuppressed: the storey was chosen and then dropped for want of
+    // room under the 45° profile — attikaStoreys is 0 by then, but that is
+    // exactly the case this flag has to explain.
+    if (mmForFlags && (mmForFlags.attikaStoreys > 0 || mmForFlags.attikaSuppressed)) {
       const ueb = mmForFlags.attikaUeberhoehungM || 0;
       const profilText = ueb > 0
         ? `45°-Profil ab max. ${fmt(ueb)} m über der Schnittlinie (Art. 31 Abs. 1 BZO ${esc(rules.gemeinde)}), Rücksprung = Attikahöhe − ${fmt(ueb)} m = ${fmt(mmForFlags.attikaSetbackM)} m`
@@ -1336,7 +1360,7 @@
               ? ` Baukörper ${fmt(d.belowLengthM)} × ${fmt(d.belowWidthM)} m; auf der Bergseite ist die Wand fassadenbündig, die drei übrigen Seiten je ${fmt(sb)} m zurück — bleiben ${fmt(d.narrowestM)} m schmalste Ausdehnung.`
               : ` Baukörper ${fmt(d.belowLengthM)} × ${fmt(d.belowWidthM)} m minus ${fmt(sb)} m auf allen vier Seiten ergibt ${fmt(d.belowLengthM - 2 * sb)} × ${fmt(d.belowWidthM - 2 * sb)} m, also nur ${fmt(d.narrowestM)} m schmalste Ausdehnung.`)
           : '';
-        flags.push(`Kein Attikageschoss darstellbar: ${profilText} lässt zu wenig übrig — unter ${T.MIN_PRIMITIVE_WIDTH_M} m, was kein baubarer Raum mehr ist.${calc} Die Vollgeschosse darunter bleiben davon unberührt.`);
+        flags.push(`Kein Attikageschoss darstellbar: ${profilText} lässt zu wenig übrig — unter ${T.MIN_PRIMITIVE_WIDTH_M} m, was kein baubarer Raum mehr ist.${calc} Die Vollgeschosse darunter bleiben davon unberührt: gerechnet und dargestellt wird ${storeyCountLabel(mmForFlags.ordinaryStoreys, 0)} mit ${fmt(mmForFlags.buildingHeightM)} m Gebäudehöhe — Höhe, Volumen und Nutzfläche oben enthalten die Attika daher nicht. Zonenrechtlich zulässig wäre sie; sie scheitert allein an der Tiefe des Baukörpers.`);
       } else {
         const hg = mmForFlags.hang;
         const bergUsed = mmForFlags.hangUphillBearingDeg != null;

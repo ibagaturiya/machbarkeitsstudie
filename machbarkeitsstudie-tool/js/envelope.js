@@ -208,6 +208,33 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     };
   }
 
+  // The Attika storey is a legal possibility until the geometry says
+  // otherwise: the 45° profile of Art. 31 can eat the whole top storey on a
+  // narrow Baukörper (a 7.3 m deep block minus 2 × 2.25 m Rücksprung leaves
+  // 2.8 m). app.js discovers that only after the footprint exists, and when
+  // it does, EVERY number derived from the Attika has to go with it --
+  // otherwise the panel reports a 9.8 m building, its volume and its floor
+  // area while the model draws a 6.5 m box, and the 3D height dimension
+  // hangs in the air above the roof. Called from app.js the moment
+  // computeAttikaFootprints comes back empty.
+  //
+  // requestedStoreys keeps what the user actually picked, so the storey
+  // picker can still show that choice as active and label it as not
+  // representable instead of silently jumping the highlight one card back.
+  function suppressAttikaStorey(mm) {
+    if (!mm || mm.attikaStoreys <= 0) return mm;
+    mm.requestedStoreys = mm.storeys;
+    mm.attikaSuppressed = true;
+    mm.storeys = mm.ordinaryStoreys;
+    mm.attikaStoreys = 0;
+    mm.attikaFloorplateM2 = 0;
+    mm.buildingHeightM = mm.ordinaryStoreys * mm.ordinaryStoreyHeightM;
+    mm.nutzflaecheTotalM2 = mm.floorplateM2 * mm.ordinaryStoreys + mm.ugFloorplateM2 * mm.ugStoreys;
+    mm.volumeM3 = mm.floorplateM2 * mm.ordinaryStoreys * mm.ordinaryStoreyHeightM;
+    return mm;
+  }
+
   window.MachbarkeitTool.buildMassingModel = buildMassingModel;
+  window.MachbarkeitTool.suppressAttikaStorey = suppressAttikaStorey;
   window.MachbarkeitTool.reconcileEnvelope = reconcileEnvelope;
 })();

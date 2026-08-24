@@ -339,6 +339,10 @@
   .choice b { font-size: 0.82rem; color: var(--text); }
   .choice:hover { border-color: var(--accent); }
   .choice.active { border-color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+  /* Chosen, but the Attika didn't survive the 45°-Profil: the card stays
+     selectable and keeps its label, while saying what was actually built. */
+  .choice.unavailable b { text-decoration: line-through; text-decoration-thickness: 1px; opacity: 0.75; }
+  .choice-warn { color: var(--warn-text); font-size: 0.68rem; margin-top: 0.15rem; }
   .grundbuch-form { padding: 0.7rem; }
   .cost-estimate { padding: 0.7rem; }
   footer { margin-top: 1rem; font-size: 0.72rem; }
