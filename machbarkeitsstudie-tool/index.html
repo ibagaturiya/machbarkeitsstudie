@@ -314,9 +314,13 @@
      reviews the pages, then either goes back ("Zurück") or saves the PDF
      ("PDF speichern" -> window.print()). Fixed overlay so the app behind it
      never scrolls along. */
-  #print-doc.preview { display: block; position: fixed; inset: 0; z-index: 900;
+  /* z-index above 1000: Leaflet's map controls (zoom, scale bar,
+     attribution) sit at z-index up to 1000 in the page's stacking context,
+     and at 900 the preview rendered BEHIND them — the app map's scale bar
+     and attribution floated over the PDF sheets. */
+  #print-doc.preview { display: block; position: fixed; inset: 0; z-index: 1100;
                        overflow: auto; background: #666; padding: 64px 0 20px; }
-  #print-toolbar { display: none; position: fixed; top: 0; left: 0; right: 0; z-index: 901;
+  #print-toolbar { display: none; position: fixed; top: 0; left: 0; right: 0; z-index: 1101;
                    background: #2b2b2e; color: #fff; padding: 10px 16px;
                    display: none; align-items: center; gap: 0.6rem;
                    box-shadow: 0 1px 6px rgba(0,0,0,.4); }
@@ -339,7 +343,7 @@
                 vertical-align: baseline; text-transform: uppercase; }
 
   /* Evidence viewer modal */
-  #evidence-overlay { display: none; position: fixed; inset: 0; z-index: 950;
+  #evidence-overlay { display: none; position: fixed; inset: 0; z-index: 1200;
                       background: rgba(0,0,0,.55); }
   #evidence-overlay.open { display: block; }
   #evidence-panel { position: absolute; inset: 4% 8%; background: var(--bg-pane, #fff);
@@ -377,7 +381,18 @@
   #print-doc .sheet-head { border-bottom: 2px solid #1a1a1a; padding-bottom: 4mm; margin-bottom: 7mm; flex: none; }
   #print-doc .kicker { font-size: 9pt; letter-spacing: .12em; text-transform: uppercase; color: #7a6a55; margin-bottom: 2mm; }
   #print-doc .sheet-head h2 { font-size: 24pt; margin: 0; font-weight: 600; letter-spacing: -.01em; }
-  #print-doc .sheet-body { flex: 1 1 auto; min-height: 0; font-size: 11.5pt; line-height: 1.5; }
+  /* overflow hidden: a sheet is a fixed 420x297mm page — content that does
+     not fit must be clipped, never painted over the sources line and footer
+     below it (the garbled-text overlap on content-heavy sheets). Long
+     content gets its own continuation sheet instead (print.js). */
+  #print-doc .sheet-body { flex: 1 1 auto; min-height: 0; font-size: 11.5pt; line-height: 1.5; overflow: hidden; }
+  #print-doc .quote-list { columns: 2; column-gap: 10mm; font-size: 9pt; line-height: 1.45; }
+  #print-doc .quote-item { break-inside: avoid; margin-bottom: 4mm; }
+  #print-doc .quote-item .q-head { font-weight: 600; }
+  #print-doc .quote-item .q-ref { color: #7a6a55; font-size: 8pt; }
+  #print-doc .quote-item .q-text { font-style: italic; color: #333; }
+  #print-doc .flags-cols { columns: 2; column-gap: 10mm; }
+  #print-doc .flags-cols .flagline { break-inside: avoid; font-size: 9pt; }
   #print-doc .sheet-foot {
     flex: none; border-top: 1px solid #d5d5d5; padding-top: 3mm; margin-top: 6mm;
     font-size: 8pt; color: #777; display: flex; justify-content: space-between;

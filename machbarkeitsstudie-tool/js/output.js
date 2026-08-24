@@ -138,7 +138,13 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     const polygons = rings
       .map((ring) => `<polygon points="${ring.map(toPixel).join(' ')}" fill="rgba(255,0,0,0.15)" stroke="red" stroke-width="3" />`)
       .join('');
-    return `<svg width="${widthPx}" height="${heightPx}" style="position:absolute;top:0;left:0;pointer-events:none;">${polygons}</svg>`;
+    // viewBox + 100%-sizing, NOT fixed pixel width/height: the containers
+    // this lands in (print sheets, the zoning excerpt pane) scale the raster
+    // layers with CSS, and an SVG without a viewBox does not scale its
+    // contents along — the outline then drifts against the map exactly by
+    // the scale factor (the "shifted selection" bug in the PDF preview).
+    return `<svg viewBox="0 0 ${widthPx} ${heightPx}" preserveAspectRatio="none" ` +
+      `style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;">${polygons}</svg>`;
   }
 
   // Bbox covering every given LV95 ring, padded by marginM, forced square

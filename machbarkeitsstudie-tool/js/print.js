@@ -387,7 +387,6 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
           ${checklistHtml(checklist.tierA)}
           <h3 style="margin-top:6mm">Manuell zu prüfen</h3>
           ${checklistHtml(checklist.tierB)}
-          ${flags.length ? `<div class="flags">${flags.map((f) => `<div class="flagline">${esc(f)}</div>`).join('')}</div>` : ''}
         </div>
         <div>${restrictionMap}</div>
       </div>`,
@@ -398,6 +397,17 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
         ['Begrünung', 'begruenung_perimeter_min_pct'],
         ['Attika', 'attika_profil_ueberhoehung_m'],
       ]));
+
+    // ---- Sheet 4b: Hinweise (the flags) ------------------------------------
+    // The warnings are numerous and legally load-bearing; squeezed under the
+    // checklist they overflowed the fixed sheet and painted over the sources
+    // line. They get their own sheet, two columns.
+    const s4b = flags.length
+      ? sheet('Hinweise und Vorbehalte der Berechnung', 'Jede Vereinfachung, ausgeschrieben',
+          `<div class="flags-cols">${flags.map((f) => `<div class="flagline">${esc(f)}</div>`).join('')}</div>`,
+          foot,
+          '<b>Quellen:</b> je Hinweis im Text genannt (Artikel/Paragraph); Wortlaut der zitierten Bestimmungen auf dem Blatt «Quellen und Vorbehalte».')
+      : '';
 
     // ---- Sheet 5: Kosten ---------------------------------------------------
     const s5 = sheet('Grobe Kostenschätzung', 'Sehr grob — keine Kostenplanung',
@@ -429,8 +439,47 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       '<b>Quellen:</b> Kostenkennwert ist eine Werkzeug-Annahme (Bandbreite CHF 800–1000/m³ BKP 2), kein Gesetzeswert. Volumen aus dem oben hergeleiteten Baukörper.');
 
     // ---- Sheet 6: Quellen & Vorbehalte ------------------------------------
-    const s6 = sheet('Quellen und Vorbehalte', 'Grundlage und Grenzen dieser Auswertung',
-      `<div class="cols c-5050">
+    // Full WORDING of every cited provision (from the provenance records) —
+    // the report has to carry the paragraphs it quotes, not just references.
+    const QUOTE_LIST = [
+      ['Ausnützungsziffer', 'ausnuetzungsziffer_max_pct'],
+      ['Überbauungsziffer', 'ueberbauungsziffer_hauptgebaeude_max_pct'],
+      ['Grünflächenziffer', 'gruenflaechenziffer_min_pct'],
+      ['Vollgeschosse', 'vollgeschosse_max'],
+      ['Anrechenbares Untergeschoss', 'anrechenbares_untergeschoss_max'],
+      ['Anrechenbare Dach-/Attikageschosse', 'anrechenbares_dach_attika_max'],
+      ['Zulässige Höhe', rules.heightRegime ? 'gebaeudehoehe_max_m_bzo2016' : (rules.traufseitige_fassadenhoehe_max_m != null ? 'traufseitige_fassadenhoehe_max_m' : 'gebaeudehoehe_max_m')],
+      ['Firsthöhe (Zuschlag)', 'firsthoehe_zuschlag_m'],
+      ['Grenzabstand (Grundabstand)', 'grundabstand_min_m'],
+      ['Grosser Grenzabstand / Hauptfassaden', 'grosser_grenzabstand_suedseiten', 'grosser_grenzabstand_min_m'],
+      ['Mehrlängenzuschlag', 'mehrlaengenzuschlag'],
+      ['Gebäude-/Gesamtlänge', rules.gesamtlaenge_max_m != null ? 'gesamtlaenge_max_m' : 'gebaeudelaenge_inkl_klein_anbauten_max_m'],
+      ['Anrechenbare Grundstücksfläche', 'massgebliche_grundflaeche', 'anrechenbare_grundstuecksflaeche', 'massgebliche_grundflaeche_altrecht'],
+      ['Freibetrag Dach-/Attika-/UG', 'dach_attika_ug_freibetrag'],
+      ['Attika-Profil (45°)', 'attika_profil_ueberhoehung_m'],
+      ['Attika Bergseite', 'attika_bergseite'],
+      ['Waldabstand', 'waldabstand'],
+      ['Strassenabstand ohne Baulinien', 'strassenabstand_ohne_baulinien_m'],
+      ['Begrünung', 'begruenung_perimeter_min_pct'],
+      ['Negative Vorwirkung (Regime)', 'negative_vorwirkung'],
+    ];
+    const quoteItems = [];
+    for (const [label, ...keys] of QUOTE_LIST) {
+      let prov = null;
+      for (const k of keys) {
+        prov = T.getProvenance ? T.getProvenance(rules, k) : null;
+        if (prov) break;
+      }
+      if (!prov || !prov.quote) continue;
+      quoteItems.push(
+        `<div class="quote-item"><div class="q-head">${esc(label)}</div>` +
+        `<div class="q-ref">${esc(prov.article || '')}${prov.page ? `, S. ${prov.page}` : ''}${prov.title ? ` — ${esc(prov.title)}` : ''}</div>` +
+        `<div class="q-text">„${esc(prov.quote)}"</div></div>`
+      );
+    }
+
+    const s6 = sheet('Quellen und Vorbehalte', 'Grundlage und Grenzen dieser Auswertung — mit Wortlaut',
+      `<div class="cols c-5050" style="margin-bottom:5mm">
         <div>
           <h3>Quellen</h3>
           <table class="facts">
@@ -441,9 +490,6 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
             <tr><td>Waldabstand</td><td>Kantonale Geodaten ogd-0152 (Abstandslinie) und ogd-0111 (Waldareal)</td></tr>
             <tr><td>Terrain</td><td>swissALTI3D</td></tr>
           </table>
-          ${rules.source.paragraph_text
-            ? `<div class="note-box small">„${esc(rules.source.paragraph_text)}"</div>`
-            : `<div class="note-box small"><i>Gesetzestext noch nicht erfasst — nur Artikelverweis verfügbar.</i></div>`}
         </div>
         <div>
           <h3>Vorbehalte</h3>
@@ -455,9 +501,11 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
             Kein Ersatz für eine unterschriebene Machbarkeitsstudie oder ein Baugesuch.
           </div>
         </div>
-      </div>`, foot);
+      </div>
+      <h3>Zitierte Bestimmungen (Wortlaut)</h3>
+      <div class="quote-list">${quoteItems.join('')}</div>`, foot);
 
-    const html = [s1, s2, s2b, s3, s4, s5, s6].join('');
+    const html = [s1, s2, s2b, s3, s4, s4b, s5, s6].join('');
     const host = document.getElementById('print-doc');
     host.innerHTML = html;
 
