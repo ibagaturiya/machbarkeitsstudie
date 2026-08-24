@@ -113,10 +113,17 @@ Wenn die BZO einen `grosser_grenzabstand_min_m` kennt (Zumikon: **10 m** W2/25,
 * Vorschlag = Kante(n), deren Aussennormale am nächsten bei **Süden (180°)**
   liegt; bei Gleichstand die längere. Kanten unter **3 m** gelten als Ecke.
   Die primäre Kante ist im Grundriss **anklickbar**.
+* Der 10-m-Streifen endet **bündig** an den Enden der gewählten Kante
+  (flache Enden, kein Kreisbogen): § 22 Abs. 2 ABV schlägt bei zwei
+  verschieden grossen Grundabständen den **kleineren** radial um die Ecken —
+  jenseits der Hauptfassade gilt also nur der kleine Abstand. (Die frühere
+  Linien-Buffer-Umsetzung mit runden Enden schnitt 10-m-Bögen über die
+  Fassadenenden hinaus aus der Parzelle — zu streng, und sie erzeugte
+  sichelförmige «Baukörper», z.B. Parzelle 5029.)
 * Vereinfachung (angezeigt): massgebend wären laut Art. 18 Abs. 2 die Seiten
   des **Gebäudes** (flächenkleinstes Rechteck), gemessen nach § 22 ABV
-  rechtwinklig zur Fassade mit radialem Eckumgriff. Die Näherung über die
-  Parzellenkanten liegt auf der sicheren Seite.
+  rechtwinklig zur Fassade. Die Näherung über die Parzellenkanten liegt auf
+  der sicheren Seite.
 * Parzellen ohne auswertbare Fassadenkante (alles < 3 m) stürzen nicht mehr ab,
   sondern rechnen einheitlich mit dem kleinen Abstand und warnen.
 

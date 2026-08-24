@@ -86,6 +86,32 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     return anisotropicSetbackMulti(parcelFeature, edge ? [edge] : [], smallM, bigM);
   }
 
+  // The bigM strip along one edge, with FLAT ends: a quad spanning exactly
+  // the edge's own extent, offset inward by bigM. NOT a line buffer — a
+  // buffer's stadium shape puts bigM-radius arcs around the edge ENDPOINTS,
+  // carving circular bites out of the parcel beyond the facade's span. That
+  // is stricter than the law: § 22 Abs. 2 ABV ("Bestehen gemäss Bau- und
+  // Zonenordnung zwei verschieden grosse Grundabstände, so ist der kleinere
+  // über die Gebäudeecken radial herumzuschlagen") wraps the SMALLER
+  // distance around the corners — beyond the Hauptfassade only the small
+  // Grundabstand applies. The rounded band also produced crescent-shaped
+  // buildable areas no rectangular building could fill (parcel 5029).
+  function edgeBandInward(parcelFeature, edge, bigM) {
+    const [ax, ay] = edge.a, [bx, by] = edge.b;
+    const len = Math.hypot(bx - ax, by - ay);
+    if (!len) return null;
+    let nx = -(by - ay) / len, ny = (bx - ax) / len;
+    // Point the normal INTO the parcel.
+    const probe = turf.point([(ax + bx) / 2 + nx * 0.5, (ay + by) / 2 + ny * 0.5]);
+    if (!turf.booleanPointInPolygon(probe, parcelFeature)) { nx = -nx; ny = -ny; }
+    return turf.polygon([[
+      [ax, ay], [bx, by],
+      [bx + nx * bigM, by + ny * bigM],
+      [ax + nx * bigM, ay + ny * bigM],
+      [ax, ay],
+    ]]);
+  }
+
   // Same differential offset for SEVERAL Hauptfassaden at once (Art. 18 BZO
   // Zumikon: W2/25 puts the grosse Grenzabstand on the TWO most south-facing
   // sides). Each edge loses its own bigM band; the bands may overlap at a
@@ -95,8 +121,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     if (!base || !edges || !edges.length || bigM == null || bigM <= smallM) return base;
     for (const edge of edges) {
       if (!edge) continue;
-      const edgeLine = turf.lineString([edge.a, edge.b]);
-      const band = T.bufferLV95(edgeLine, bigM);
+      const band = edgeBandInward(parcelFeature, edge, bigM);
       if (!band) continue;
       const bandInside = safeOp(() => turf.intersect(band, parcelFeature), null);
       if (!bandInside) continue;
