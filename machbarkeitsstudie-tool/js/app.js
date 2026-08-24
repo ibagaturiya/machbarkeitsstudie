@@ -17,6 +17,7 @@
   const selectionListEl = document.getElementById('selection-list');
   const resultsEl = document.getElementById('results');
   const versionBannerEl = document.getElementById('version-banner');
+  const zoneHeadlineEl = document.getElementById('zone-headline');
   const bindingSummaryEl = document.getElementById('binding-summary');
   const numbersTableEl = document.getElementById('numbers-table');
   const flagsEl = document.getElementById('flags');
@@ -284,6 +285,13 @@
     return String(s ?? '').replace(/[&<>"']/g, (c) => (
       { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
     ));
+  }
+
+  // The canton writes its zone names lowercase ("dreigeschossige Wohnzone");
+  // as a headline they read as a sentence, so lift the first letter.
+  function capitalize(s) {
+    const t = String(s ?? '');
+    return t ? t[0].toUpperCase() + t.slice(1) : t;
   }
 
   // First provenance hit among candidate keys — used to attach the "Beleg"
@@ -1189,6 +1197,20 @@
     versionBannerEl.textContent =
       `${rules.gemeinde} — Basis: ${rulesData.version}, ${rulesData.article_grundmasse} — Daten zuletzt geprüft: ${rulesData.data_last_verified}`;
 
+    // The zone leads the panel: every number underneath is derived from it,
+    // so it must be readable without hunting through the table.
+    const otherZonesInSelection = [...new Set(selection.map((p) => p.zone))].filter((z) => z !== anchor.zone);
+    zoneHeadlineEl.innerHTML =
+      `<div class="zone-code">Zone ${esc(anchor.zone)}</div>` +
+      (anchor.zoneLabel ? `<div class="zone-label">${esc(capitalize(anchor.zoneLabel))}</div>` : '') +
+      `<div class="zone-meta">Gemeinde ${esc(rules.gemeinde)}` +
+      ` · Rechtsstatus ${esc(anchor.zoneSource ? anchor.zoneSource.rechtsstatus : 'inKraft')}` +
+      ` · kantonale Nutzungsplanung (ogd-0156)` +
+      (otherZonesInSelection.length
+        ? ` · Auswahl enthält auch ${esc(otherZonesInSelection.join(', '))} — gerechnet wird durchgehend mit ${esc(anchor.zone)}`
+        : '') +
+      `</div>`;
+
     bindingSummaryEl.className = reconciled.usableFootprintAreaM2 <= 0 ? 'binding zero' : 'binding';
     const mm = r.massingModel;
     bindingSummaryEl.textContent = reconciled.usableFootprintAreaM2 <= 0 || !mm
@@ -1463,15 +1485,16 @@
     const mapW = 700, mapH = 700;
     const bbox = T.buildMapBbox(centerE, centerN, halfSpan * 1.6, mapW, mapH);
     zoningMapEl.innerHTML =
-      `<h2>Zonenplan-Ausschnitt (${multi ? 'gewählte Parzellen' : 'Parzelle'} rot markiert)</h2>` +
-      `<div style="position:relative;width:${mapW}px;max-width:100%;aspect-ratio:${mapW}/${mapH};">` +
+      `<h2>Zonenplan-Ausschnitt — Zone ${esc(anchor.zone)}${anchor.zoneLabel ? ` (${esc(anchor.zoneLabel)})` : ''}</h2>` +
+      `<div class="caption-line">${multi ? 'Gewählte Parzellen' : 'Parzelle'} rot markiert.</div>` +
+      `<div class="zoning-holder" style="position:relative;width:${mapW}px;max-width:100%;aspect-ratio:${mapW}/${mapH};">` +
       `<img src="${T.buildCadastreMapUrl(bbox, mapW, mapH)}" ` +
       `style="position:absolute;inset:0;width:100%;height:100%;mix-blend-mode:multiply;z-index:1;" alt="Parzellengrenzen">` +
       T.buildParcelOverlaySvg(allRings, bbox, mapW, mapH) +
       `</div>`;
     // Zone polygons arrive asynchronously; drop them in underneath once here.
     T.fetchZonePolygons(bbox).then((zoneFeatures) => {
-      const holder = zoningMapEl.querySelector('div');
+      const holder = zoningMapEl.querySelector('.zoning-holder');
       if (!holder || !zoneFeatures.length) return;
       holder.insertAdjacentHTML('afterbegin',
         T.buildZonePlanSvg(zoneFeatures, bbox, mapW, mapH).replace('<svg ', '<svg style="position:absolute;inset:0;width:100%;height:100%;" '));
@@ -1565,7 +1588,17 @@
       setStatus('Ermittle Zone…');
       const zone = await T.lookupZone(parcel.easting, parcel.northing);
       const rules = await T.getZoneRules(zone, gemeindeSelect.value || null);
-      const firstParcel = { ...parcel, zone: zone.zone, zoneSource: zone.zoneSource, rules };
+      // zoneLabel travels with the parcel like it does for map-clicked ones
+      // (parcel-selector.js) — without it the Ausgangsparzelle showed a bare
+      // code ("W2/25") everywhere, never the zone's actual name.
+      const firstParcel = {
+        ...parcel,
+        zone: zone.zone,
+        zoneLabel: zone.zoneLabel,
+        zoneDescription: zone.zoneDescription,
+        zoneSource: zone.zoneSource,
+        rules,
+      };
 
       mapSectionEl.style.display = 'flex';
       T.parcelMap = T.initParcelMap('map', firstParcel, refresh, gemeindeSelect.value || null);

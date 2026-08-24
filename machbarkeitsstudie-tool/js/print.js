@@ -173,11 +173,14 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     const envelopeVolumeM3 = massingModel ? massingModel.volumeM3 : reconciled.usableFootprintAreaM2 * rules.heightM;
     const cost = T.estimateCost(envelopeVolumeM3);
     const dateStr = new Date().toLocaleDateString('de-CH');
-    const foot = `${esc(rules.gemeinde)} · ${esc(rulesData.version)} · erstellt ${dateStr}`;
+    // The zone rides in the running footer of every sheet: it is the premise
+    // of every number in the document, and a page read on its own has to say
+    // which zone it is talking about.
+    const foot = `${esc(rules.gemeinde)} · Zone ${esc(anchor.zone)} · ${esc(rulesData.version)} · erstellt ${dateStr}`;
 
     // ---- Sheet 1: Übersicht ------------------------------------------------
     const s1 = sheet(anchor.address || selection.map((p) => p.parcelNumber).join(' + '),
-      'Machbarkeitsstudie — Übersicht',
+      `Machbarkeitsstudie — Übersicht · Zone ${anchor.zone}${anchor.zoneLabel ? ` (${anchor.zoneLabel})` : ''}`,
       `<div class="cols c-6040">
         <div>
           <div class="hero">

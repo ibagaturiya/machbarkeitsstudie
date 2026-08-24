@@ -169,6 +169,14 @@
   .version-banner { background: var(--warn-bg); border: 1px solid var(--warn-border); color: var(--warn-text); padding: 0.75rem 1rem; border-radius: 6px; margin-bottom: 1rem; font-size: 0.9rem; }
   .binding { background: var(--pass-bg); border: 1px solid var(--pass-badge); border-radius: 6px; padding: 1rem; margin-bottom: 1rem; }
   .binding.zero { background: var(--flag-bg); border-color: var(--flag-badge); }
+
+  /* Which zone the parcel is in decides every number below it, so it leads
+     the result panel rather than sitting as one row among thirty. */
+  .zone-headline { background: var(--accent-soft); border: 1px solid var(--accent);
+    border-radius: 6px; padding: 0.7rem 0.9rem; margin-bottom: 0.8rem; }
+  .zone-headline .zone-code { font-size: 1.5rem; font-weight: 700; line-height: 1.1; }
+  .zone-headline .zone-label { font-size: 0.95rem; margin-top: 0.15rem; }
+  .zone-headline .zone-meta { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.3rem; }
   table.numbers { border-collapse: collapse; margin-bottom: 1rem; }
   table.numbers td { padding: 0.25rem 0.75rem 0.25rem 0; }
   table.numbers td:first-child { color: var(--text-muted); }
@@ -297,10 +305,15 @@
 
   /* Deploy stamp, bottom of the page — confirms which pushed version is
      actually being served. __STAMP__ is replaced by the Pages workflow with
-     the deploy time (yyddmmhhmmss, Europe/Zurich); locally it reads "dev". */
+     the deploy time (yyyy.mm.dd..hh.mm.ss, Europe/Zurich); locally the inline
+     script fills in the browser's clock in the same shape. The block itself
+     stays click-through so it never swallows clicks on the page beneath —
+     only the link takes pointer events back. */
   #version-stamp { position: fixed; bottom: 2px; right: 8px; z-index: 40;
                    font-size: 10px; color: var(--text-muted); opacity: .8;
                    pointer-events: none; }
+  #version-stamp a { color: inherit; pointer-events: auto; }
+  #version-stamp a:hover { color: var(--accent); }
   @media print { #version-stamp { display: none; } }
   #viewer { height: 100%; margin: 0; background: var(--bg-sunken); }
   #floorplan { max-width: none; margin: 0; border-top: 1px solid var(--border); padding-top: 0.5rem; }
@@ -310,6 +323,10 @@
   #results { display: none; }
   table.numbers td { font-size: 0.83rem; padding: 0.18rem 0.6rem 0.18rem 0; }
   .binding { padding: 0.6rem 0.7rem; font-size: 0.88rem; margin-bottom: 0.6rem; }
+  .zone-headline { padding: 0.5rem 0.65rem; margin-bottom: 0.6rem; }
+  .zone-headline .zone-code { font-size: 1.25rem; }
+  .zone-headline .zone-label { font-size: 0.85rem; }
+  .zone-headline .zone-meta { font-size: 0.74rem; }
   .version-banner { font-size: 0.75rem; padding: 0.45rem 0.6rem; }
   .flag { font-size: 0.78rem; padding: 0.4rem 0.55rem; }
   .checklist-item { font-size: 0.8rem; }
@@ -513,6 +530,7 @@
     <section class="pane" id="pane-numbers">
       <h2 class="pane-title">Ergebnis</h2>
       <div id="results">
+        <div class="zone-headline" id="zone-headline"></div>
         <div class="binding" id="binding-summary"></div>
         <div id="storey-select"></div>
         <table class="numbers" id="numbers-table"></table>
@@ -600,14 +618,18 @@
 </div>
 <div id="print-doc"></div>
 
-<div id="version-stamp">Version __STAMP__ · Ivan Bagaturiya</div>
+<div id="version-stamp">version __STAMP__ - ivan bagaturiya <a href="https://bagaturiya.com" target="_blank" rel="noopener">bagaturiya.com</a></div>
 <script>
-  // Local run: the placeholder was not replaced by the deploy workflow.
+  // Local run: the placeholder was not replaced by the deploy workflow, so
+  // stamp the browser's own clock in the same yyyy.mm.dd..hh.mm.ss shape.
   (function () {
     var v = document.getElementById('version-stamp');
-    if (v.textContent.indexOf('__' + 'STAMP' + '__') !== -1) {
-      v.textContent = 'Version dev (lokal) · Ivan Bagaturiya';
-    }
+    if (v.innerHTML.indexOf('__' + 'STAMP' + '__') === -1) return;
+    var d = new Date();
+    var p = function (n) { return String(n).padStart(2, '0'); };
+    var stamp = d.getFullYear() + '.' + p(d.getMonth() + 1) + '.' + p(d.getDate())
+      + '..' + p(d.getHours()) + '.' + p(d.getMinutes()) + '.' + p(d.getSeconds());
+    v.innerHTML = v.innerHTML.replace('__' + 'STAMP' + '__', stamp + ' (lokal)');
   })();
 </script>
 
