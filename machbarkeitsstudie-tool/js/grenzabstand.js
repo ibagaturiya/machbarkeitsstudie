@@ -52,19 +52,22 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     return edges;
   }
 
-  // Suggests the edge whose outward normal is closest to due south (180°).
-  // Ties (rare, e.g. a square lot) go to the longer edge.
-  function pickSouthFacade(parcelFeature) {
+  // Ranks the edges by how close their outward normal is to due south (180°).
+  // Ties (rare, e.g. a square lot) go to the longer edge. suggestedIndex is
+  // the single best edge; suggestedIndices are the `count` best-ranked ones —
+  // Art. 18 BZO Zumikon needs TWO for W2/25 ("die beiden am meisten gegen
+  // Süden gerichteten Gebäudeseiten"), one for the other zones.
+  function pickSouthFacade(parcelFeature, count = 1) {
     const edges = facadeEdgesOf(parcelFeature);
-    if (!edges.length) return { edges, suggestedIndex: null };
-    let best = 0, bestScore = Infinity;
-    edges.forEach((e, i) => {
+    if (!edges.length) return { edges, suggestedIndex: null, suggestedIndices: [] };
+    const score = (e) => {
       const diff = Math.abs(e.bearingDeg - 180);
       const angularDiff = Math.min(diff, 360 - diff);
-      const score = angularDiff - e.length * 0.01; // slight bias to the longer of near-ties
-      if (score < bestScore) { bestScore = score; best = i; }
-    });
-    return { edges, suggestedIndex: best };
+      return angularDiff - e.length * 0.01; // slight bias to the longer of near-ties
+    };
+    const ranked = edges.map((e, i) => [score(e), i]).sort((a, b) => a[0] - b[0]);
+    const suggestedIndices = ranked.slice(0, Math.max(1, count)).map(([, i]) => i);
+    return { edges, suggestedIndex: suggestedIndices[0], suggestedIndices };
   }
 
   // The differential offset. Baseline is the ordinary uniform buffer at
@@ -80,16 +83,30 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   // simplification the tool's own flag already names as such, not a full
   // per-edge variable offset around the whole polygon.
   function anisotropicSetback(parcelFeature, edge, smallM, bigM) {
-    const base = T.bufferLV95(parcelFeature, -smallM);
-    if (!base || !edge || bigM == null || bigM <= smallM) return base;
-    const edgeLine = turf.lineString([edge.a, edge.b]);
-    const band = T.bufferLV95(edgeLine, bigM);
-    if (!band) return base;
-    const bandInside = safeOp(() => turf.intersect(band, parcelFeature), null);
-    if (!bandInside) return base;
-    return safeOp(() => turf.difference(base, bandInside), base) || base;
+    return anisotropicSetbackMulti(parcelFeature, edge ? [edge] : [], smallM, bigM);
+  }
+
+  // Same differential offset for SEVERAL Hauptfassaden at once (Art. 18 BZO
+  // Zumikon: W2/25 puts the grosse Grenzabstand on the TWO most south-facing
+  // sides). Each edge loses its own bigM band; the bands may overlap at a
+  // shared corner, which difference() handles naturally.
+  function anisotropicSetbackMulti(parcelFeature, edges, smallM, bigM) {
+    let base = T.bufferLV95(parcelFeature, -smallM);
+    if (!base || !edges || !edges.length || bigM == null || bigM <= smallM) return base;
+    for (const edge of edges) {
+      if (!edge) continue;
+      const edgeLine = turf.lineString([edge.a, edge.b]);
+      const band = T.bufferLV95(edgeLine, bigM);
+      if (!band) continue;
+      const bandInside = safeOp(() => turf.intersect(band, parcelFeature), null);
+      if (!bandInside) continue;
+      base = safeOp(() => turf.difference(base, bandInside), base) || base;
+      if (!base) return null;
+    }
+    return base;
   }
 
   T.pickSouthFacade = pickSouthFacade;
   T.anisotropicSetback = anisotropicSetback;
+  T.anisotropicSetbackMulti = anisotropicSetbackMulti;
 })();

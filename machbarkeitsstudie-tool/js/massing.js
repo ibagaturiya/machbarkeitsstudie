@@ -116,7 +116,10 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       union,
       count: blocks.length,
       totalAreaM2,
-      blockLengthM: first.blockLen,
+      // The real longest block after ALL split rounds — a depth-2 re-slice
+      // across the other axis grows blocks.length, so the first pass's
+      // blockLen would overstate what "count × length" multiplies out to.
+      blockLengthM: longest,
       longestBlockM: longest,
       gapM,
     };

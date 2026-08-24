@@ -1,5 +1,10 @@
 {
-  "_comment": "Resolves the section 11 / Art. 9 E-BZO data gap: cantonal Grenz-/Gebäudeabstand figures that apply for INTERNAL boundaries within a merged Arealüberbauung, replacing the communal Grundabstand from bzo-zurich-wohnzonen.json. Sourced from the current, full PBG text (source/pbg-700.1-current.pdf, Nachtrag 134, Stand 1.10.2026), not the ABV -- ABV §§21-26 govern the communal Grenzabstand system, which Art. 9 E-BZO explicitly opts out of.",
+  "_comment": "Kantonales Recht (PBG 700.1 / ABV 700.2), das die Berechnung direkt verwendet: (a) die kantonalen Abstandsfiguren für interne Grenzen einer Arealüberbauung (Art. 9 E-BZO), (b) die Definitions- und Messnormen hinter AZ/ÜZ/GFZ, anrechenbarer Grundstücksfläche, Grenzabstand und Attika/Firsthöhe. Diese Datei wird von rules.js geladen und speist die Beleganzeige (Evidence-Viewer) für alle kantonal begründeten Werte.",
+
+  "_docs": {
+    "pbg": { "file": "source/pbg-700.1-current.pdf", "title": "Planungs- und Baugesetz Kanton Zürich (PBG, 700.1, Nachtrag 134)" },
+    "abv": { "file": "source/abv-700.2.pdf", "title": "Allgemeine Bauverordnung Kanton Zürich (ABV, 700.2)" }
+  },
 
   "trigger": {
     "article": "Art. 9, E-BZO",
@@ -10,53 +15,74 @@
 
   "grenzabstand_kantonal_base_m": {
     "value": 3.5,
-    "source": {
-      "article": "§ 270 Abs. 1, PBG (700.1)",
-      "version": "PBG, Nachtrag 134, Stand 1.10.2026",
-      "paragraph_text": "Alle andern Gebäude dürfen, sofern nicht der Grenzbau vorgeschrieben oder erlaubt ist, die im Abstand von 3,5 m parallel zur Grenze verlaufende Linie nicht überschreiten.",
-      "screenshot": null
-    }
+    "source": { "article": "§ 270 Abs. 1, PBG (700.1)", "version": "PBG, Nachtrag 134, Stand 1.10.2026", "doc": "pbg", "page": 63, "highlight": "3,5 m parallel", "paragraph_text": "Alle andern Gebäude dürfen, sofern nicht der Grenzbau vorgeschrieben oder erlaubt ist, die im Abstand von 3,5 m parallel zur Grenze verlaufende Linie nicht überschreiten.", "screenshot": null }
   },
 
   "gebaeudeabstand_kantonal_min_m": {
     "value": 7,
     "note": "= sum of both sides' required Grenzabstand, not necessarily 2x the base if the two buildings face different height-adjusted requirements.",
-    "source": {
-      "article": "§ 271, PBG (700.1)",
-      "version": "PBG, Nachtrag 134, Stand 1.10.2026",
-      "paragraph_text": "Der Abstand zwischen Gebäuden, die Grenzabstände einhalten müssen, hat ohne Rücksicht auf Grundstückgrenzen der Summe der beidseitig nötigen Grenzabstände zu entsprechen.",
-      "screenshot": null
-    }
+    "source": { "article": "§ 271, PBG (700.1)", "version": "PBG, Nachtrag 134, Stand 1.10.2026", "doc": "pbg", "page": 64, "highlight": "Summe", "paragraph_text": "Der Abstand zwischen Gebäuden, die Grenzabstände einhalten müssen, hat ohne Rücksicht auf Grundstückgrenzen der Summe der beidseitig nötigen Grenzabstände zu entsprechen.", "screenshot": null }
   },
 
   "mehrhoehenzuschlag": {
-    "rule": "Building parts exceeding the Fassadenhöhe permitted under Regelüberbauung get their Grenz- and Gebäudeabstand increased by the excess height, 1:1 (per meter over -> per meter added to the required distance). This is the cantonal-system equivalent of the communal Mehrhöhenzuschlag in ABV §§21-26 -- do not reuse the ABV mechanism/numbers here, they're for the communal system Art. 9 opts out of.",
-    "not_yet_resolved": "Which reference Fassadenhöhe counts as 'Regelüberbauung zulässige Fassadenhöhe' for an Arealüberbauung specifically (the standalone zone's traufseitige Fassadenhöhe max from bzo-zurich-wohnzonen.json, or the Areal-bonus figure from Art. 7(2) E-BZO)? Not addressed by any source read so far. Needs a real answer before this feeds envelope math for tall Areal buildings (e.g. W6/übrige Zonen at 25 m, well past most plausible reference heights) -- do not guess, flag as open in the UI/checklist until resolved.",
-    "source": {
-      "article": "§ 260 Abs. 3, PBG (700.1)",
-      "version": "PBG, Nachtrag 134, Stand 1.10.2026",
-      "paragraph_text": "Die Grenz- und Gebäudeabstände sind bei seitlich gegliederten Gebäuden für jeden Teil getrennt zu messen. Für Gebäudeteile, welche die für die Regelüberbauung zulässige Fassadenhöhe überschreiten, sind sie um das Mass der Mehrhöhe zu vergrössern.",
-      "screenshot": null
-    }
+    "rule": "Building parts exceeding the Fassadenhöhe permitted under Regelüberbauung get their Grenz- and Gebäudeabstand increased by the excess height, 1:1. This is the cantonal-system equivalent of the communal Mehrhöhenzuschlag in ABV §§21-26 -- do not reuse the ABV mechanism/numbers here, they're for the communal system Art. 9 opts out of.",
+    "not_yet_resolved": "Which reference Fassadenhöhe counts as 'Regelüberbauung zulässige Fassadenhöhe' for an Arealüberbauung specifically. Do not guess, flag as open in the UI/checklist until resolved.",
+    "source": { "article": "§ 260 Abs. 3, PBG (700.1)", "version": "PBG, Nachtrag 134, Stand 1.10.2026", "doc": "pbg", "page": 62, "highlight": "Mehrhöhe", "paragraph_text": "Die Grenz- und Gebäudeabstände sind bei seitlich gegliederten Gebäuden für jeden Teil getrennt zu messen. Für Gebäudeteile, welche die für die Regelüberbauung zulässige Fassadenhöhe überschreiten, sind sie um das Mass der Mehrhöhe zu vergrössern.", "screenshot": null }
   },
 
   "exempt_small_structures": {
     "rule": "Buildings with total height <= 1.5 m and footprint <= 2 sqm need no Grenz- or Gebäudeabstand at all.",
-    "source": {
-      "article": "§ 260 Abs. 4, PBG (700.1)",
-      "version": "PBG, Nachtrag 134, Stand 1.10.2026",
-      "paragraph_text": "Gebäude, deren Gesamthöhe nicht mehr als 1,5 m beträgt und die eine Bodenfläche von höchstens 2 m2 überlagern, müssen keine Grenz- und Gebäudeabstände einhalten.",
-      "screenshot": null
-    }
+    "source": { "article": "§ 260 Abs. 4, PBG (700.1)", "version": "PBG, Nachtrag 134, Stand 1.10.2026", "doc": "pbg", "page": 62, "highlight": "Gesamthöhe nicht mehr als 1,5 m", "paragraph_text": "Gebäude, deren Gesamthöhe nicht mehr als 1,5 m beträgt und die eine Bodenfläche von höchstens 2 m2 überlagern, müssen keine Grenz- und Gebäudeabstände einhalten.", "screenshot": null }
   },
 
   "boundary_scope_rule": {
-    "rule": "The cantonal figures above apply ONLY to boundaries internal to the merged Areal (previously-shared edges between the merged parcels). Distances toward actual outside neighbors, forests, water bodies, and streets may NOT be reduced by an areal-specific rule -- this is the legal basis for the outer-vs-internal boundary split already scoped in build plan section 11, step 2. It is not just a modeling convenience, it's required by law.",
-    "source": {
-      "article": "§ 72 Abs. 2, PBG (700.1)",
-      "version": "PBG, Nachtrag 134, Stand 1.10.2026",
-      "paragraph_text": "Die Abstände gegenüber Waldungen, Gewässern, Nachbargrundstücken und Strassen − ausser solchen, die vorwiegend der Arealerschliessung dienen − dürfen nicht verringert werden.",
-      "screenshot": null
+    "rule": "The cantonal figures above apply ONLY to boundaries internal to the merged Areal. Distances toward actual outside neighbors, forests, water bodies, and streets may NOT be reduced.",
+    "source": { "article": "§ 72 Abs. 2, PBG (700.1)", "version": "PBG, Nachtrag 134, Stand 1.10.2026", "doc": "pbg", "page": 19, "highlight": "Arealerschliessung", "paragraph_text": "Die Abstände gegenüber Waldungen, Gewässern, Nachbargrundstücken und Strassen − ausser solchen, die vorwiegend der Arealerschliessung dienen − dürfen nicht verringert werden.", "screenshot": null }
+  },
+
+  "normen": {
+    "ausnuetzungsziffer_definition": {
+      "source": { "article": "§ 255 Abs. 1, PBG", "doc": "pbg", "page": 60, "highlight": "Ausnützungsziffer", "paragraph_text": "Die Ausnützungsziffer ist das Verhältnis der anrechenbaren Geschossfläche zur anrechenbaren Grundstücksfläche." }
+    },
+    "dach_attika_ug_freibetrag": {
+      "rule": "Flächen in Dach-, Attika- und Untergeschossen sind erst anrechenbar, soweit sie JE GESCHOSS die Fläche überschreiten, die sich bei gleichmässiger Aufteilung der gesamten zulässigen Ausnützung auf die zulässige Vollgeschosszahl ergäbe. D.h. jedes zulässige Dach-/Attika-/Untergeschoss hat einen AZ-Freibetrag von (zulässige AZ-Fläche / Vollgeschosszahl).",
+      "source": { "article": "§ 255 Abs. 3, PBG", "doc": "pbg", "page": 60, "highlight": "gleichmässiger Aufteilung", "paragraph_text": "Entsprechende Flächen in Dach-, Attika- und Untergeschossen sind anrechenbar, soweit sie je Geschoss die Fläche überschreiten, die sich bei gleichmässiger Aufteilung der gesamten zulässigen Ausnützung auf die zulässige Vollgeschosszahl ergäbe." }
+    },
+    "ueberbauungsziffer_definition": {
+      "source": { "article": "§ 256 Abs. 1, PBG", "doc": "pbg", "page": 61, "highlight": "Überbauungsziffer", "paragraph_text": "Die Überbauungsziffer ist das Verhältnis der anrechenbaren Gebäudefläche zur anrechenbaren Grundstücksfläche. Als anrechenbare Gebäudefläche gilt die Fläche innerhalb der projizierten Fassadenlinie." }
+    },
+    "gruenflaechenziffer_definition": {
+      "source": { "article": "§ 257 Abs. 1/2, PBG", "doc": "pbg", "page": 61, "highlight": "Grünflächenziffer", "paragraph_text": "Die Grünflächenziffer ist das Verhältnis der anrechenbaren Grünfläche zur anrechenbaren Grundstücksfläche. Als anrechenbare Grünfläche gelten natürliche oder bepflanzte Bodenflächen eines Grundstücks, die nicht versiegelt sind und die nicht als Abstellflächen dienen." }
+    },
+    "anrechenbare_grundstuecksflaeche": {
+      "rule": "Harmonisiertes Recht (Stadt Zürich / E-BZO): nur Flächen in der entsprechenden Bauzone zählen; Hauszufahrten werden angerechnet, Flächen der Grund-, Grob- und Feinerschliessung nicht.",
+      "source": { "article": "§ 259, PBG", "doc": "pbg", "page": 61, "highlight": "anrechenbaren Grundstücksfläche", "paragraph_text": "Zur anrechenbaren Grundstücksfläche gehören die in der entsprechenden Bauzone liegenden Grundstücksflächen bzw. Grundstücksteile. Die Flächen der Hauszufahrten werden angerechnet. Nicht angerechnet werden die Flächen der Grund-, Grob- und Feinerschliessung."
+      }
+    },
+    "massgebliche_grundflaeche_altrecht": {
+      "rule": "Altes Recht (Gemeinden mit nicht-harmonisierter BZO, z.B. Zumikon 2019): massgeblich ist die Fläche der Bauzonen-Grundstücke; ausser Ansatz fallen Waldabstandsflächen >15 m hinter der Waldabstandslinie, Wald und offene Gewässer.",
+      "source": { "article": "§ 259 aPBG (Anhang bisheriges Recht)", "doc": "pbg", "page": 97, "highlight": "Massgebliche Grundfläche", "paragraph_text": "Massgebliche Grundfläche ist die von der Baueingabe erfasste Fläche der baulich noch nicht ausgenützten Grundstücke oder Grundstückteile der Bauzone. Ausser Ansatz fallen Waldabstandsflächen, soweit sie mehr als 15 m hinter der Waldabstandslinie liegen, Wald und offene Gewässer." }
+    },
+    "grenzabstand_definition": {
+      "source": { "article": "§ 260 Abs. 1/2, PBG", "doc": "pbg", "page": 62, "highlight": "Grenzabstand", "paragraph_text": "Der Grenzabstand ist die Entfernung zwischen der projizierten Fassadenlinie und der Grundstücksgrenze. Der Gebäudeabstand ist die Entfernung zwischen den projizierten Fassadenlinien zweier Gebäude." }
+    },
+    "grundabstand_messweise": {
+      "rule": "Der Grundabstand wird rechtwinklig zur projizierten Fassadenlinie und radial über die Gebäudeecken gemessen -- massgebend ist die GEBÄUDE-Fassade, nicht die Parzellengrenze.",
+      "source": { "article": "§ 22 Abs. 1, ABV (700.2)", "doc": "abv", "page": 5, "highlight": "radial", "paragraph_text": "Der Grundabstand ist der kleinste erforderliche Grenzabstand ohne Mehrlängen- und Mehrhöhenzuschlag; er wird rechtwinklig zur projizierten Fassadenlinie und radial über die Gebäudeecken gemessen." }
+    },
+    "grenzabstand_zusammensetzung": {
+      "rule": "Grenzabstand = Grundabstand + Mehrhöhenzuschlag + Mehrlängenzuschlag gemäss BZO (kommunales System).",
+      "source": { "article": "§ 21 Abs. 1, ABV (700.2)", "doc": "abv", "page": 5, "highlight": "Mehrlängenzuschlag", "paragraph_text": "Der Grenzabstand setzt sich aus dem Grundabstand und dem Mehrhöhenzuschlag sowie dem Mehrlängenzuschlag gemäss Bau- und Zonenordnung zusammen." }
+    },
+    "waldabstand": {
+      "source": { "article": "§ 262 Abs. 1, PBG", "doc": "pbg", "page": 62, "highlight": "Waldabstandslinie", "paragraph_text": "Gebäude dürfen die im Zonenplan festgelegte Waldabstandslinie nicht überschreiten; ausserhalb des Bauzonengebiets beträgt der Abstand von der forstrechtlichen Waldgrenze 30 m." }
+    },
+    "firsthoehe_altrecht": {
+      "rule": "Der First muss innerhalb von 45°-Ebenen ab der Schnittlinie Dachfläche/Fassade liegen und darf höchstens bis zu einer oberen Ebene steigen (BZO-abhängiger Zuschlag über der Gebäudehöhe, Default 7 m).",
+      "source": { "article": "§ 281 aPBG (Anhang bisheriges Recht)", "doc": "pbg", "page": 100, "highlight": "First", "paragraph_text": "Der First eines Schrägdaches muss innerhalb von Ebenen liegen, die a. unter 45° an die Schnittlinie zwischen der Dachfläche und der zugehörigen Fassade angelegt werden, b. höchstens aber bis zu einer oberen Ebene ansteigen, die unter Vorbehalt abweichender Regelungen in der Bau- und Zonenordnung in 7 m Höhe parallel zur Verbindung zwischen den massgeblichen Schnittlinien verläuft." }
+    },
+    "negative_vorwirkung": {
+      "source": { "article": "§ 234, PBG", "doc": "pbg", "page": 53, "highlight": "Baureif", "paragraph_text": "Baureif ist ein Grundstück, wenn es erschlossen ist und wenn durch die bauliche Massnahme keine noch fehlende oder durch den Gemeindevorstand beantragte planungsrechtliche Festlegung nachteilig beeinflusst wird." }
     }
   },
 

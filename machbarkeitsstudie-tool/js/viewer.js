@@ -342,7 +342,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
           const areaM2 = T.planarAreaLV95([ring]);
           const areaLabel = makeLabel(`${areaM2.toFixed(1)} m²`, v(centroidPt, solidHeight + labelH * 2.4), labelH, dark);
           areaLabel.renderOrder = 11;
-          // The Attika's own (smaller, 60%-capped) footprint area, labelled
+          // The Attika's own (smaller, profile-constrained) footprint area, labelled
           // separately right at its own level -- otherwise the only number
           // in the scene describes the storey below, not the setback one.
           if (attikaRing) {
@@ -552,7 +552,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
           // left floating over the block's old spot instead of following it.
           liveMassing = { ...liveMassing, footprintFeature: merged };
           if (liveMassing.attikaStoreys > 0) {
-            const recomputed = T.computeAttikaFootprints(newBlocks, liveMassing.attikaStoreyHeightM, liveMassing.hangUphillBearingDeg ?? null);
+            const recomputed = T.computeAttikaFootprints(newBlocks, liveMassing.attikaSetbackM ?? liveMassing.attikaStoreyHeightM, liveMassing.hangUphillBearingDeg ?? null);
             liveMassing.attikaBlocks = recomputed.attikaBlocks;
             liveMassing.attikaFootplateM2 = recomputed.attikaAreaM2;
             liveMassing.attikaGeometryImpossible = recomputed.anyImpossible;

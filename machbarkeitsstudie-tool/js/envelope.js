@@ -1,29 +1,62 @@
-// envelope.js — section 3 step 8: reconcile setback vs Grünflächenziffer vs
-// Ausnützungsziffer, report which constraint actually binds.
+// envelope.js — reconcile setback vs Grünflächenziffer vs Überbauungsziffer
+// vs Ausnützungsziffer, report which constraint actually binds, and turn the
+// reconciled numbers into a buildable massing.
+//
+// Legal basis of the arithmetic here:
+//   § 255 Abs. 1 PBG  — AZ = anrechenbare Geschossfläche / anrechenbare
+//                       Grundstücksfläche (NOT the raw parcel area).
+//   § 255 Abs. 3 PBG  — Dach-, Attika- und Untergeschosse sind erst
+//                       anrechenbar, soweit sie je Geschoss die Fläche
+//                       überschreiten, die sich bei gleichmässiger Aufteilung
+//                       der gesamten zulässigen Ausnützung auf die zulässige
+//                       Vollgeschosszahl ergäbe (per-storey free allowance).
+//   § 256 PBG         — Überbauungsziffer as a hard footprint cap.
+//   § 257 PBG         — Grünflächenziffer.
+//   § 259 PBG / § 259 aPBG — which ground area counts (Bauzone only;
+//                       old law also deducts Wald and offene Gewässer).
 window.MachbarkeitTool = window.MachbarkeitTool || {};
 
 (function () {
-  // parcelAreaM2: from planarAreaLV95(parcel geometry).
-  // setbackFootprintAreaM2: from planarAreaLV95(bufferLV95(parcel, -grundabstand)),
-  //   or 0 if bufferLV95 returned null (setback consumed the whole parcel --
-  //   a real, valid outcome for small/narrow parcels, not an error).
-  // rules: the object from rules.js getZoneRules() (needs gruenflaechenziffer_min_pct,
-  //   ausnuetzungsziffer_max_pct, vollgeschosse_max).
-  function reconcileEnvelope({ parcelAreaM2, setbackFootprintAreaM2, rules }) {
+  // parcelAreaM2:         raw merged geometry area.
+  // anrechenbareFlaecheM2: reference area per § 255/259 PBG — parcel area minus
+  //   the deductions in `flaechenAbzuege` (forest, water, non-Bauzone parts).
+  //   Falls back to parcelAreaM2 when no deduction could be computed; the
+  //   caller flags that case.
+  // setbackFootprintAreaM2: area left after Grenzabstand/Wald/Baulinien cuts,
+  //   or 0 if the setback consumed the whole parcel (a real, valid outcome
+  //   for small/narrow parcels, not an error).
+  // rules: the object from rules.js getZoneRules().
+  function reconcileEnvelope({ parcelAreaM2, anrechenbareFlaecheM2, flaechenAbzuege, setbackFootprintAreaM2, rules }) {
+    const refAreaM2 = anrechenbareFlaecheM2 != null ? anrechenbareFlaecheM2 : parcelAreaM2;
+
     // Not every commune has a Grünflächenziffer (Zumikon's BZO doesn't).
     // Absent means the constraint doesn't exist -- it must NOT be read as 0%
     // (which would cap the footprint at the whole parcel and look like a
     // binding constraint), nor as 100% (which would forbid building).
     const hasGreenCap = rules.gruenflaechenziffer_min_pct != null;
     const footprintAfterGreenCapAreaM2 = hasGreenCap
-      ? parcelAreaM2 * (1 - rules.gruenflaechenziffer_min_pct / 100)
+      ? refAreaM2 * (1 - rules.gruenflaechenziffer_min_pct / 100)
       : Infinity;
 
-    const footprintLevelBinding =
-      setbackFootprintAreaM2 <= footprintAfterGreenCapAreaM2 ? 'grundabstand' : 'gruenflaechenziffer';
-    const usableFootprintAreaM2 = Math.min(setbackFootprintAreaM2, footprintAfterGreenCapAreaM2);
+    // Überbauungsziffer (§ 256 PBG; Art. 62 E-BZO for W2bI-III): hard cap on
+    // the Hauptgebäude footprint relative to the anrechenbare Grundstücksfläche.
+    const hasUeberbauungsCap = rules.ueberbauungsziffer_hauptgebaeude_max_pct != null;
+    const footprintAfterUeberbauungsCapM2 = hasUeberbauungsCap
+      ? refAreaM2 * (rules.ueberbauungsziffer_hauptgebaeude_max_pct / 100)
+      : Infinity;
 
-    const maxGfaM2 = parcelAreaM2 * (rules.ausnuetzungsziffer_max_pct / 100);
+    const candidates = [
+      ['grundabstand', setbackFootprintAreaM2],
+      ['gruenflaechenziffer', footprintAfterGreenCapAreaM2],
+      ['ueberbauungsziffer', footprintAfterUeberbauungsCapM2],
+    ];
+    let footprintLevelBinding = candidates[0][0];
+    let usableFootprintAreaM2 = candidates[0][1];
+    for (const [name, area] of candidates) {
+      if (area < usableFootprintAreaM2) { footprintLevelBinding = name; usableFootprintAreaM2 = area; }
+    }
+
+    const maxGfaM2 = refAreaM2 * (rules.ausnuetzungsziffer_max_pct / 100);
     const gfaIfAllFloorsBuiltM2 = usableFootprintAreaM2 * rules.vollgeschosse_max;
 
     let bindingConstraint;
@@ -31,7 +64,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     let fullFloorsAchievable;
 
     if (usableFootprintAreaM2 <= 0) {
-      // Setback (and/or green cap) consumed the entire parcel -- nothing
+      // Setback (and/or a footprint cap) consumed the entire parcel -- nothing
       // buildable at all. Real outcome for small/narrow lots, must surface
       // clearly rather than silently divide by zero downstream.
       bindingConstraint = footprintLevelBinding;
@@ -49,13 +82,17 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
 
     return {
       parcelAreaM2,
+      anrechenbareFlaecheM2: refAreaM2,
+      flaechenAbzuege: flaechenAbzuege || null,
       setbackFootprintAreaM2,
       hasGreenCap,
       footprintAfterGreenCapAreaM2,
+      hasUeberbauungsCap,
+      footprintAfterUeberbauungsCapM2,
       usableFootprintAreaM2,
       maxGfaM2,
       gfaIfAllFloorsBuiltM2,
-      bindingConstraint, // 'grundabstand' | 'gruenflaechenziffer' | 'ausnuetzungsziffer'
+      bindingConstraint, // 'grundabstand' | 'gruenflaechenziffer' | 'ueberbauungsziffer' | 'ausnuetzungsziffer'
       achievableFloors,
       fullFloorsAchievable,
     };
@@ -64,69 +101,55 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   // Turns the reconciled numbers into a buildable massing, rather than the
   // maximum legal hull.
   //
-  // The hull -- whole footprint extruded to the full permitted height -- is
-  // what the zone allows in the abstract, but where the Ausnützungsziffer
-  // binds it cannot be filled: on the Zumikon test case it is ~2.6x the floor
-  // area actually permitted, which made the cost estimate overstate by the
-  // same factor. So the model here spends the permitted GFA instead:
+  //   ordinary storeys = a CHOICE, not a result. Any count from the fewest
+  //               that can hold the permitted GFA up to the zone maximum is
+  //               equally lawful; only the ground coverage differs.
+  //   floorplate= permitted GFA / ordinary storeys, never more than the
+  //               available footprint.
+  //   Attika / Untergeschoss: NOT charged against the AZ up to the § 255
+  //               Abs. 3 free allowance of (maxGfa / Vollgeschosszahl) per
+  //               storey. At the default floorplate the Attika (smaller than
+  //               a full storey) is therefore fully free — the previous
+  //               version of this tool charged it against the AZ and
+  //               under-reported the achievable floor area.
   //
-  //   storeys   = a CHOICE, not a result. Any count from the fewest that can
-  //               hold the GFA up to the zone maximum is equally lawful and
-  //               yields exactly the same floor area and the same volume --
-  //               only the ground coverage differs. Defaults to the zone
-  //               maximum (smallest footprint, most open ground), and the
-  //               caller can override it;
-  //   floorplate= GFA / storeys, never more than the available footprint;
-  //   height    = storeys x storey height (permitted height / permitted storeys).
+  // Only the Attikageschoss is modelled as a drawable storey (a flat-roofed,
+  // set-back top storey). A pitched-roof Dachgeschoss is a distinct concept
+  // (Kniestock, roof pitch — no data here) and is not drawn; where the BZO
+  // credits 2 Dach-/Attikageschosse (Zumikon), only 1 is drawn as Attika and
+  // the second is reported as additional creditable floor area, not geometry.
   //
-  // Deliberately schematic: it spreads the floorplate evenly over the
-  // available footprint shape rather than choosing where the building sits.
-  //
-  // Vollgeschosse are not the whole story: rules.js's anrechenbares_dach_
-  // attika_max (from the BZO) counts additional Dach-/Attikageschosse the
-  // zone credits on top -- e.g. Zumikon's BZO allows up to 2 (a Dachgeschoss
-  // AND an Attikageschoss are separate concepts there), Zürich W3 allows 1.
-  // This tool only models the Attikageschoss specifically (a flat-roofed,
-  // set-back top storey subject to the rules below) -- a Dachgeschoss (built
-  // into a pitched roof, governed by different rules: Kniestock height, roof
-  // pitch, none of which this tool has data for) is a distinct thing it does
-  // not attempt. So the SELECTABLE Attika count is capped at 1 regardless of
-  // what the BZO field says is creditable in total -- "es ist strengstens
-  // maximal 1 Attikageschoss pro Gebäude erlaubt" is the general cantonal
-  // rule of thumb, and conflating it with a second Dachgeschoss storey drawn
-  // the same way would overstate what's actually a flat-roofed Attika.
-  //
-  // Height budget: Zumikon's firsthoehe_max_m (the ridge height cap) minus
-  // the ordinary Gebäudehöhe, when that field is larger (it usually isn't --
-  // Firsthöhe is often a SEPARATE, smaller figure measured from a different
-  // reference, not "ordinary height + attika headroom"; where it doesn't fit
-  // that reading the ordinary storey height is reused as a placeholder,
-  // flagged in the returned object so callers can say so rather than
-  // presenting it as precise.
-  //
-  // What IS geometrically modelled now (see app.js, which has the actual
-  // rectangle geometry buildMassingModel doesn't): the 45° roof-line
-  // (kantonales Recht) sets the minimum setback on all four sides equal to
-  // the Attika's own height (tan 45° = 1), and the resulting footprint is
-  // additionally capped at 60% of the storey below's. What is NOT modelled:
-  // the Bergseite exception (facade-flush on the uphill side for up to 2/3
-  // of that facade), which app.js applies where the terrain plane fit puts
-  // the parcel at 10% or steeper.
+  // Attika height budget: Zumikon's firsthoehe_zuschlag_m is the ADDITIONAL
+  // height the roof profile may rise above the Gebäudehöhe line (§ 281 aPBG:
+  // 45° planes from the Schnittlinie, up to the BZO's Firsthöhe plane). The
+  // Attika storey must fit inside that budget.
   function buildMassingModel({ footprintFeature, reconciled, rules, storeysOverride }) {
     const available = reconciled.usableFootprintAreaM2;
     const ordinaryMax = rules.vollgeschosse_max;
     if (!footprintFeature || available <= 0 || !ordinaryMax) return null;
 
-    const attikaMax = Math.min(rules.anrechenbares_dach_attika_max || 0, 1);
+    const attikaCreditable = rules.anrechenbares_dach_attika_max || 0;
+    const attikaMax = Math.min(attikaCreditable, 1); // only 1 drawable flat-roof Attika
+    const ugMax = rules.anrechenbares_untergeschoss_max || 0;
     const maxStoreys = ordinaryMax + attikaMax;
     const ordinaryStoreyHeightM = rules.heightM / ordinaryMax;
-    const attikaHeightIsModelled = rules.firsthoehe_max_m != null && rules.firsthoehe_max_m > rules.heightM;
-    const attikaBudgetM = attikaHeightIsModelled ? rules.firsthoehe_max_m - rules.heightM : ordinaryStoreyHeightM * attikaMax;
-    const attikaStoreyHeightM = attikaMax > 0 ? attikaBudgetM / attikaMax : 0;
 
-    // Fewest storeys that can hold the permitted GFA: below this the floor
-    // area would not fit on the available footprint.
-    const minStoreys = Math.min(maxStoreys, Math.max(1, Math.ceil(reconciled.achievableFloors - 1e-9)));
+    // § 255 Abs. 3 PBG: per-storey free allowance for Dach-/Attika-/Untergeschosse.
+    const perStoreyFreeM2 = reconciled.maxGfaM2 / ordinaryMax;
+
+    // Attika height: firsthoehe_zuschlag_m (Zumikon, altrechtlich) is the
+    // budget above the Gebäudehöhe line. Where absent (Zürich E-BZO regime:
+    // the Attika must fit under the Gesamthöhe/roof rules not modelled here)
+    // fall back to the ordinary storey height, flagged as an estimate.
+    const attikaHeightIsModelled = rules.firsthoehe_zuschlag_m != null;
+    const attikaBudgetM = attikaHeightIsModelled
+      ? rules.firsthoehe_zuschlag_m
+      : ordinaryStoreyHeightM * attikaMax;
+    const attikaStoreyHeightM = attikaMax > 0 ? Math.min(attikaBudgetM, ordinaryStoreyHeightM) : 0;
+
+    // Fewest ordinary storeys that can hold the permitted GFA.
+    const minOrdinary = Math.min(ordinaryMax, Math.max(1, Math.ceil(reconciled.maxGfaM2 / available - 1e-9)));
+    const minStoreys = Math.min(maxStoreys, minOrdinary);
     // Default to the maximum the zone allows, Attika included -- this is a
     // Machbarkeitsstudie, so the question it answers first is how much volume
     // is possible here. Fewer storeys stay one click away in the picker.
@@ -136,8 +159,24 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     const storeyHeightM = ordinaryStoreyHeightM; // kept for callers that only care about the ordinary case
     const buildingHeightM = ordinaryStoreys * ordinaryStoreyHeightM + attikaStoreys * attikaStoreyHeightM;
 
-    const gfaUsedM2 = Math.min(reconciled.maxGfaM2, available * storeys);
-    const floorplateM2 = gfaUsedM2 / storeys;
+    // AZ quota is spent by the ordinary storeys only (§ 255 Abs. 2/3 PBG).
+    const gfaUsedM2 = Math.min(reconciled.maxGfaM2, available * ordinaryStoreys);
+    const floorplateM2 = gfaUsedM2 / ordinaryStoreys;
+    // Attika/UG floorplates: free of charge up to the § 255 Abs. 3 allowance;
+    // this schematic model never draws them larger than that (the geometric
+    // Attika from the 45° profile can be smaller — app.js reconciles).
+    const attikaFloorplateM2 = attikaStoreys > 0 ? Math.min(floorplateM2, perStoreyFreeM2) : 0;
+    const ugFloorplateM2 = ugMax > 0 ? Math.min(floorplateM2, perStoreyFreeM2) : 0;
+    // Second creditable Dachgeschoss (Zumikon: anrechenbares_dach_attika_max 2)
+    // — creditable floor area that is not drawn as a storey.
+    const extraDachCreditM2 = attikaCreditable > attikaMax
+      ? (attikaCreditable - attikaMax) * Math.min(floorplateM2, perStoreyFreeM2)
+      : 0;
+    const nutzflaecheTotalM2 =
+      floorplateM2 * ordinaryStoreys +
+      attikaFloorplateM2 * attikaStoreys +
+      ugFloorplateM2 * ugMax;
+
     const scale = Math.min(1, floorplateM2 / available);
 
     return {
@@ -145,16 +184,22 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       minStoreys,
       maxStoreys,
       ordinaryMax, attikaMax, ordinaryStoreys, attikaStoreys,
+      ugStoreys: ugMax,
       ordinaryStoreyHeightM, attikaStoreyHeightM, attikaHeightIsModelled,
+      perStoreyFreeM2,
+      attikaFloorplateM2,
+      ugFloorplateM2,
+      extraDachCreditM2,
+      nutzflaecheTotalM2,
       storeyOptions: Array.from({ length: maxStoreys - minStoreys + 1 }, (_, i) => minStoreys + i),
       storeyHeightM,
       buildingHeightM,
       floorplateM2,
       gfaUsedM2,
-      // Volume of the storeys actually built, not of the legal hull. Uses
-      // buildingHeightM (not storeys x storeyHeightM) because ordinary and
-      // Attika storeys can have different heights.
-      volumeM3: floorplateM2 * buildingHeightM,
+      // Volume of the storeys actually built, not of the legal hull. Ordinary
+      // storeys carry the full floorplate; the Attika its own smaller plate.
+      volumeM3: floorplateM2 * ordinaryStoreys * ordinaryStoreyHeightM +
+        attikaFloorplateM2 * attikaStoreys * attikaStoreyHeightM,
       hullVolumeM3: available * rules.heightM,
       footprintScale: scale,
       // Linear scale to apply to the footprint outline to reach the floorplate.

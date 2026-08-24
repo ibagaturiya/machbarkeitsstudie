@@ -1,12 +1,16 @@
 {
   "_meta": {
-    "version": "E-BZO Entwurf, Stand 6. Januar 2026",
-    "article_grundmasse": "Art. 62, E-BZO",
+    "version": "E-BZO Entwurf, Stand 6. Januar 2026 + BZO 2016 (in Kraft)",
+    "article_grundmasse": "Art. 62 E-BZO / Art. 13 BZO 2016",
     "article_kronenbedeckung": "Art. 53, E-BZO",
-    "legal_status": "Formally still a draft (öffentliche Auflage 18.3.2026-1.6.2026, submitted for kantonale Vorprüfung). Under negative Vorwirkung per §234 PBG since public display began: new Baugesuche are already assessed against these numbers wherever stricter than BZO 2016. Not yet formally rechtskräftig (Gemeinderat adoption pending). RE-CHECK adoption status before relying on this for anything beyond a rough estimate.",
-    "data_last_verified": "2026-08-21",
+    "legal_status": "E-BZO formally still a draft (öffentliche Auflage 18.3.2026-1.6.2026, submitted for kantonale Vorprüfung). Under negative Vorwirkung per §234 PBG since public display began: new Baugesuche are already assessed against these numbers WHEREVER STRICTER than BZO 2016; where the draft is more permissive, BZO 2016 (in force since 1.11.2018) still governs. This file therefore carries BOTH regimes; rules.js computes the stricter value per parameter. RE-CHECK adoption status before relying on this for anything beyond a rough estimate.",
+    "data_last_verified": "2026-08-24",
     "numbers_cross_checked_against_source_pdf": true,
-    "source_pdf": "source/ebzo-entwurf-2026-01-06.pdf"
+    "source_pdf": "source/ebzo-entwurf-2026-01-06.pdf",
+    "source_pdf_bzo2016": "source/bzo-2016.pdf",
+    "hoehenmetrik": "traufseitige Fassadenhöhe",
+    "_hoehenmetrik_note": "E-BZO misst die traufseitige Fassadenhöhe (harmonisiertes Recht); BZO 2016 misst die Gebäudehöhe (altes Recht, Schnittlinie Fassade/Dachfläche über gewachsenem Boden). Die beiden Masse sind ähnlich, aber nicht identisch. Unter negativer Vorwirkung gilt das strengere Mass; rules.js nimmt das kleinere und kennzeichnet Herkunft und Metrik.",
+    "_mehrlaengenzuschlag_note": "Art. 14 BZO 2016 ist geltendes Recht: bei Fassadenlängen über 12 m erhöht sich der Grenzabstand um einen Drittel der Mehrlänge, höchstens auf den zonenabhängigen Maximalwert (bzo2016.mehrlaengenzuschlag). In Gebieten mit erhöhter Ausnützung entfällt der Zuschlag. Das E-BZO kennt keinen Mehrlängenzuschlag -- unter negativer Vorwirkung gilt weiterhin der strengere Art. 14 BZO 2016."
   },
 
   "W2bI": {
@@ -21,7 +25,8 @@
     "gruenflaechenziffer_min_pct": 60,
     "kronenbedeckungsgrad_min_pct": 30,
     "arealueberbauung_zulaessig": false,
-    "source": { "article": "Art. 62 lit. a, E-BZO", "version": "E-BZO Entwurf, Stand 6. Januar 2026", "paragraph_text": "", "screenshot": null }
+    "bzo2016": { "gebaeudehoehe_max_m": 9, "anrechenbares_untergeschoss_max": 1, "mehrlaengenzuschlag": { "ab_fassadenlaenge_m": 12, "anteil_der_mehrlaenge": 0.333333, "grenzabstand_max_m": 10 }, "_identisch": "Vollgeschosse, Untergeschoss, Dachgeschoss, Grundabstand 5 m, Gebäudelänge 25 m, AZ 40%, ÜZ 22% wie E-BZO (Art. 13 BZO 2016); keine Grünflächenziffer in BZO 2016" },
+    "source": { "article": "Art. 62 lit. a E-BZO / Art. 13 BZO 2016", "version": "E-BZO Entwurf 6.1.2026 / BZO 2016", "page": 23, "paragraph_text": "In Wohnzonen gelten folgende Grundmasse: W2bI -- Vollgeschosse max. 2, anrechenbares Untergeschoss max. 1, anrechenbares Dach- oder Attikageschoss max. 1, traufseitige Fassadenhöhe max. 10 m, Grundabstand 5 m, Gebäudelänge inkl. Klein- und Anbauten max. 25 m, AZ max. 40%, ÜZ Hauptgebäude max. 22%, GFZ min. 60%", "screenshot": null }
   },
   "W2bII": {
     "vollgeschosse_max": 2,
@@ -35,7 +40,8 @@
     "gruenflaechenziffer_min_pct": 60,
     "kronenbedeckungsgrad_min_pct": 30,
     "arealueberbauung_zulaessig": false,
-    "source": { "article": "Art. 62 lit. a, E-BZO", "version": "E-BZO Entwurf, Stand 6. Januar 2026", "paragraph_text": "", "screenshot": null }
+    "bzo2016": { "gebaeudehoehe_max_m": 9, "anrechenbares_untergeschoss_max": 1, "mehrlaengenzuschlag": { "ab_fassadenlaenge_m": 12, "anteil_der_mehrlaenge": 0.333333, "grenzabstand_max_m": 10 }, "_identisch": "übrige Grundmasse wie E-BZO (Gebäudelänge 20 m)" },
+    "source": { "article": "Art. 62 lit. a E-BZO / Art. 13 BZO 2016", "version": "E-BZO Entwurf 6.1.2026 / BZO 2016", "page": 23, "paragraph_text": "W2bII -- wie W2bI, aber Gebäudelänge inkl. Klein- und Anbauten max. 20 m", "screenshot": null }
   },
   "W2bIII": {
     "vollgeschosse_max": 2,
@@ -49,7 +55,8 @@
     "gruenflaechenziffer_min_pct": 55,
     "kronenbedeckungsgrad_min_pct": 30,
     "arealueberbauung_zulaessig": false,
-    "source": { "article": "Art. 62 lit. a, E-BZO", "version": "E-BZO Entwurf, Stand 6. Januar 2026", "paragraph_text": "", "screenshot": null }
+    "bzo2016": { "gebaeudehoehe_max_m": 9, "anrechenbares_untergeschoss_max": 1, "mehrlaengenzuschlag": { "ab_fassadenlaenge_m": 12, "anteil_der_mehrlaenge": 0.333333, "grenzabstand_max_m": 10 }, "_identisch": "übrige Grundmasse wie E-BZO (AZ 45%, ÜZ 25%)" },
+    "source": { "article": "Art. 62 lit. a E-BZO / Art. 13 BZO 2016", "version": "E-BZO Entwurf 6.1.2026 / BZO 2016", "page": 23, "paragraph_text": "W2bIII -- AZ max. 45%, ÜZ Hauptgebäude max. 25%, GFZ min. 55%", "screenshot": null }
   },
   "W2": {
     "vollgeschosse_max": 2,
@@ -63,7 +70,8 @@
     "gruenflaechenziffer_min_pct": 50,
     "kronenbedeckungsgrad_min_pct": 25,
     "arealueberbauung_zulaessig": false,
-    "source": { "article": "Art. 62 lit. a, E-BZO", "version": "E-BZO Entwurf, Stand 6. Januar 2026", "paragraph_text": "", "screenshot": null }
+    "bzo2016": { "gebaeudehoehe_max_m": 9, "anrechenbares_untergeschoss_max": 1, "mehrlaengenzuschlag": { "ab_fassadenlaenge_m": 12, "anteil_der_mehrlaenge": 0.333333, "grenzabstand_max_m": 10 }, "_identisch": "übrige Grundmasse wie E-BZO (AZ 60%)" },
+    "source": { "article": "Art. 62 lit. a E-BZO / Art. 13 BZO 2016", "version": "E-BZO Entwurf 6.1.2026 / BZO 2016", "page": 23, "paragraph_text": "W2 -- AZ max. 60%, GFZ min. 50%", "screenshot": null }
   },
   "W3": {
     "vollgeschosse_max": 3,
@@ -80,13 +88,9 @@
     "arealueberbauung_ausnuetzungsziffer_max_pct": 120,
     "arealueberbauung_vollgeschosse_max": 4,
     "arealueberbauung_fassadenhoehe_max_m": 13.5,
-    "source": {
-      "article": "Art. 62 lit. a, E-BZO",
-      "version": "E-BZO Entwurf, Stand 6. Januar 2026",
-      "paragraph_text": "",
-      "screenshot": null
-    },
-    "_note": "W3's anrechenbares Untergeschoss dropped from 1 (BZO 2016) to 0 under the E-BZO draft -- a real substantive change, not a data-entry error. Cross-checked against source PDF 2026-08-21: matches (Vollgeschosse 3, Untergeschoss 0, Dach/Attika 1, Fassadenhöhe 10.5m, Grundabstand 5m, AZ 90%, GFZ 50%). Arealüberbauung bonus figures (Art. 7(2)) also cross-checked against source PDF."
+    "bzo2016": { "gebaeudehoehe_max_m": 9.5, "anrechenbares_untergeschoss_max": 0, "mehrlaengenzuschlag": { "ab_fassadenlaenge_m": 12, "anteil_der_mehrlaenge": 0.333333, "grenzabstand_max_m": 10 }, "_identisch": "Vollgeschosse 3, UG 0, AZ 90% wie E-BZO" },
+    "source": { "article": "Art. 62 lit. a E-BZO / Art. 13 BZO 2016", "version": "E-BZO Entwurf 6.1.2026 / BZO 2016", "page": 23, "paragraph_text": "W3 -- Vollgeschosse max. 3, anrechenbares Untergeschoss max. 0, traufseitige Fassadenhöhe max. 10,5 m, AZ max. 90%, GFZ min. 50%", "screenshot": null },
+    "_note": "Anrechenbares Untergeschoss ist in W3 bereits unter der BZO 2016 (Art. 13, Tabelle) = 0; das E-BZO behält 0 bei. Die frühere Notiz in dieser Datei ('dropped from 1 to 0') war falsch -- gegen source/bzo-2016.pdf S. 15 geprüft am 2026-08-24."
   },
   "W4b": {
     "vollgeschosse_max": 4,
@@ -103,7 +107,8 @@
     "arealueberbauung_ausnuetzungsziffer_max_pct": 130,
     "arealueberbauung_vollgeschosse_max": 5,
     "arealueberbauung_fassadenhoehe_max_m": 16.5,
-    "source": { "article": "Art. 62 lit. b, E-BZO", "version": "E-BZO Entwurf, Stand 6. Januar 2026", "paragraph_text": "", "screenshot": null }
+    "bzo2016": { "gebaeudehoehe_max_m": 12.5, "anrechenbares_untergeschoss_max": 0, "mehrlaengenzuschlag": { "ab_fassadenlaenge_m": 12, "anteil_der_mehrlaenge": 0.333333, "grenzabstand_max_m": 11 }, "_identisch": "Vollgeschosse 4, AZ 105% wie E-BZO" },
+    "source": { "article": "Art. 62 lit. b E-BZO / Art. 13 BZO 2016", "version": "E-BZO Entwurf 6.1.2026 / BZO 2016", "page": 24, "paragraph_text": "W4b -- Vollgeschosse max. 4, traufseitige Fassadenhöhe max. 13,5 m, AZ max. 105%, GFZ min. 50%", "screenshot": null }
   },
   "W4": {
     "vollgeschosse_max": 4,
@@ -120,7 +125,8 @@
     "arealueberbauung_ausnuetzungsziffer_max_pct": 150,
     "arealueberbauung_vollgeschosse_max": 7,
     "arealueberbauung_fassadenhoehe_max_m": 25,
-    "source": { "article": "Art. 62 lit. b, E-BZO", "version": "E-BZO Entwurf, Stand 6. Januar 2026", "paragraph_text": "", "screenshot": null }
+    "bzo2016": { "gebaeudehoehe_max_m": 12.5, "anrechenbares_untergeschoss_max": 0, "mehrlaengenzuschlag": { "ab_fassadenlaenge_m": 12, "anteil_der_mehrlaenge": 0.333333, "grenzabstand_max_m": 11 }, "_identisch": "Vollgeschosse 4, AZ 120% wie E-BZO" },
+    "source": { "article": "Art. 62 lit. b E-BZO / Art. 13 BZO 2016", "version": "E-BZO Entwurf 6.1.2026 / BZO 2016", "page": 24, "paragraph_text": "W4 -- Vollgeschosse max. 4, traufseitige Fassadenhöhe max. 13,5 m, AZ max. 120%, GFZ min. 45%", "screenshot": null }
   },
   "W5b": {
     "vollgeschosse_max": 5,
@@ -137,7 +143,9 @@
     "arealueberbauung_ausnuetzungsziffer_max_pct": 160,
     "arealueberbauung_vollgeschosse_max": 7,
     "arealueberbauung_fassadenhoehe_max_m": 25,
-    "source": { "article": "Art. 62 lit. b, E-BZO", "version": "E-BZO Entwurf, Stand 6. Januar 2026", "paragraph_text": "", "screenshot": null }
+    "bzo2016": null,
+    "_bzo2016_note": "Zonencode W5b existiert erst im E-BZO; unter BZO 2016 gilt für solche Flächen eine andere Zone des Zonenplans 2016. Kein Regimevergleich möglich -- Werte gelten unter Vorbehalt der E-BZO-Rechtskraft.",
+    "source": { "article": "Art. 62 lit. b, E-BZO", "version": "E-BZO Entwurf, Stand 6. Januar 2026", "page": 24, "paragraph_text": "W5b -- Vollgeschosse max. 5, traufseitige Fassadenhöhe max. 16,5 m, AZ max. 135%, GFZ min. 45%", "screenshot": null }
   },
   "W5c": {
     "vollgeschosse_max": 5,
@@ -154,7 +162,9 @@
     "arealueberbauung_ausnuetzungsziffer_max_pct": 180,
     "arealueberbauung_vollgeschosse_max": 7,
     "arealueberbauung_fassadenhoehe_max_m": 25,
-    "source": { "article": "Art. 62 lit. b, E-BZO", "version": "E-BZO Entwurf, Stand 6. Januar 2026", "paragraph_text": "", "screenshot": null }
+    "bzo2016": null,
+    "_bzo2016_note": "Zonencode W5c existiert erst im E-BZO (vgl. W5b).",
+    "source": { "article": "Art. 62 lit. b, E-BZO", "version": "E-BZO Entwurf, Stand 6. Januar 2026", "page": 24, "paragraph_text": "W5c -- Vollgeschosse max. 5, traufseitige Fassadenhöhe max. 16,5 m, AZ max. 150%, GFZ min. 45%", "screenshot": null }
   },
   "W5": {
     "vollgeschosse_max": 5,
@@ -171,7 +181,8 @@
     "arealueberbauung_ausnuetzungsziffer_max_pct": 200,
     "arealueberbauung_vollgeschosse_max": 7,
     "arealueberbauung_fassadenhoehe_max_m": 25,
-    "source": { "article": "Art. 62 lit. b, E-BZO", "version": "E-BZO Entwurf, Stand 6. Januar 2026", "paragraph_text": "", "screenshot": null }
+    "bzo2016": { "gebaeudehoehe_max_m": 15.5, "anrechenbares_untergeschoss_max": 0, "mehrlaengenzuschlag": { "ab_fassadenlaenge_m": 12, "anteil_der_mehrlaenge": 0.333333, "grenzabstand_max_m": 12 }, "_identisch": "Vollgeschosse 5, AZ 165% wie E-BZO" },
+    "source": { "article": "Art. 62 lit. b E-BZO / Art. 13 BZO 2016", "version": "E-BZO Entwurf 6.1.2026 / BZO 2016", "page": 24, "paragraph_text": "W5 -- Vollgeschosse max. 5, traufseitige Fassadenhöhe max. 16,5 m, AZ max. 165%, GFZ min. 40%", "screenshot": null }
   },
   "W6": {
     "vollgeschosse_max": 6,
@@ -188,10 +199,36 @@
     "arealueberbauung_ausnuetzungsziffer_max_pct": 240,
     "arealueberbauung_vollgeschosse_max": 7,
     "arealueberbauung_fassadenhoehe_max_m": 25,
-    "source": { "article": "Art. 62 lit. b, E-BZO", "version": "E-BZO Entwurf, Stand 6. Januar 2026", "paragraph_text": "", "screenshot": null }
+    "bzo2016": { "gebaeudehoehe_max_m": 18.5, "anrechenbares_untergeschoss_max": 0, "mehrlaengenzuschlag": { "ab_fassadenlaenge_m": 12, "anteil_der_mehrlaenge": 0.333333, "grenzabstand_max_m": 13 }, "_identisch": "Vollgeschosse 6, AZ 205% wie E-BZO" },
+    "source": { "article": "Art. 62 lit. b E-BZO / Art. 13 BZO 2016", "version": "E-BZO Entwurf 6.1.2026 / BZO 2016", "page": 24, "paragraph_text": "W6 -- Vollgeschosse max. 6, traufseitige Fassadenhöhe max. 19,5 m, AZ max. 205%, GFZ min. 30%", "screenshot": null }
   },
 
-  "_arealueberbauung_note": "arealueberbauung_ausnuetzungsziffer_max_pct/vollgeschosse_max/fassadenhoehe_max_m are the Art. 7(1)/(2) per-zone Arealüberbauung bonus figures. Art. 8 preisgünstiger Wohnraum bonus (opt-in only, +15pp for W3/W4b, +20pp for übrige Wohnzonen -- not encoded per-zone here since it's a flat two-tier rule, applied directly in areal.js) and Art. 9 cantonal distances (kantonale-abstandsvorschriften.json) live elsewhere -- do not duplicate that logic against this file's per-zone data. Art. 6: Arealüberbauung excluded entirely in W2bI/W2bII/W2bIII/W2 (arealueberbauung_zulaessig: false above), and requires combined Arealfläche >= 4000 sqm (checked in areal.js, not zone-dependent).",
+  "_arealueberbauung_note": "arealueberbauung_ausnuetzungsziffer_max_pct/vollgeschosse_max/fassadenhoehe_max_m are the Art. 7(1)/(2) per-zone Arealüberbauung bonus figures. Art. 8 preisgünstiger Wohnraum bonus (opt-in only, +15pp for W3/W4b, +20pp for übrige Wohnzonen) and Art. 9 cantonal distances (kantonale-abstandsvorschriften.json) live elsewhere -- do not duplicate that logic against this file's per-zone data. Art. 6: Arealüberbauung excluded entirely in W2bI/W2bII/W2bIII/W2 (arealueberbauung_zulaessig: false above), and requires combined Arealfläche >= 4000 sqm.",
 
-  "_kronenbedeckungsgrad_note": "Full table now sourced from Art. 53 Abs. 2, E-BZO (build plan section 4 only gave the W3 example, 25%): W2bI/W2bII/W2bIII=30%, W2/W3/W4b=25%, W4/W5b/W5c/W5/W6=20%, Zentrumszonen=15%, Industrie-/Gewerbezonen=15%. Zentrums- and Industrie-/Gewerbezonen values are out of scope for this v1 (Wohnzonen only) but recorded here since they were on the same table and cost nothing to keep."
+  "_kronenbedeckungsgrad_note": "Full table sourced from Art. 53 Abs. 2, E-BZO: W2bI/W2bII/W2bIII=30%, W2/W3/W4b=25%, W4/W5b/W5c/W5/W6=20%, Zentrumszonen=15%, Industrie-/Gewerbezonen=15%. Zentrums- and Industrie-/Gewerbezonen values are out of scope for this v1 (Wohnzonen only).",
+
+  "_provenance": {
+    "docs": {
+      "ebzo": { "file": "source/ebzo-entwurf-2026-01-06.pdf", "title": "E-BZO Stadt Zürich, Entwurf 6.1.2026 (öffentliche Auflage)" },
+      "bzo2016": { "file": "source/bzo-2016.pdf", "title": "BZO Stadt Zürich 2016 (in Kraft seit 1.11.2018)" },
+      "pbg": { "file": "source/pbg-700.1-current.pdf", "title": "Planungs- und Baugesetz Kanton Zürich (PBG, 700.1)" }
+    },
+    "params": {
+      "ausnuetzungsziffer_max_pct": { "doc": "ebzo", "page": 24, "article": "Art. 62 E-BZO", "highlight": "Ausnützungsziffer", "quote": "Ausnützungsziffer max. (%): W2bI 40, W2bII 40, W2bIII 45, W2 60, W3 90 / W4b 105, W4 120, W5b 135, W5c 150, W5 165, W6 205. Identisch in Art. 13 BZO 2016 (ohne W5b/W5c).", "see_also": { "doc": "bzo2016", "page": 15, "article": "Art. 13 BZO 2016", "highlight": "Ausnützungsziffer" } },
+      "ueberbauungsziffer_hauptgebaeude_max_pct": { "doc": "ebzo", "page": 24, "article": "Art. 62 E-BZO / § 256 PBG", "highlight": "Überbauungsziffer", "quote": "Überbauungsziffer Hauptgebäude max. (%): W2bI 22, W2bII 22, W2bIII 25, übrige --. § 256 PBG: Die Überbauungsziffer ist das Verhältnis der anrechenbaren Gebäudefläche zur anrechenbaren Grundstücksfläche.", "see_also": { "doc": "pbg", "page": 61, "article": "§ 256 PBG", "highlight": "Überbauungsziffer" } },
+      "gruenflaechenziffer_min_pct": { "doc": "ebzo", "page": 24, "article": "Art. 62 E-BZO / § 257 PBG", "highlight": "Grünflächenziffer", "quote": "Grünflächenziffer min. (%): W2bI 60, W2bII 60, W2bIII 55, W2 50, W3 50, W4b 50, W4 45, W5b 45, W5c 45, W5 40, W6 30. § 257 Abs. 2 PBG: Als anrechenbare Grünfläche gelten natürliche oder bepflanzte Bodenflächen eines Grundstücks, die nicht versiegelt sind und die nicht als Abstellflächen dienen. Neu im E-BZO (BZO 2016 kennt keine GFZ) -- gilt als strengere Regel unter negativer Vorwirkung.", "see_also": { "doc": "pbg", "page": 61, "article": "§ 257 PBG", "highlight": "Grünflächenziffer" } },
+      "vollgeschosse_max": { "doc": "ebzo", "page": 23, "article": "Art. 62 E-BZO", "highlight": "Vollgeschosse", "quote": "Vollgeschosse max.: W2bI-W2 2, W3 3, W4b/W4 4, W5b/W5c/W5 5, W6 6" },
+      "anrechenbares_untergeschoss_max": { "doc": "ebzo", "page": 23, "article": "Art. 62 E-BZO", "highlight": "anrechenbares Un", "quote": "anrechenbares Untergeschoss max.: W2bI-W2 1, W3+ 0. Gleich in Art. 13 BZO 2016. Anrechnung nach § 255 Abs. 3 PBG.", "see_also": { "doc": "pbg", "page": 60, "article": "§ 255 Abs. 3 PBG", "highlight": "Untergeschossen" } },
+      "anrechenbares_dach_attika_max": { "doc": "ebzo", "page": 23, "article": "Art. 62 E-BZO", "highlight": "Dach- oder Attikage", "quote": "anrechenbares Dach- oder Attikageschoss max. 1 (alle Wohnzonen)" },
+      "traufseitige_fassadenhoehe_max_m": { "doc": "ebzo", "page": 23, "article": "Art. 62 E-BZO", "highlight": "Fassa", "quote": "traufseitige Fassadenhöhe max. (m): W2bI-W2 10, W3 10,5, W4b/W4 13,5, W5b/W5c/W5 16,5, W6 19,5" },
+      "gebaeudehoehe_max_m_bzo2016": { "doc": "bzo2016", "page": 15, "article": "Art. 13 BZO 2016", "highlight": "Gebäudehöhe", "quote": "Gebäudehöhe max.: W2bI-W2 9 m, W3 9,5 m, W4b/W4 12,5 m, W5 15,5 m, W6 18,5 m. In Kraft; wo strenger als die E-BZO-Fassadenhöhe, gilt dieses Mass weiter (negative Vorwirkung § 234 PBG)." },
+      "grundabstand_min_m": { "doc": "ebzo", "page": 23, "article": "Art. 62 E-BZO", "highlight": "Grundabstand", "quote": "Grundabstand (m): 5 in allen Wohnzonen. Gleich als Grundgrenzabstand in Art. 13 BZO 2016." },
+      "gebaeudelaenge_inkl_klein_anbauten_max_m": { "doc": "ebzo", "page": 24, "article": "Art. 62 E-BZO", "highlight": "Gebäudelänge", "quote": "Gebäudelänge, inkl. Klein- und Anbauten max. (m): W2bI 25, W2bII 20, übrige --" },
+      "mehrlaengenzuschlag": { "doc": "bzo2016", "page": 16, "article": "Art. 14 BZO 2016", "highlight": "Mehrlängen", "quote": "In den folgenden Zonen erhöht sich der Grenzabstand bei Fassadenlängen von mehr als 12 m um einen Drittel der Mehrlänge, jedoch höchstens auf folgende Masse: W2bI-W3 10 m, W4b/W4 11 m, W5 12 m, W6 13 m. In den im Zonenplan bezeichneten Gebieten mit erhöhter Ausnützung entfällt der Mehrlängenzuschlag. Kein Pendant im E-BZO -- gilt als strengere, in Kraft stehende Regel weiter." },
+      "kronenbedeckungsgrad_min_pct": { "doc": "ebzo", "page": 21, "article": "Art. 53 Abs. 2 E-BZO", "highlight": "Kronenbedeckungsgrad", "quote": "Kronenbedeckungsgrad: W2bI/W2bII/W2bIII 30%, W2/W3/W4b 25%, W4/W5b/W5c/W5/W6 20%" },
+      "arealueberbauung_zulaessig": { "doc": "ebzo", "page": 8, "article": "Art. 6 E-BZO", "highlight": "Arealüberbauung", "quote": "Arealüberbauung: ausgeschlossen in W2bI/W2bII/W2bIII/W2; erfordert zusammenhängende Arealfläche von mindestens 4000 m2." },
+      "arealueberbauung_ausnuetzungsziffer_max_pct": { "doc": "ebzo", "page": 9, "article": "Art. 7 E-BZO", "highlight": "Arealüberbauung", "quote": "Erhöhte Ausnützung bei Arealüberbauung (Art. 7 Abs. 1/2): W3 120% / 4 VG / 13,5 m; W4b 130% / 5 VG / 16,5 m; W4 150%, W5b 160%, W5c 180%, W5 200%, W6 240% je 7 VG / 25 m" },
+      "negative_vorwirkung": { "doc": "pbg", "page": 53, "article": "§ 234 PBG", "highlight": "Baureif", "quote": "Baureif ist ein Grundstück, wenn es erschlossen ist und wenn durch die bauliche Massnahme keine noch fehlende oder durch den Gemeindevorstand beantragte planungsrechtliche Festlegung nachteilig beeinflusst wird. (Grundlage der negativen Vorwirkung: das Vorhaben darf die künftige, strengere Festsetzung des E-BZO nicht vereiteln.)" }
+    }
+  }
 }

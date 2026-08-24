@@ -1,6 +1,8 @@
 // rules.js — merges the canton's per-zone numbers with the commune-specific
 // values the cantonal dataset doesn't carry (Grenzabstand, Grünflächenziffer,
-// and any newer local rules).
+// and any newer local rules), and — for Zürich — resolves the two parallel
+// regimes (BZO 2016 in force vs. E-BZO draft under negativer Vorwirkung,
+// § 234 PBG) to the STRICTER value per parameter.
 //
 // Add a commune by dropping a file in /data and registering it below. Zones
 // are keyed by the canton's `typ_gde_abkuerzung` (e.g. "W3", "W2/25").
@@ -11,8 +13,10 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     'Zürich': '/data/bzo-zurich-wohnzonen.json',
     'Zumikon': '/data/bzo-zumikon.json',
   };
+  const KANTONAL_FILE = '/data/kantonale-abstandsvorschriften.json';
 
   const cache = {};
+  let kantonalCache = null;
 
   function availableGemeinden() {
     return Object.keys(GEMEINDE_FILES);
@@ -36,13 +40,64 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     return cache[gemeinde];
   }
 
+  async function loadKantonalesRecht() {
+    if (kantonalCache) return kantonalCache;
+    const res = await fetch(KANTONAL_FILE);
+    if (!res.ok) throw new Error(`Konnte ${KANTONAL_FILE} nicht laden: HTTP ${res.status}`);
+    kantonalCache = await res.json();
+    return kantonalCache;
+  }
+
+  // How to compare a parameter across the two Zürich regimes (§ 234 PBG,
+  // negative Vorwirkung: the draft binds only where STRICTER than BZO 2016).
+  // 'lower' = smaller value is stricter (caps), 'higher' = larger value is
+  // stricter (minimum distances / minimum green ratios).
+  const STRICTER = {
+    vollgeschosse_max: 'lower',
+    anrechenbares_untergeschoss_max: 'lower',
+    anrechenbares_dach_attika_max: 'lower',
+    ausnuetzungsziffer_max_pct: 'lower',
+    ueberbauungsziffer_hauptgebaeude_max_pct: 'lower',
+    gebaeudelaenge_inkl_klein_anbauten_max_m: 'lower',
+    gesamtlaenge_max_m: 'lower',
+    grundabstand_min_m: 'higher',
+    gruenflaechenziffer_min_pct: 'higher',
+    kronenbedeckungsgrad_min_pct: 'higher',
+  };
+
+  // Applies the stricter-of comparison between the E-BZO values already in
+  // `merged` and the zone's `bzo2016` block. Returns a map of parameters
+  // where the in-force BZO 2016 value won, for labeling in the output.
+  function applyStricterOf(merged, bzo2016) {
+    const overridden = {};
+    if (!bzo2016) return overridden;
+    for (const [key, mode] of Object.entries(STRICTER)) {
+      const oldVal = bzo2016[key];
+      const newVal = merged[key];
+      if (oldVal == null) continue;
+      if (newVal == null) {
+        // Constraint exists only under BZO 2016 (in force) — it applies.
+        merged[key] = oldVal;
+        overridden[key] = { value: oldVal, regime: 'BZO 2016' };
+        continue;
+      }
+      const stricter = mode === 'lower' ? Math.min(oldVal, newVal) : Math.max(oldVal, newVal);
+      if (stricter !== newVal) {
+        merged[key] = stricter;
+        overridden[key] = { value: stricter, regime: 'BZO 2016' };
+      }
+    }
+    return overridden;
+  }
+
   // zoneInfo = the object returned by lookupZone(). Commune values win over
-  // the cantonal ones where both exist: for Zürich the local file holds the
-  // E-BZO draft, which is newer than the cantonal dataset and is what new
-  // Baugesuche are actually assessed against (negative Vorwirkung, §234 PBG).
+  // the cantonal dataset where both exist; an explicit null in the commune
+  // file means "this rule does not exist here" (e.g. Zumikon has no
+  // Grünflächenziffer) and deliberately shadows any cantonal value —
+  // downstream code checks for == null and skips the constraint.
   async function getZoneRules(zoneInfo, gemeindeOverride) {
     const gemeinde = gemeindeOverride || zoneInfo.gemeinde;
-    const data = await loadGemeindeData(gemeinde);
+    const [data, kantonal] = await Promise.all([loadGemeindeData(gemeinde), loadKantonalesRecht()]);
     const local = data[zoneInfo.zone];
     if (!local) {
       const known = Object.keys(data).filter((k) => !k.startsWith('_'));
@@ -53,15 +108,48 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       );
     }
 
-    const merged = { ...zoneInfo.kantonaleWerte, ...stripNulls(local) };
+    const merged = { ...zoneInfo.kantonaleWerte, ...local };
 
-    // Height: Zürich's E-BZO uses traufseitige Fassadenhöhe, Zumikon (and the
-    // cantonal dataset) use Gebäudehöhe. These are different measurements --
-    // carry the label so the output never implies they're interchangeable.
-    const heightMetric = data._meta.hoehenmetrik || 'Gebäudehöhe';
-    const heightM = merged.traufseitige_fassadenhoehe_max_m != null
+    // Zürich: the E-BZO draft binds only where stricter than the in-force
+    // BZO 2016 (§ 234 PBG). Take the stricter value per parameter and
+    // remember which regime supplied it.
+    const regimeOverrides = applyStricterOf(merged, local.bzo2016);
+
+    // Height: Zürich's E-BZO uses traufseitige Fassadenhöhe, BZO 2016 and
+    // Zumikon use Gebäudehöhe. These are different measurements — carry the
+    // label so the output never implies they're interchangeable. Under
+    // stricter-of, the smaller of the two caps governs the envelope.
+    let heightMetric = data._meta.hoehenmetrik || 'Gebäudehöhe';
+    let heightM = merged.traufseitige_fassadenhoehe_max_m != null
       ? merged.traufseitige_fassadenhoehe_max_m
       : merged.gebaeudehoehe_max_m;
+    let heightRegime = null;
+    const bzo2016Height = local.bzo2016 && local.bzo2016.gebaeudehoehe_max_m;
+    if (bzo2016Height != null && heightM != null && bzo2016Height < heightM) {
+      heightM = bzo2016Height;
+      heightMetric = 'Gebäudehöhe';
+      heightRegime = 'BZO 2016';
+      regimeOverrides.heightM = { value: bzo2016Height, regime: 'BZO 2016' };
+    }
+    if (heightM == null || !isFinite(heightM)) {
+      throw new Error(
+        `Für die Zone "${zoneInfo.zone}" (${gemeinde}) ist keine zulässige Höhe hinterlegt ` +
+        `(weder traufseitige Fassadenhöhe noch Gebäudehöhe). Ohne Höhenmass ist keine ` +
+        `Hüllkurven-Berechnung möglich.`
+      );
+    }
+
+    // Mehrlängenzuschlag (Art. 14 BZO 2016): in force, no E-BZO equivalent —
+    // under negative Vorwirkung the stricter in-force rule keeps applying.
+    const mehrlaengenzuschlag = (local.bzo2016 && local.bzo2016.mehrlaengenzuschlag) || null;
+
+    const source = local.source || {
+      article: data._meta.article_grundmasse,
+      version: data._meta.version,
+      paragraph_text: '',
+      screenshot: null,
+      synthetic: true, // no per-zone citation on file — do not present as a verified quote
+    };
 
     return {
       ...merged,
@@ -69,25 +157,51 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       gemeinde,
       heightMetric,
       heightM,
+      heightRegime,
+      regimeOverrides,
+      mehrlaengenzuschlag,
       meta: data._meta,
-      source: local.source || { article: data._meta.article_grundmasse, version: data._meta.version, paragraph_text: '', screenshot: null },
+      provenance: data._provenance || null,
+      kantonal,
+      source,
     };
   }
 
-  // null in a commune file means "this rule does not exist here" (e.g. Zumikon
-  // has no Grünflächenziffer). Those keys must not shadow the cantonal value
-  // with null, but must also not be silently replaced by a Zürich default --
-  // downstream code checks for undefined/null and skips the constraint.
-  function stripNulls(obj) {
-    const out = {};
-    for (const [k, v] of Object.entries(obj)) {
-      if (v !== null) out[k] = v;
-      else out[k] = null;
+  // Resolves the evidence reference for a parameter: commune file first,
+  // then the cantonal norms. Returns { file, title, page, article, quote,
+  // highlight } or null if nothing is on record — callers must then label
+  // the value as a tool assumption, never invent a citation.
+  function getProvenance(rules, param) {
+    const fromBlock = (block) => {
+      if (!block || !block.params || !block.params[param]) return null;
+      const p = block.params[param];
+      const doc = block.docs && block.docs[p.doc];
+      if (!doc) return null;
+      return {
+        file: doc.file, title: doc.title, page: p.page, article: p.article,
+        quote: p.quote, highlight: p.highlight || null, seeAlso: p.see_also || null,
+      };
+    };
+    const local = fromBlock(rules && rules.provenance);
+    if (local) return local;
+    // Cantonal norms: keyed differently (normen.<name>.source)
+    const kant = rules && rules.kantonal;
+    if (kant && kant.normen && kant.normen[param]) {
+      const n = kant.normen[param];
+      const s = n.source || {};
+      const doc = kant._docs && kant._docs[s.doc];
+      return {
+        file: doc ? doc.file : null, title: doc ? doc.title : s.article,
+        page: s.page, article: s.article, quote: s.paragraph_text,
+        highlight: s.highlight || null, seeAlso: null,
+      };
     }
-    return out;
+    return null;
   }
 
   window.MachbarkeitTool.getZoneRules = getZoneRules;
   window.MachbarkeitTool.availableGemeinden = availableGemeinden;
   window.MachbarkeitTool.loadGemeindeData = loadGemeindeData;
+  window.MachbarkeitTool.loadKantonalesRecht = loadKantonalesRecht;
+  window.MachbarkeitTool.getProvenance = getProvenance;
 })();

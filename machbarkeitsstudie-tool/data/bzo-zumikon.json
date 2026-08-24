@@ -5,12 +5,18 @@
     "version": "Bau- und Zonenordnung Gemeinde Zumikon, 17.09.2019",
     "article_grundmasse": "Art. 17, BZO Zumikon",
     "legal_status": "In Kraft (Genehmigung BD 08.02.2019, Inkraftsetzung 11.10.2019). Hinweis: es existiert eine teilweise Nichtgenehmigung vom 1. April 2026 zu einer Teilrevision -- vor Verwendung prüfen, ob die hier erfassten Werte davon betroffen sind.",
-    "data_last_verified": "2026-08-22",
+    "data_last_verified": "2026-08-24",
     "source_pdf": "source/bzo-zumikon-2019.pdf",
     "hoehenmetrik": "Gebäudehöhe",
-    "_hoehenmetrik_note": "Zumikon regelt die Höhe als Gebäudehöhe (plus separate Firsthöhe), NICHT als traufseitige Fassadenhöhe wie die Stadt Zürich. Nicht als dasselbe Mass behandeln.",
-    "_grenzabstand_note": "Zumikon kennt zwei Grenzabstände (Art. 17/18): der GROSSE gilt in W2/25 für die beiden am stärksten nach Süden gerichteten Gebäudeseiten, in W2/35, W2/40 und W2/60 für die längere, am stärksten nach Süden gerichtete Seite; der KLEINE für alle übrigen Seiten. Dieses Tool puffert einheitlich mit dem kleinen Grenzabstand und weist im Output darauf hin -- der reale Fussabdruck ist auf der Südseite kleiner.",
-    "_gruenflaechenziffer_note": "Die BZO Zumikon kennt in Art. 17 keine Grünflächenziffer für die Wohnzonen. Dieses Kriterium entfällt daher hier (null), es wird NICHT als 0% behandelt."
+    "_hoehenmetrik_note": "Zumikon regelt die Höhe als Gebäudehöhe (plus separater Firsthöhen-Zuschlag), NICHT als traufseitige Fassadenhöhe wie die Stadt Zürich. Nicht als dasselbe Mass behandeln.",
+    "_grenzabstand_note": "Zumikon kennt zwei Grenzabstände (Art. 17/18): der GROSSE gilt in W2/25 für die BEIDEN am stärksten nach Süden gerichteten Gebäudeseiten (grosser_grenzabstand_suedseiten: 2), in W2/35, W2/40 und W2/60 für die längere, am stärksten gegen Süden gerichtete Seite (grosser_grenzabstand_suedseiten: 1); der KLEINE für alle übrigen Seiten. Massgebend ist das flächenkleinste Rechteck, welches das GEBÄUDE umfasst (Art. 18 Abs. 2) -- nicht die Parzellengrenze.",
+    "_gruenflaechenziffer_note": "Die BZO Zumikon kennt in Art. 17 keine Grünflächenziffer für die Wohnzonen. Dieses Kriterium entfällt daher hier (null), es wird NICHT als 0% behandelt. ABER: Art. 29 Abs. 2 verlangt im Perimeter 'Gemeindegebiet mit hohem Grünanteil' in der Regel mindestens 25% Begrünung der massgeblichen Grundfläche -- als Checklisten-Punkt zu prüfen (Perimeter im Zonenplan).",
+    "_firsthoehe_note": "Firsthöhe ist im altrechtlichen System (§ 281 aPBG) der ZUSCHLAG über der Gebäudehöhe-Schnittlinie: der First muss innerhalb von 45°-Ebenen ab der Schnittlinie Dachfläche/Fassade liegen und darf höchstens um den Tabellenwert über diese Linie steigen. Deshalb heisst das Feld hier firsthoehe_zuschlag_m -- 4.50 m ZUSÄTZLICH zur Gebäudehöhe 6.50 m in W2/25, nicht 4.50 m absolut.",
+    "begruenung_perimeter_min_pct": 25,
+    "abgrabung_max_m": 1.0,
+    "strassenabstand_ohne_baulinien_m": 2,
+    "attika_profil_ueberhoehung_m": 1.0,
+    "_attika_note": "Art. 31 Abs. 1: Attikageschosse müssen ein Profil einhalten, das auf den fiktiven Traufseiten maximal 1 m ÜBER der Schnittlinie Aussenkante Fassade / Oberkante fertiger Fussboden des Attikageschosses unter 45° angelegt wird. Erforderlicher Rücksprung je Seite = Attikahöhe minus 1 m (nicht die volle Attikahöhe). Abs. 2: hangseitig fassadenbündig zulässig, wenn auf dieser Seite die zulässige Gebäudehöhe unter Einbezug des Attikageschosses eingehalten wird (Höhen-Bedingung, keine Hangneigungs-Bedingung); Fläche solcher Attikageschosse nicht grösser als nach Abs. 1. Ein 60%-Flächendeckel steht NICHT in Art. 31 -- frühere 'Faustregel' entfernt."
   },
 
   "W2/25": {
@@ -18,55 +24,84 @@
     "anrechenbares_untergeschoss_max": 1,
     "anrechenbares_dach_attika_max": 2,
     "gebaeudehoehe_max_m": 6.5,
-    "firsthoehe_max_m": 4.5,
+    "firsthoehe_zuschlag_m": 4.5,
     "gesamtlaenge_max_m": 35,
     "grundabstand_min_m": 5,
     "grosser_grenzabstand_min_m": 10,
+    "grosser_grenzabstand_suedseiten": 2,
     "ausnuetzungsziffer_max_pct": 25,
     "gruenflaechenziffer_min_pct": null,
     "kronenbedeckungsgrad_min_pct": null,
-    "source": { "article": "Art. 17, BZO Zumikon", "version": "BZO Zumikon, 17.09.2019", "paragraph_text": "", "screenshot": null }
+    "source": { "article": "Art. 17, BZO Zumikon", "version": "BZO Zumikon, 17.09.2019", "page": 8, "paragraph_text": "Ausnützungsziffer max. 25% / Vollgeschosse max. 2 / Anrechenbare Dachgeschosse bei erreichter Vollgeschosszahl max. 2 / Anrechenbare Untergeschosse bei erreichter Vollgeschosszahl max. 1 / Gebäudehöhe max. 6.50 m / Firsthöhe max. 4.50 m / Gesamtlänge max. 35 m / Grosser Grenzabstand min. 10 m / Kleiner Grenzabstand min. 5 m", "screenshot": null }
   },
   "W2/35": {
     "vollgeschosse_max": 2,
     "anrechenbares_untergeschoss_max": 1,
     "anrechenbares_dach_attika_max": 2,
     "gebaeudehoehe_max_m": 7.0,
-    "firsthoehe_max_m": 5,
+    "firsthoehe_zuschlag_m": 5,
     "gesamtlaenge_max_m": 35,
     "grundabstand_min_m": 5,
     "grosser_grenzabstand_min_m": 9,
+    "grosser_grenzabstand_suedseiten": 1,
     "ausnuetzungsziffer_max_pct": 35,
     "gruenflaechenziffer_min_pct": null,
     "kronenbedeckungsgrad_min_pct": null,
-    "source": { "article": "Art. 17, BZO Zumikon", "version": "BZO Zumikon, 17.09.2019", "paragraph_text": "", "screenshot": null }
+    "source": { "article": "Art. 17, BZO Zumikon", "version": "BZO Zumikon, 17.09.2019", "page": 8, "paragraph_text": "Ausnützungsziffer max. 35% / Vollgeschosse max. 2 / Gebäudehöhe max. 7.00 m / Firsthöhe max. 5 m / Gesamtlänge max. 35 m / Grosser Grenzabstand min. 9 m / Kleiner Grenzabstand min. 5 m", "screenshot": null }
   },
   "W2/40": {
     "vollgeschosse_max": 2,
     "anrechenbares_untergeschoss_max": 1,
     "anrechenbares_dach_attika_max": 2,
     "gebaeudehoehe_max_m": 7.5,
-    "firsthoehe_max_m": 6,
+    "firsthoehe_zuschlag_m": 6,
     "gesamtlaenge_max_m": 35,
     "grundabstand_min_m": 5,
     "grosser_grenzabstand_min_m": 9,
+    "grosser_grenzabstand_suedseiten": 1,
     "ausnuetzungsziffer_max_pct": 40,
     "gruenflaechenziffer_min_pct": null,
     "kronenbedeckungsgrad_min_pct": null,
-    "source": { "article": "Art. 17, BZO Zumikon", "version": "BZO Zumikon, 17.09.2019", "paragraph_text": "", "screenshot": null }
+    "source": { "article": "Art. 17, BZO Zumikon", "version": "BZO Zumikon, 17.09.2019", "page": 8, "paragraph_text": "Ausnützungsziffer max. 40% / Vollgeschosse max. 2 / Gebäudehöhe max. 7.50 m / Firsthöhe max. 6 m / Gesamtlänge max. 35 m / Grosser Grenzabstand min. 9 m / Kleiner Grenzabstand min. 5 m", "screenshot": null }
   },
   "W2/60": {
     "vollgeschosse_max": 2,
     "anrechenbares_untergeschoss_max": 1,
     "anrechenbares_dach_attika_max": 2,
     "gebaeudehoehe_max_m": 8.1,
-    "firsthoehe_max_m": 6,
+    "firsthoehe_zuschlag_m": 6,
     "gesamtlaenge_max_m": 35,
     "grundabstand_min_m": 5,
     "grosser_grenzabstand_min_m": 9,
+    "grosser_grenzabstand_suedseiten": 1,
     "ausnuetzungsziffer_max_pct": 60,
     "gruenflaechenziffer_min_pct": null,
     "kronenbedeckungsgrad_min_pct": null,
-    "source": { "article": "Art. 17, BZO Zumikon", "version": "BZO Zumikon, 17.09.2019", "paragraph_text": "", "screenshot": null }
+    "source": { "article": "Art. 17, BZO Zumikon", "version": "BZO Zumikon, 17.09.2019", "page": 8, "paragraph_text": "Ausnützungsziffer max. 60% / Vollgeschosse max. 2 / Gebäudehöhe max. 8.10 m / Firsthöhe max. 6 m / Gesamtlänge max. 35 m / Grosser Grenzabstand min. 9 m / Kleiner Grenzabstand min. 5 m", "screenshot": null }
+  },
+
+  "_provenance": {
+    "docs": {
+      "bzo": { "file": "source/bzo-zumikon-2019.pdf", "title": "Bau- und Zonenordnung Gemeinde Zumikon (17.09.2019)" },
+      "pbg": { "file": "source/pbg-700.1-current.pdf", "title": "Planungs- und Baugesetz Kanton Zürich (PBG, 700.1)" }
+    },
+    "params": {
+      "ausnuetzungsziffer_max_pct": { "doc": "bzo", "page": 8, "article": "Art. 17 BZO Zumikon", "highlight": "Ausnützungsziffer", "quote": "Grundmasse Artikel 17: Ausnützungsziffer max. — W2/25: 25%, W2/35: 35%, W2/40: 40%, W2/60: 60%" },
+      "vollgeschosse_max": { "doc": "bzo", "page": 8, "article": "Art. 17 BZO Zumikon", "highlight": "Vollgeschosse", "quote": "Vollgeschosse max. 2 (alle Wohnzonen)" },
+      "anrechenbares_untergeschoss_max": { "doc": "bzo", "page": 8, "article": "Art. 17 BZO Zumikon", "highlight": "Anrechenbare Unterge", "quote": "Anrechenbare Untergeschosse bei erreichter Vollgeschosszahl max. 1" },
+      "anrechenbares_dach_attika_max": { "doc": "bzo", "page": 8, "article": "Art. 17 BZO Zumikon", "highlight": "Anrechenbare Dachge", "quote": "Anrechenbare Dachgeschosse bei erreichter Vollgeschosszahl max. 2" },
+      "gebaeudehoehe_max_m": { "doc": "bzo", "page": 8, "article": "Art. 17 BZO Zumikon", "highlight": "Gebäudehöhe", "quote": "Gebäudehöhe max. — W2/25: 6.50 m, W2/35: 7.00 m, W2/40: 7.50 m, W2/60: 8.10 m" },
+      "firsthoehe_zuschlag_m": { "doc": "bzo", "page": 8, "article": "Art. 17 BZO Zumikon i.V.m. § 281 aPBG", "highlight": "Firsthöhe", "quote": "Firsthöhe max. — W2/25: 4.50 m, W2/35: 5 m, W2/40: 6 m, W2/60: 6 m. Altrechtliche Messweise (§ 281 aPBG): der First muss innerhalb von 45°-Ebenen ab der Schnittlinie Dachfläche/Fassade liegen -- der Wert ist ein Zuschlag ÜBER der Gebäudehöhe.", "see_also": { "doc": "pbg", "page": 100, "article": "§ 281 aPBG (Anhang bisheriges Recht)", "highlight": "Firsthöhe" } },
+      "gesamtlaenge_max_m": { "doc": "bzo", "page": 8, "article": "Art. 17 BZO Zumikon", "highlight": "Gesamtlänge", "quote": "Gesamtlänge max. 35 m (alle Wohnzonen)" },
+      "grundabstand_min_m": { "doc": "bzo", "page": 8, "article": "Art. 17/18 BZO Zumikon", "highlight": "Kleiner Grenzabstand", "quote": "Kleiner Grenzabstand min. 5 m. Art. 18 Abs. 3: Der kleine Grenzabstand gilt gegenüber den übrigen Gebäudeseiten." },
+      "grosser_grenzabstand_min_m": { "doc": "bzo", "page": 8, "article": "Art. 17/18 BZO Zumikon", "highlight": "Grosser Grenzabstand", "quote": "Grosser Grenzabstand min. — W2/25: 10 m, übrige: 9 m. Art. 18 Abs. 1: Der grosse Grenzabstand gilt in der Zone W2/25 für die beiden am meisten gegen Süden gerichteten Gebäudeseiten, in den Zonen W2/35, W2/40 und W2/60 für die längere, am stärksten gegen Süden gerichtete Gebäudeseite." },
+      "grosser_grenzabstand_suedseiten": { "doc": "bzo", "page": 8, "article": "Art. 18 BZO Zumikon", "highlight": "beiden", "quote": "Der grosse Grenzabstand gilt in der Zone W2/25 für die beiden am meisten gegen Süden gerichteten Gebäudeseiten, in den Zonen W2/35, W2/40 und W2/60 für die längere, am stärksten gegen Süden gerichtete Gebäudeseite. Für die Bestimmung der massgebenden Gebäudeseiten ist vom flächenkleinsten Rechteck auszugehen, welches das Gebäude umfasst." },
+      "attika_profil_ueberhoehung_m": { "doc": "bzo", "page": 12, "article": "Art. 31 Abs. 1 BZO Zumikon", "highlight": "Attikageschosse", "quote": "Dachgeschosse über Flachdächern (Attikageschosse) müssen mit Ausnahme der nach § 292 PBG zulässigen Dachaufbauten ein Profil einhalten, das auf den fiktiven Traufseiten unter Einhaltung der zulässigen Gebäudehöhe maximal 1 m über der tatsächlichen Schnittlinie zwischen der Aussenkante der Fassade und der Oberkante des fertigen Fussbodens des Attikageschosses unter 45° angelegt wird." },
+      "attika_bergseite": { "doc": "bzo", "page": 12, "article": "Art. 31 Abs. 2 BZO Zumikon", "highlight": "hangseitig", "quote": "Attikageschosse dürfen hangseitig fassadenbündig angeordnet werden, wenn auf dieser Seite unter Einbezug der Attikageschosse die zulässige Gebäudehöhe eingehalten wird. Die Fläche solcher Attikageschosse darf nicht grösser sein als die von Attikageschossen gemäss Abs. 1." },
+      "strassenabstand_ohne_baulinien_m": { "doc": "bzo", "page": 12, "article": "Art. 32 BZO Zumikon", "highlight": "Strassenabstand", "quote": "Wo Verkehrsbaulinien fehlen, haben auch unterirdische Gebäude, unter Vorbehalt von Art. 6 BZO, einen Abstand von 2 m gegenüber öffentlichen Strassen, Plätzen und Wegen einzuhalten." },
+      "begruenung_perimeter_min_pct": { "doc": "bzo", "page": 12, "article": "Art. 29 Abs. 2 BZO Zumikon", "highlight": "Grünanteil", "quote": "Grundstücke, die sich innerhalb des Perimeters 'Gemeindegebiet mit hohem Grünanteil' befinden, müssen in der Regel mindestens 25% der massgeblichen Grundfläche begrünen." },
+      "abgrabung_max_m": { "doc": "bzo", "page": 12, "article": "Art. 30 BZO Zumikon", "highlight": "Abgrabungen", "quote": "Der gewachsene Boden darf entlang der Gebäudefassade höchstens 1.00 m abgegraben werden. Davon ausgenommen sind Ein- und Ausfahrten zu Einzel- und Doppelgaragen." },
+      "massgebliche_grundflaeche": { "doc": "pbg", "page": 97, "article": "§ 259 aPBG (Anhang bisheriges Recht)", "highlight": "Massgebliche Grundfläche", "quote": "Massgebliche Grundfläche ist die von der Baueingabe erfasste Fläche der baulich noch nicht ausgenützten Grundstücke oder Grundstückteile der Bauzone. Ausser Ansatz fallen Waldabstandsflächen, soweit sie mehr als 15 m hinter der Waldabstandslinie liegen, Wald und offene Gewässer." }
+    }
   }
 }

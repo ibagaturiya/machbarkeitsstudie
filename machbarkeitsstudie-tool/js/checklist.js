@@ -146,14 +146,22 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       text: 'Keine Baulinie betrifft diese Parzelle (kantonale Geodaten und ÖREB-Kataster).' };
   }
 
-  async function buildChecklist({ parcelPolygon, restrictions, rules, gemeinde, wald, waldLossInFootprintM2, baulinien, baulinienLossM2 }) {
+  async function buildChecklist({ parcelPolygon, restrictions, rules, gemeinde, bfsNr, wald, waldLossInFootprintM2, baulinien, baulinienLossM2 }) {
     // The Sonderbauvorschriften/Gestaltungsplan and Denkmalpflege layers are
     // Stadt-Zürich datasets. Outside the city they return nothing, which would
-    // render as a green PASS -- a false all-clear. Only query them where they
-    // actually have coverage; elsewhere say plainly that they weren't checked.
-    const cityDataAvailable = gemeinde === 'Zürich';
+    // render as a green PASS -- a false all-clear. Gate on the parcel's actual
+    // location (BFS-Nr. 261 = Stadt Zürich), NOT the commune name: the name
+    // can come from the manual override dropdown, and overriding to "Zürich"
+    // for a parcel physically elsewhere must not produce a fake PASS.
+    const cityDataAvailable = bfsNr != null ? bfsNr === 261 : gemeinde === 'Zürich';
+    // A city-WFS outage must degrade to "nicht prüfbar", not kill the whole
+    // analysis (it used to).
+    let cityFetchFailed = false;
     const [sbvHits, heritageHits] = cityDataAvailable
-      ? await Promise.all([checkSonderbauvorschriften(parcelPolygon), checkHeritageProtection(parcelPolygon)])
+      ? await Promise.all([
+          checkSonderbauvorschriften(parcelPolygon).catch(() => { cityFetchFailed = true; return null; }),
+          checkHeritageProtection(parcelPolygon).catch(() => { cityFetchFailed = true; return null; }),
+        ])
       : [null, null];
 
     const tierA = [
@@ -161,10 +169,12 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       {
         key: 'gewaesserraum',
         label: 'Gewässerraum',
-        status: restrictions.gewaesserraum.concerned ? 'flag' : 'pass',
+        status: restrictions.gewaesserraum.concerned ? 'flag' : (restrictions.gewaesserraum.unchecked ? 'review' : 'pass'),
         text: restrictions.gewaesserraum.concerned
           ? 'Diese Parzelle unterliegt gemäss ÖREB-Kataster einem Gewässerraum. Automatische Fussabdruck-Reduktion nicht vorgenommen.'
-          : 'Kein Gewässerraum betrifft diese Parzelle (gemäss ÖREB-Kataster).',
+          : restrictions.gewaesserraum.unchecked
+            ? 'Nicht prüfbar: der ÖREB-Kataster war nicht erreichbar oder verwendet unbekannte Themen-Codes. Manuell prüfen.'
+            : 'Kein Gewässerraum betrifft diese Parzelle (gemäss ÖREB-Kataster).',
       },
       baulinienItem(restrictions, baulinien, baulinienLossM2),
     ];
@@ -173,25 +183,41 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       {
         key: 'sonderbauvorschriften',
         label: 'Sonderbauvorschriften / Gestaltungsplan',
-        status: !cityDataAvailable ? 'review' : sbvHits.length > 0 ? 'review' : 'pass',
+        status: !cityDataAvailable || sbvHits == null ? 'review' : sbvHits.length > 0 ? 'review' : 'pass',
         text: !cityDataAvailable
           ? `Nicht geprüft: die verwendeten Datensätze für Sonderbauvorschriften und Gestaltungspläne decken nur die Stadt Zürich ab, diese Parzelle liegt in ${gemeinde}. Manuell prüfen — solche Überlagerungen überschreiben die Grundmasse oben.`
-          : sbvHits.length > 0
-            ? `Diese Parzelle liegt innerhalb von: ${sbvHits.map((h) => h.name).join(', ')}. Deren Sondervorschriften überschreiben die Standard-BZO-Werte oben und wurden von diesem Tool nicht ausgewertet. Manuelle Prüfung erforderlich.`
-            : 'Keine Sonderbauvorschriften oder Gestaltungspläne gefunden, die diese Parzelle betreffen.',
+          : sbvHits == null
+            ? 'Nicht prüfbar: der Stadt-Zürich-Geodatendienst war nicht erreichbar. Manuell prüfen — Sonderbauvorschriften/Gestaltungspläne überschreiben die Grundmasse oben.'
+            : sbvHits.length > 0
+              ? `Diese Parzelle liegt innerhalb von: ${sbvHits.map((h) => h.name).join(', ')}. Deren Sondervorschriften überschreiben die Standard-BZO-Werte oben und wurden von diesem Tool nicht ausgewertet. Manuelle Prüfung erforderlich.`
+              : 'Keine Sonderbauvorschriften oder Gestaltungspläne gefunden, die diese Parzelle betreffen.',
         detail: sbvHits,
       },
       {
         key: 'ortsbildschutz',
         label: 'Ortsbildschutz / Denkmalpflege',
-        status: !cityDataAvailable ? 'review' : heritageHits.length > 0 ? 'review' : 'pass',
+        status: !cityDataAvailable || heritageHits == null ? 'review' : heritageHits.length > 0 ? 'review' : 'pass',
         text: !cityDataAvailable
           ? `Nicht geprüft: das verwendete Denkmalpflege-Inventar deckt nur die Stadt Zürich ab, diese Parzelle liegt in ${gemeinde}. Manuell prüfen (kommunales Inventar der Gemeinde sowie kantonales Inventar).`
-          : heritageHits.length > 0
-            ? `Diese Parzelle/dieses Gebäude erscheint im kommunalen Denkmalpflege-Inventar (${heritageHits.map((h) => h.objectDescription).join(', ')}). Manuelle Prüfung erforderlich, was dies einschränkt. Hinweis: nur das kommunale Inventar wurde geprüft, nicht das kantonale (überkommunale) Inventar.`
-            : 'Kein Eintrag im kommunalen Denkmalpflege-Inventar für diese Parzelle gefunden.',
+          : heritageHits == null
+            ? 'Nicht prüfbar: das Denkmalpflege-Inventar (Stadt-Zürich-WFS) war nicht erreichbar. Manuell prüfen.'
+            : heritageHits.length > 0
+              ? `Diese Parzelle/dieses Gebäude erscheint im kommunalen Denkmalpflege-Inventar (${heritageHits.map((h) => h.objectDescription).join(', ')}). Manuelle Prüfung erforderlich, was dies einschränkt. Hinweis: nur das kommunale Inventar wurde geprüft, nicht das kantonale (überkommunale) Inventar.`
+              : 'Kein Eintrag im kommunalen Denkmalpflege-Inventar für diese Parzelle gefunden.',
         detail: heritageHits,
       },
+      ...(rules.meta && rules.meta.strassenabstand_ohne_baulinien_m != null ? [{
+        key: 'strassenabstand',
+        label: 'Strassenabstand',
+        status: 'review',
+        text: `Art. 32 BZO ${gemeinde}: Wo Verkehrsbaulinien fehlen, gilt ein Abstand von ${rules.meta.strassenabstand_ohne_baulinien_m} m gegenüber öffentlichen Strassen, Plätzen und Wegen (auch für unterirdische Gebäude). Nicht automatisch geprüft — bei Parzellen an öffentlichen Strassen ohne Baulinie manuell berücksichtigen.`,
+      }] : []),
+      ...(rules.meta && rules.meta.begruenung_perimeter_min_pct != null ? [{
+        key: 'begruenung',
+        label: 'Begrünung (Perimeter hoher Grünanteil)',
+        status: 'review',
+        text: `Art. 29 Abs. 2 BZO ${gemeinde}: Im Perimeter "Gemeindegebiet mit hohem Grünanteil" sind in der Regel mindestens ${rules.meta.begruenung_perimeter_min_pct}% der massgeblichen Grundfläche zu begrünen. Ob die Parzelle im Perimeter liegt, wurde nicht automatisch geprüft (Zonenplan/Ergänzungsplan konsultieren).`,
+      }] : []),
       {
         key: 'kronenbedeckungsgrad',
         label: 'Kronenbedeckungsgrad',

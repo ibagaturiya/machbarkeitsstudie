@@ -319,8 +319,8 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   // A rectangle from its own centre, angle and dimensions -- the inverse of
   // reading corners/ang/lengthM/widthM back off minAreaRectangleLV95. Used
   // to build an Attikageschoss footprint: same centre and orientation as the
-  // storey below, just smaller (inset per the 45° roof-line rule, capped at
-  // 60% of area).
+  // storey below, just smaller (inset per the 45° roof-profile rule of
+  // Art. 31 BZO).
   function rectangleFromCenterLV95(cx, cy, angle, lengthM, widthM) {
     const hL = lengthM / 2, hW = widthM / 2;
     const toWorld = (x, y) => [cx + x * Math.cos(angle) - y * Math.sin(angle), cy + x * Math.sin(angle) + y * Math.cos(angle)];
@@ -329,19 +329,26 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     return turf.polygon([corners]);
   }
 
-  // Attikageschoss footprint per block, per the 4 Faustregeln: inset by
-  // setbackM on all four sides (45°-Regel: horizontal Rücksprung = vertical
-  // Geschosshöhe), capped at 60% of the storey below's area. Shared between
-  // the initial computation (app.js) and every live recompute needed to keep
-  // the Attika following its block during a drag (viewer.js, and the 2D plan
-  // drag in app.js) -- one implementation, so "the Attika follows when you
-  // move the building" can't drift out of sync with how it was built.
+  // Attikageschoss footprint per block, per Art. 31 BZO Zumikon (and the
+  // cantonal 45° profile): inset by setbackM on all four sides. setbackM is
+  // the horizontal Rücksprung the 45° profile requires — the CALLER derives
+  // it from the Attika storey height minus the BZO's Überhöhung allowance
+  // (Art. 31 Abs. 1: the 45° plane starts up to 1 m ABOVE the intersection
+  // line, so Rücksprung = Attikahöhe − 1 m in Zumikon, not the full height).
+  // There is NO general area cap in Art. 31 — the former "60% Faustregel"
+  // was a tool invention and has been removed. Shared between the initial
+  // computation (app.js) and every live recompute needed to keep the Attika
+  // following its block during a drag (viewer.js, and the 2D plan drag in
+  // app.js) -- one implementation, so "the Attika follows when you move the
+  // building" can't drift out of sync with how it was built.
   //
   // uphillBearingDeg (optional, compass bearing 0=N/90=E the slope rises
   // toward): when given, the edge whose outward normal is closest to that
-  // bearing is the Bergseite (Gemeinderecht Hanglage-Ausnahme) and is left
-  // flush with the facade below for up to 2/3 of its length instead of
-  // inset -- the other three sides still get the normal setback.
+  // bearing is the Bergseite (Art. 31 Abs. 2: hangseitig fassadenbündig
+  // zulässig — the caller checks the Gebäudehöhe condition of Abs. 2 before
+  // passing this) and is left flush with the facade below over its full
+  // length. Abs. 2 sentence 2 caps such an Attika's AREA at what an Abs.-1
+  // Attika (all-sides setback) would have.
   function computeAttikaFootprints(blocks, setbackM, uphillBearingDeg = null) {
     let attikaAreaM2 = 0, requestedAreaM2 = 0, anyImpossible = false;
     // Per block, why it came out the size it did -- so the UI can show its
@@ -350,9 +357,13 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     const attikaBlocks = blocks.map((block) => {
       const rect = minAreaRectangleLV95(block);
       if (!rect) return null;
-      const belowAreaM2 = rect.lengthM * rect.widthM;
-      const capAreaM2 = belowAreaM2 * 0.6; // Faustregel 3: max. 60% der Grundfläche
-      requestedAreaM2 += capAreaM2;
+      // Art. 31 Abs. 1 reference: the all-sides-setback Attika. Its area is
+      // both the "requested" size for the normal case and the legal cap for
+      // the fassadenbündige Bergseite variant (Abs. 2 sentence 2).
+      const abs1L = rect.lengthM - 2 * setbackM;
+      const abs1W = rect.widthM - 2 * setbackM;
+      const abs1AreaM2 = Math.max(0, abs1L) * Math.max(0, abs1W);
+      requestedAreaM2 += abs1AreaM2;
       const cx = (rect.corners[0][0] + rect.corners[2][0]) / 2, cy = (rect.corners[0][1] + rect.corners[2][1]) / 2;
 
       // Everything below works in the rectangle's own frame: u along rect.ang
@@ -390,18 +401,19 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       // Extent along each local axis, and where the rectangle's centre sits.
       let extU, extV, offU = 0, offV = 0;
       if (bergAxis === null) {
-        extU = rect.lengthM - 2 * setbackM;
-        extV = rect.widthM - 2 * setbackM;
+        extU = abs1L;
+        extV = abs1W;
       } else {
-        // Bergseite flush (no setback there), but only over max. 2/3 of that
-        // facade's length; the remaining sides keep the ordinary setback, and
-        // the flush run additionally can't spill past them.
+        // Bergseite flush per Art. 31 Abs. 2: no setback on the uphill
+        // facade, over its full length (the former 2/3 limit was a tool
+        // invention with no basis in Art. 31 and has been removed). The
+        // remaining sides keep the ordinary setback. The area cap to the
+        // Abs.-1 size is applied below.
         const facadeLen = bergAxis === 'u' ? rect.widthM : rect.lengthM;
         const depthAxis = bergAxis === 'u' ? rect.lengthM : rect.widthM;
-        const flushLen = Math.min(facadeLen - 2 * setbackM, facadeLen * 2 / 3);
         const depth = depthAxis - setbackM;
-        if (bergAxis === 'u') { extU = depth; extV = flushLen; }
-        else { extV = depth; extU = flushLen; }
+        if (bergAxis === 'u') { extU = depth; extV = facadeLen; }
+        else { extV = depth; extU = facadeLen; }
         // Push the centre toward the Bergseite by half the one-sided setback,
         // so the flush facade actually lands on the facade below rather than
         // the block staying centred and merely getting smaller.
@@ -418,12 +430,16 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       };
       diagnostics.push(diag);
       if (extU <= 0 || extV <= 0) { anyImpossible = true; return null; }
+      // Art. 31 Abs. 2 sentence 2: a fassadenbündige (Bergseite) Attika may
+      // not be larger than an Abs.-1 Attika would be. The normal case has no
+      // area cap — the 45° profile itself is the constraint.
+      const capAreaM2 = bergAxis === null ? Infinity : abs1AreaM2;
       const scale = Math.min(1, Math.sqrt(capAreaM2 / (extU * extV)));
       const finalL = extU * scale, finalW = extV * scale;
       diag.narrowestM = Math.min(finalL, finalW);
       if (finalL < MIN_PRIMITIVE_WIDTH_M || finalW < MIN_PRIMITIVE_WIDTH_M) { anyImpossible = true; return null; }
       diag.possible = true;
-      // Re-anchor after the 60% cap shrinks the box: the Bergseite facade has
+      // Re-anchor after the Abs.-2 area cap shrinks the box: the Bergseite facade has
       // to stay ON the facade below, so pin that edge and let the cap eat into
       // the valley side instead of scaling the offset (which would pull the
       // flush wall inward and quietly turn it back into a setback).

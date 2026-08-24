@@ -46,22 +46,30 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     return data.GetExtractByIdResponse.Extract;
   }
 
-  function isAnyCodeConcerned(extract, codes) {
+  // A theme code that upstream renamed would silently degrade to "not
+  // concerned" — a false all-clear. So each theme also reports `unknown`:
+  // true when NONE of its known codes appear in the extract's concerned OR
+  // not-concerned theme lists, i.e. the extract no longer speaks the
+  // vocabulary this tool expects for that theme.
+  function themeStatus(extract, codes) {
     const concernedCodes = new Set((extract.ConcernedTheme || []).map((t) => t.code));
-    return codes.some((c) => concernedCodes.has(c));
+    const allCodes = new Set([
+      ...concernedCodes,
+      ...((extract.NotConcernedTheme || []).map((t) => t.code)),
+      ...((extract.ThemeWithoutData || []).map((t) => t.code)),
+    ]);
+    const known = codes.some((c) => allCodes.has(c));
+    return {
+      concerned: codes.some((c) => concernedCodes.has(c)),
+      unknown: !known && allCodes.size > 0,
+    };
   }
 
   function checkFootprintRestrictions(extract) {
     return {
-      waldabstand: {
-        concerned: isAnyCodeConcerned(extract, THEME_CODES.waldabstand),
-      },
-      gewaesserraum: {
-        concerned: isAnyCodeConcerned(extract, THEME_CODES.gewaesserraum),
-      },
-      baulinien: {
-        concerned: isAnyCodeConcerned(extract, THEME_CODES.baulinien),
-      },
+      waldabstand: themeStatus(extract, THEME_CODES.waldabstand),
+      gewaesserraum: themeStatus(extract, THEME_CODES.gewaesserraum),
+      baulinien: themeStatus(extract, THEME_CODES.baulinien),
     };
   }
 

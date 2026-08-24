@@ -178,12 +178,29 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
         removeFromSelection(identified.egrid);
         return;
       }
-      const zone = await T.lookupZone(easting, northing);
-      const rules = await T.getZoneRules(zone, gemeindeOverride);
-      addToSelection(
-        { ...identified, zone: zone.zone, zoneLabel: zone.zoneLabel, zoneSource: zone.zoneSource, rules },
-        { easting, northing }
-      );
+      try {
+        // Zone from the parcel's REPRESENTATIVE point (centroid where it lies
+        // inside), not the raw click: on a parcel straddling a zone boundary
+        // the click position silently decided the zone — two people clicking
+        // different corners got different reports. The centroid is
+        // deterministic; the boundary-uncertainty flag (edgeUncertain) still
+        // reports proximity to a zone border.
+        const rep = representativePoint(identified, { easting, northing });
+        const zone = await T.lookupZone(rep.easting, rep.northing);
+        const rules = await T.getZoneRules(zone, gemeindeOverride);
+        addToSelection(
+          { ...identified, zone: zone.zone, zoneLabel: zone.zoneLabel, zoneSource: zone.zoneSource, rules },
+          { easting, northing }
+        );
+      } catch (err) {
+        // Unsupported commune, outside the Bauzone, zone not on file … —
+        // silently ignoring left the user with a dead click and no feedback.
+        L.popup()
+          .setLatLng(e.latlng)
+          .setContent(`<div style="max-width:280px">${String(err.message || err)
+            .replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))}</div>`)
+          .openOn(map);
+      }
     });
 
     const controller = {

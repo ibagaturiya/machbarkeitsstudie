@@ -64,7 +64,10 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
         anrechenbares_dach_attika_max: p.dachgeschosse_max,
         anrechenbares_untergeschoss_max: p.untergeschosse_max,
         gebaeudehoehe_max_m: p.gebaeudehoehe_max,
-        firsthoehe_max_m: p.firsthoehe_max,
+        // Old-law semantics (§ 281 aPBG): the BZO Firsthöhe is the ADDITIONAL
+        // ridge height above the Gebäudehöhe line, not an absolute height —
+        // same key the commune files use.
+        firsthoehe_zuschlag_m: p.firsthoehe_max,
       },
       zoneSource: {
         rechtsstatus: p.rechtsstatus,
