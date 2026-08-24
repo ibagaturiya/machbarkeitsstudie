@@ -1,0 +1,49 @@
+# Deploys the app folder to GitHub Pages on every push to main.
+# The tool is a pure static site (no build step); the subfolder
+# machbarkeitsstudie-tool/ is published AS the site root, so the app
+# lives directly at https://ibagaturiya.github.io/machbarkeitsstudie/.
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      # Golden regression tests over the legal arithmetic — a deploy must
+      # never ship numbers that no longer match the hand-verified law.
+      - run: node tests/run-tests.mjs
+        working-directory: machbarkeitsstudie-tool
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: machbarkeitsstudie-tool
+      - id: deployment
+        uses: actions/deploy-pages@v4

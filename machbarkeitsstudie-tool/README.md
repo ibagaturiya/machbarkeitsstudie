@@ -7,6 +7,13 @@ another commune").
 
 ## Running it
 
+**Hosted:** <https://ibagaturiya.github.io/machbarkeitsstudie/> — deployed
+automatically from `main` by `.github/workflows/pages.yml` (the golden tests
+must pass first). GitHub Pages caches assets for ~10 minutes, so a fresh push
+can take a few minutes to appear.
+
+**Locally (development):**
+
 ```
 python3 serve.py
 ```
@@ -18,7 +25,7 @@ off — there's no build step here, so nothing else invalidates edited JS/JSON
 in the browser, and stale files fail silently and confusingly.
 
 Opening `index.html` directly (`file://`) does **not** work: browsers block
-`fetch()` from `file://`, and the rules table is loaded by absolute path.
+`fetch()` from `file://`, which the data files are loaded with.
 
 ## How it works
 

@@ -9,11 +9,14 @@
 window.MachbarkeitTool = window.MachbarkeitTool || {};
 
 (function () {
+  // Relative to index.html, NOT absolute: the app is served both locally
+  // (serve.py, site root) and on GitHub Pages under /machbarkeitsstudie/,
+  // where a leading slash would point outside the site.
   const GEMEINDE_FILES = {
-    'Zürich': '/data/bzo-zurich-wohnzonen.json',
-    'Zumikon': '/data/bzo-zumikon.json',
+    'Zürich': 'data/bzo-zurich-wohnzonen.json',
+    'Zumikon': 'data/bzo-zumikon.json',
   };
-  const KANTONAL_FILE = '/data/kantonale-abstandsvorschriften.json';
+  const KANTONAL_FILE = 'data/kantonale-abstandsvorschriften.json';
 
   const cache = {};
   let kantonalCache = null;
