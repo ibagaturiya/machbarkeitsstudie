@@ -39,6 +39,13 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      # Deploy stamp (yyddmmhhmmss, Europe/Zurich) into the page footer, so
+      # the served version is verifiable at a glance.
+      - name: Version stamp
+        run: |
+          STAMP=$(TZ=Europe/Zurich date +%y%d%m%H%M%S)
+          sed -i "s/__STAMP__/${STAMP}/" machbarkeitsstudie-tool/index.html
+          echo "Stamped $STAMP"
       - uses: actions/configure-pages@v5
         with:
           enablement: true
