@@ -294,7 +294,18 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   // area to stay a primitive shape -- returns null only if even a fairly
   // small box doesn't fit anywhere, which should not happen for any real
   // buildable area.
-  function findBestRectangle(area, targetAreaM2, baseAngle, naturalLengthM, naturalWidthM) {
+  // opts.minSideM (optional): prefer a rectangle whose SHORT side is at least
+  // this long, at the full target area, before falling back to the ordinary
+  // search. That is how an Attikageschoss survives: the 45° profile of
+  // Art. 31 BZO eats `setback` off every side, so a top storey only exists on
+  // a block at least 2 × setback + MIN_PRIMITIVE_WIDTH_M deep. The natural
+  // ratio of a buildable area cut by Waldabstand and Grundabstand is often a
+  // long thin strip (Zumikon 5029: 15.2 × 7.3 m), and the first fitting shape
+  // won -- so the same 111.5 m² that a 12 × 9.3 m box would have carried an
+  // Attika on was drawn as a strip that could not. A real design picks the
+  // shape that keeps the storey; the area is identical either way, and where
+  // no such shape fits the search proceeds exactly as before.
+  function findBestRectangle(area, targetAreaM2, baseAngle, naturalLengthM, naturalWidthM, opts = {}) {
     const naturalRatio = naturalWidthM > 0 ? naturalLengthM / naturalWidthM : 1;
     const ratios = [1, 1.3, 0.77, 1.6, 0.63, 2, 0.5, 2.6, 0.4, 3.5, 0.3]
       .map((f) => naturalRatio * f)
@@ -302,16 +313,35 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     const allRatios = [naturalRatio, ...ratios];
     const areaScales = [1, 0.95, 0.9, 0.85, 0.8, 0.72, 0.65, 0.55, 0.45, 0.35, 0.25];
 
-    for (const areaScale of areaScales) {
-      const areaM2 = targetAreaM2 * areaScale;
+    // One sweep over both orientations and every ratio at a fixed area.
+    // `accept` filters the SHAPE before placement is attempted; `order` lets
+    // the Attika pass go squarest-first instead of natural-ratio-first.
+    const sweep = (areaM2, accept, order = allRatios) => {
       for (const angle of [baseAngle, baseAngle + Math.PI / 2]) {
-        for (const ratio of allRatios) {
+        for (const ratio of order) {
           const lengthM = Math.sqrt(areaM2 * ratio);
           const widthM = Math.sqrt(areaM2 / ratio);
+          if (accept && !accept(lengthM, widthM)) continue;
           const rect = findCuboidPlacement(area, angle, lengthM, widthM);
-          if (rect) return { rect, achievedAreaM2: areaM2 };
+          if (rect) return rect;
         }
       }
+      return null;
+    };
+
+    const minSideM = opts.minSideM || 0;
+    if (minSideM > 0) {
+      // Squarest first: at a fixed area the short side is longest at ratio 1,
+      // so the nearer to square, the more room is left under the 45° profile.
+      const squarestFirst = [...allRatios].sort((a, b) => Math.abs(Math.log(a)) - Math.abs(Math.log(b)));
+      const attikaCapable = sweep(targetAreaM2, (l, w) => Math.min(l, w) >= minSideM, squarestFirst);
+      if (attikaCapable) return { rect: attikaCapable, achievedAreaM2: targetAreaM2, attikaShaped: true };
+    }
+
+    for (const areaScale of areaScales) {
+      const areaM2 = targetAreaM2 * areaScale;
+      const rect = sweep(areaM2, null);
+      if (rect) return { rect, achievedAreaM2: areaM2 };
     }
     return null;
   }

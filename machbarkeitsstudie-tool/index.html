@@ -174,9 +174,18 @@
      the result panel rather than sitting as one row among thirty. */
   .zone-headline { background: var(--accent-soft); border: 1px solid var(--accent);
     border-radius: 6px; padding: 0.7rem 0.9rem; margin-bottom: 0.8rem; }
-  .zone-headline .zone-code { font-size: 1.5rem; font-weight: 700; line-height: 1.1; }
+  .zone-headline .zone-code { font-size: 1.5rem; font-weight: 700; line-height: 1.1;
+    display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
   .zone-headline .zone-label { font-size: 0.95rem; margin-top: 0.15rem; }
   .zone-headline .zone-meta { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.3rem; }
+  /* Sits next to the zone code: the derivation and the Grundmasse live in the
+     Zonenplan tab, this is the way there. */
+  .zone-proof-btn { font-size: 0.68rem; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase;
+    border: 1px solid var(--accent); background: transparent; color: var(--accent);
+    border-radius: 3px; padding: 0.15rem 0.4rem; cursor: pointer; }
+  .zone-proof-btn:hover { background: var(--accent-soft); }
+  .steckbrief-h { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.04em;
+    color: var(--text-muted); margin: 1.1rem 0 0.35rem; }
   table.numbers { border-collapse: collapse; margin-bottom: 1rem; }
   table.numbers td { padding: 0.25rem 0.75rem 0.25rem 0; }
   table.numbers td:first-child { color: var(--text-muted); }

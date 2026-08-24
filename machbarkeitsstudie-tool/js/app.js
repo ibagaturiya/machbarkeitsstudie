@@ -294,6 +294,15 @@
     return t ? t[0].toUpperCase() + t.slice(1) : t;
   }
 
+  // Dates out of the cantonal WFS arrive as ISO timestamps. Anything that
+  // isn't one is passed through untouched rather than turned into "Invalid
+  // Date" — the source string is still more useful than that.
+  function formatDateCH(value) {
+    if (!value) return null;
+    const m = String(value).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    return m ? `${m[3]}.${m[2]}.${m[1]}` : String(value);
+  }
+
   // First provenance hit among candidate keys — used to attach the "Beleg"
   // (evidence) button to a value. Returns null when nothing is on record:
   // the value then renders without a citation rather than with an invented one.
@@ -480,6 +489,18 @@
     // filled, so derive the storeys that can actually be built and use those
     // for the 3D view and the cost.
     const massingModel = T.buildMassingModel({ footprintFeature: setbackFootprint, reconciled, rules, storeysOverride: storeys });
+    // The Attika's Rücksprung has to be known BEFORE the box is shaped, not
+    // after: a 45°-Profil that eats `setback` off every side leaves a top
+    // storey only on a block at least 2 × setback + Mindestbreite deep, and
+    // the shape of the box is exactly what decides that. Passed into the
+    // rectangle search below as a preference (never as a requirement — where
+    // no such shape fits the buildable area, the search runs as before).
+    const attikaUeberhoehungM = (rules.meta && rules.meta.attika_profil_ueberhoehung_m) || 0;
+    const attikaSetbackM = massingModel && massingModel.attikaStoreys > 0
+      ? Math.max(0, massingModel.attikaStoreyHeightM - attikaUeberhoehungM)
+      : 0;
+    const attikaMinSideM = attikaSetbackM > 0 ? 2 * attikaSetbackM + T.MIN_PRIMITIVE_WIDTH_M : 0;
+    const shapeOpts = { minSideM: attikaMinSideM };
     if (massingModel && setbackFootprint) {
       if (massing && !massing.impossible) {
         // Length-split case (typically multi-parcel: the Gebäudelänge limit
@@ -522,7 +543,7 @@
           const blockTargetM2 = totalRawAreaM2 > 0 ? totalTargetAreaM2 * (blockRawAreaM2 / totalRawAreaM2) : 0;
           const blockRect = T.minAreaRectangleLV95(block);
           if (!blockRect || blockTargetM2 <= 0) return block;
-          const best = T.findBestRectangle(block, blockTargetM2, blockRect.ang, blockRect.lengthM, blockRect.widthM);
+          const best = T.findBestRectangle(block, blockTargetM2, blockRect.ang, blockRect.lengthM, blockRect.widthM, shapeOpts);
           if (best) {
             totalShortfallM2 += Math.max(0, blockTargetM2 - best.achievedAreaM2);
             return best.rect;
@@ -571,7 +592,7 @@
         // (lengthM:widthM) and angle -- just not its absolute size.
         const targetAreaM2 = massingModel.floorplateM2;
         const best = buildableArea
-          ? T.findBestRectangle(buildableArea, targetAreaM2, areaRect.ang, areaRect.lengthM, areaRect.widthM)
+          ? T.findBestRectangle(buildableArea, targetAreaM2, areaRect.ang, areaRect.lengthM, areaRect.widthM, shapeOpts)
           : null;
         let cuboid = best ? best.rect : null;
         // findBestRectangle already tried shrinking the box before giving up
@@ -613,9 +634,10 @@
         // ueberhoehung_m` (1 m in Zumikon) ABOVE the intersection line, so
         // the required horizontal Rücksprung is the Attika height MINUS that
         // allowance — not the full storey height. Where no such rule is on
-        // file (Zürich), the full height is used, conservatively.
-        const ueberhoehungM = (rules.meta && rules.meta.attika_profil_ueberhoehung_m) || 0;
-        const setbackM = Math.max(0, massingModel.attikaStoreyHeightM - ueberhoehungM);
+        // file (Zürich), the full height is used, conservatively. Derived
+        // above (attikaSetbackM), because the box was shaped to it.
+        const ueberhoehungM = attikaUeberhoehungM;
+        const setbackM = attikaSetbackM;
         // Art. 31 Abs. 2: hangseitig fassadenbündig is allowed when the
         // zulässige Gebäudehöhe is kept on that side INCLUDING the Attika —
         // a height condition, not a slope threshold. On the uphill facade the
@@ -1197,6 +1219,101 @@
       .join('');
   }
 
+  // The Zonenplan tab used to hold a map and nothing else, which left the two
+  // questions the map raises unanswered: WHY this zone, and what it permits.
+  // Both are answered here, next to the picture — the derivation (which
+  // dataset was queried, at which point, with what legal status) and the full
+  // Grundmasse of the zone, each with its § button into the BZO page it is
+  // read from. Nothing here is recomputed: these are the same `rules` values
+  // the whole analysis runs on, shown in full instead of only where a number
+  // happened to be needed.
+  function buildZoneSteckbrief({ anchor, selection, rules, rulesData, reconciled, multi, regimeTag }) {
+    const zs = anchor.zoneSource || {};
+    const row = (k, v) => `<tr><td>${k}</td><td>${v}</td></tr>`;
+    const val = (v, unit = '') => (v == null || v === '' ? '—' : `${v}${unit}`);
+    // A value that doesn't exist in this zone gets no § button: there is no
+    // passage to show, and offering one would suggest the "—" was read
+    // somewhere rather than simply not being regulated here.
+    const massRow = (label, value, unit, provKeys, regimeKey) => {
+      if (value == null) return row(esc(label), '— (in dieser Zone nicht festgelegt)');
+      return row(esc(label), withProv(`${value}${unit}${regimeKey ? regimeTag(regimeKey) : ''}`, provFor(rules, ...provKeys)));
+    };
+
+    const objektRows = [
+      row('Adresse', esc(anchor.address || anchor.parcelNumber || '—')),
+      row('Gemeinde', esc(`${rules.gemeinde}${anchor.bfsNr ? ` (BFS-Nr. ${anchor.bfsNr})` : ''}`)),
+      row(multi ? 'Parzellen' : 'Parzelle', esc(selection.map((p) => p.parcelNumber).join(' + '))),
+      row('EGRID', esc(selection.map((p) => p.egrid).join(', '))),
+      row(multi ? 'Fläche (zusammengefasst)' : 'Parzellenfläche', `${fmt(reconciled.parcelAreaM2)} m²`),
+    ].join('');
+
+    const zoneRows = [
+      row('Zone', esc(anchor.zone)),
+      row('Bezeichnung', esc(anchor.zoneLabel ? capitalize(anchor.zoneLabel) : '—')),
+      ...(anchor.zoneDescription ? [row('Beschreibung', esc(anchor.zoneDescription))] : []),
+      row('Rechtsstatus', esc(val(zs.rechtsstatus))),
+      // The WFS hands back a full ISO timestamp ("2019-02-08T00:00:00"); the
+      // time of day is noise on an approval date.
+      row('Genehmigungsdatum', esc(val(formatDateCH(zs.genehmigungsdatum)))),
+      row('Kommunale Grundlage', esc(`${rulesData.version} — ${rulesData.article_grundmasse}`)),
+      row('Rechtsstatus der Grundlage', esc(rulesData.legal_status || '—')),
+      ...(zs.rechtsvorschriftUrl
+        ? [row('Rechtsvorschrift', `<a href="${esc(zs.rechtsvorschriftUrl)}" target="_blank" rel="noopener">Dokument der Gemeinde öffnen</a>`)]
+        : []),
+    ].join('');
+
+    // Which point produced the zone — the honest answer to "says who": a
+    // polygon lookup at one coordinate per parcel, not a reading of the plan.
+    const pointRows = selection.map((p) => row(
+      esc(`Abfragepunkt Parzelle ${p.parcelNumber}`),
+      esc(Number.isFinite(p.easting) ? `${p.easting.toFixed(1)} / ${p.northing.toFixed(1)} (LV95)` : '—') +
+      (p.zoneSource && p.zoneSource.edgeUncertain
+        ? ' <strong>— Punkt lag auf einer Zonengrenze, Zuordnung unsicher</strong>' : '')
+    )).join('');
+
+    const herleitungRows = [
+      row('Datensatz', 'Kantonale Nutzungsplanung, Grundnutzung (ogd-0156)'),
+      row('Dienst', 'WFS maps.zh.ch/wfs/OGDZHWFS, Layer ogd-0156_arv_basis_np_gn_zonenflaeche_f'),
+      pointRows,
+      row('Verfahren', 'Punkt-in-Polygon-Abfrage: die Zone stammt aus dem Polygon, das den Abfragepunkt enthält. Liegt eine Parzelle in zwei Zonen, erkennt das diese Abfrage nicht — Zonengrenze im Plan prüfen.'),
+    ].join('');
+
+    const heightIsFassade = rules.traufseitige_fassadenhoehe_max_m != null;
+    const massRows = [
+      massRow('Ausnützungsziffer max.', rules.ausnuetzungsziffer_max_pct, ' %', ['ausnuetzungsziffer_max_pct'], 'ausnuetzungsziffer_max_pct'),
+      massRow('Vollgeschosse max.', rules.vollgeschosse_max, '', ['vollgeschosse_max'], 'vollgeschosse_max'),
+      massRow('Anrechenbare Dach-/Attikageschosse', rules.anrechenbares_dach_attika_max, '', ['anrechenbares_dach_attika_max'], null),
+      massRow('Anrechenbare Untergeschosse', rules.anrechenbares_untergeschoss_max, '', ['anrechenbares_untergeschoss_max'], 'anrechenbares_untergeschoss_max'),
+      // Zürich under § 234 PBG: the height shown may be the in-force BZO 2016
+      // value rather than the draft's, and the row has to say which.
+      massRow(`${rules.heightMetric} max.`,
+        rules.heightM != null
+          ? `${rules.heightM} m${rules.heightRegime ? ' <span class="regime-tag" title="Strengeres Mass der in Kraft stehenden BZO 2016 (negative Vorwirkung, § 234 PBG)">BZO 2016</span>' : ''}`
+          : null,
+        '',
+        [rules.heightRegime ? 'gebaeudehoehe_max_m_bzo2016' : (heightIsFassade ? 'traufseitige_fassadenhoehe_max_m' : 'gebaeudehoehe_max_m')], null),
+      ...(rules.firsthoehe_zuschlag_m != null
+        ? [massRow('Firsthöhe (Zuschlag über der Gebäudehöhe, § 281 aPBG)', rules.firsthoehe_zuschlag_m, ' m', ['firsthoehe_zuschlag_m'], null)] : []),
+      massRow('Gesamtlänge max.', rules.gesamtlaenge_max_m != null ? rules.gesamtlaenge_max_m : rules.gebaeudelaenge_inkl_klein_anbauten_max_m, ' m',
+        ['gesamtlaenge_max_m', 'gebaeudelaenge_inkl_klein_anbauten_max_m'], 'gesamtlaenge_max_m'),
+      massRow('Kleiner Grenzabstand (Grundabstand) min.', rules.grundabstand_min_m, ' m', ['grundabstand_min_m'], null),
+      ...(rules.grosser_grenzabstand_min_m != null
+        ? [massRow('Grosser Grenzabstand min.', rules.grosser_grenzabstand_min_m, ' m', ['grosser_grenzabstand_min_m', 'grundabstand_min_m'], null)] : []),
+      massRow('Grünflächenziffer min.', rules.gruenflaechenziffer_min_pct, ' %', ['gruenflaechenziffer_min_pct'], 'gruenflaechenziffer_min_pct'),
+      ...(rules.ueberbauungsziffer_hauptgebaeude_max_pct != null
+        ? [massRow('Überbauungsziffer Hauptgebäude max.', rules.ueberbauungsziffer_hauptgebaeude_max_pct, ' %', ['ueberbauungsziffer_hauptgebaeude_max_pct'], 'ueberbauungsziffer_hauptgebaeude_max_pct')] : []),
+      ...(rules.attika_profil_ueberhoehung_m != null || (rules.meta && rules.meta.attika_profil_ueberhoehung_m != null)
+        ? [massRow('Attika-Profil: Überhöhung über der Schnittlinie', (rules.meta && rules.meta.attika_profil_ueberhoehung_m), ' m (45°-Profil)', ['attika_profil_ueberhoehung_m'], null)] : []),
+    ].join('');
+
+    return `<h2>Zonen-Steckbrief — ${esc(anchor.zone)}</h2>` +
+      `<div class="caption-line">Alle Angaben zu dieser Adresse und der Zone, aus der jede Zahl der Auswertung stammt. § öffnet die Belegstelle im Originaldokument.</div>` +
+      `<h3 class="steckbrief-h">Objekt</h3><table class="numbers">${objektRows}</table>` +
+      `<h3 class="steckbrief-h">Zone</h3><table class="numbers">${zoneRows}</table>` +
+      `<h3 class="steckbrief-h">Woher die Zonenzuordnung stammt</h3><table class="numbers">${herleitungRows}</table>` +
+      `<h3 class="steckbrief-h">Grundmasse dieser Zone</h3><table class="numbers">${massRows}</table>`;
+  }
+
   function render(r) {
     const { selection, anchor, rules, rulesData, merged, isSingleShape,
             setbackFootprint, reconciled, terrainHeight, restrictions, checklist } = r;
@@ -1207,9 +1324,17 @@
 
     // The zone leads the panel: every number underneath is derived from it,
     // so it must be readable without hunting through the table.
+    // Two different questions hang on it, and they need two different proofs:
+    // WHICH zone this parcel is in (a point query against the cantonal
+    // dataset — the Steckbrief in the Zonenplan tab shows that derivation),
+    // and WHAT that zone permits (the BZO article — the § button opens the
+    // page with the Grundmasse table highlighted).
+    provRegistry = [];
     const otherZonesInSelection = [...new Set(selection.map((p) => p.zone))].filter((z) => z !== anchor.zone);
+    const zoneGrundmasseProv = provFor(rules, 'ausnuetzungsziffer_max_pct', 'vollgeschosse_max', 'gebaeudehoehe_max_m');
     zoneHeadlineEl.innerHTML =
-      `<div class="zone-code">Zone ${esc(anchor.zone)}</div>` +
+      `<div class="zone-code">Zone ${esc(anchor.zone)}${withProv('', zoneGrundmasseProv)}` +
+      `<button type="button" class="zone-proof-btn" id="zone-proof-btn" title="Herleitung der Zonenzuordnung und alle Grundmasse dieser Zone">Zonen-Beleg</button></div>` +
       (anchor.zoneLabel ? `<div class="zone-label">${esc(capitalize(anchor.zoneLabel))}</div>` : '') +
       `<div class="zone-meta">Gemeinde ${esc(rules.gemeinde)}` +
       ` · Rechtsstatus ${esc(anchor.zoneSource ? anchor.zoneSource.rechtsstatus : 'inKraft')}` +
@@ -1218,6 +1343,18 @@
         ? ` · Auswahl enthält auch ${esc(otherZonesInSelection.join(', '))} — gerechnet wird durchgehend mit ${esc(anchor.zone)}`
         : '') +
       `</div>`;
+    wireProvButtons(zoneHeadlineEl);
+    // "Zonen-Beleg" jumps to the Steckbrief rather than opening a second kind
+    // of modal: the derivation, the Grundmasse and the map belong together,
+    // and that is what the Zonenplan tab now holds.
+    const zoneProofBtn = document.getElementById('zone-proof-btn');
+    if (zoneProofBtn) {
+      zoneProofBtn.addEventListener('click', () => {
+        const tabBtn = document.querySelector('.tab[data-tab="zoning-map"]');
+        if (tabBtn) tabBtn.click();
+        zoningMapEl.scrollIntoView({ block: 'nearest' });
+      });
+    }
 
     bindingSummaryEl.className = reconciled.usableFootprintAreaM2 <= 0 ? 'binding zero' : 'binding';
     const mm = r.massingModel;
@@ -1267,7 +1404,9 @@
       storeySelEl.style.display = 'none';
     }
 
-    provRegistry = [];
+    // NOT reset here: the zone headline above already registered its § button
+    // against this same registry, and clearing it left that button pointing
+    // at a citation that no longer existed.
     const regimeTag = (key) => (rules.regimeOverrides && rules.regimeOverrides[key]
       ? ' <span class="regime-tag" title="Strengerer Wert der in Kraft stehenden BZO 2016 (negative Vorwirkung, § 234 PBG)">BZO 2016</span>' : '');
     const mm2 = r.massingModel;
@@ -1509,6 +1648,7 @@
     const mapW = 700, mapH = 700;
     const bbox = T.buildMapBbox(centerE, centerN, halfSpan * 1.6, mapW, mapH);
     zoningMapEl.innerHTML =
+      buildZoneSteckbrief({ anchor, selection, rules, rulesData, reconciled, multi, regimeTag }) +
       `<h2>Zonenplan-Ausschnitt — Zone ${esc(anchor.zone)}${anchor.zoneLabel ? ` (${esc(anchor.zoneLabel)})` : ''}</h2>` +
       `<div class="caption-line">${multi ? 'Gewählte Parzellen' : 'Parzelle'} rot markiert.</div>` +
       `<div class="zoning-holder" style="position:relative;width:${mapW}px;max-width:100%;aspect-ratio:${mapW}/${mapH};">` +
@@ -1523,6 +1663,7 @@
       holder.insertAdjacentHTML('afterbegin',
         T.buildZonePlanSvg(zoneFeatures, bbox, mapW, mapH).replace('<svg ', '<svg style="position:absolute;inset:0;width:100%;height:100%;" '));
     }).catch(() => { /* zone colours are decorative here; the numbers stand alone */ });
+    wireProvButtons(zoningMapEl);
 
     const envelopeVolumeM3 = r.massingModel ? r.massingModel.volumeM3 : reconciled.usableFootprintAreaM2 * rules.heightM;
     const cost = T.estimateCost(envelopeVolumeM3);

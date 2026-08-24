@@ -3,7 +3,7 @@
     "version": "E-BZO Entwurf, Stand 6. Januar 2026 + BZO 2016 (in Kraft)",
     "article_grundmasse": "Art. 62 E-BZO / Art. 13 BZO 2016",
     "article_kronenbedeckung": "Art. 53, E-BZO",
-    "legal_status": "E-BZO formally still a draft (öffentliche Auflage 18.3.2026-1.6.2026, submitted for kantonale Vorprüfung). Under negative Vorwirkung per §234 PBG since public display began: new Baugesuche are already assessed against these numbers WHEREVER STRICTER than BZO 2016; where the draft is more permissive, BZO 2016 (in force since 1.11.2018) still governs. This file therefore carries BOTH regimes; rules.js computes the stricter value per parameter. RE-CHECK adoption status before relying on this for anything beyond a rough estimate.",
+    "legal_status": "Die E-BZO ist formell noch ein Entwurf (öffentliche Auflage 18.03.2026-01.06.2026, zur kantonalen Vorprüfung eingereicht). Seit Beginn der öffentlichen Auflage gilt die negative Vorwirkung nach § 234 PBG: neue Baugesuche werden bereits an diesen Werten gemessen, soweit sie STRENGER sind als die BZO 2016; wo der Entwurf grosszügiger ist, gilt weiterhin die BZO 2016 (in Kraft seit 01.11.2018). Diese Datei führt daher beide Regime; massgebend ist je Parameter der strengere Wert. Vor Verwendung über eine Grobschätzung hinaus den Stand des Verfahrens neu prüfen.",
     "data_last_verified": "2026-08-24",
     "numbers_cross_checked_against_source_pdf": true,
     "source_pdf": "source/ebzo-entwurf-2026-01-06.pdf",
