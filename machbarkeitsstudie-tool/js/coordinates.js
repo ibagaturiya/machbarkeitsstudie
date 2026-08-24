@@ -1,0 +1,456 @@
+// coordinates.js — LV95 (EPSG:2056) <-> WGS84 conversion, and LV95-safe geometry helpers.
+//
+// Not in the build plan's original file list (section 1) -- added because the
+// plan didn't anticipate a real problem: turf.js functions that do metric
+// math (buffer, area, distance) assume WGS84 lon/lat input. All our parcel
+// and zoning geometry comes back in LV95 (planar meters, EPSG:2056). Feeding
+// LV95 coordinates straight into turf.buffer() does NOT error -- it silently
+// reinterprets meters as degrees and returns nonsense (verified 2026-08-21:
+// a real ~35m Zürich parcel buffered to a "polygon" near Antarctica).
+//
+// Purely topological turf ops (booleanPointInPolygon, intersect, difference,
+// union, booleanIntersects) are fine directly in LV95 -- they don't care
+// what the coordinate units mean, only their relative positions. Only
+// metric ops need this module.
+//
+// Formulas: swisstopo's published approximate LV95<->WGS84 transform
+// (~1m accuracy). Verified 2026-08-21 against a known-exact pair from a
+// live geo.admin.ch SearchServer response (Imbisbühlstrasse 57, 8049
+// Zürich): round-trip residual <0.5m, well within tolerance for the
+// 3.5-5m setback distances this tool works with.
+window.MachbarkeitTool = window.MachbarkeitTool || {};
+
+(function () {
+  function lv95ToWgs84(easting, northing) {
+    const yPrime = (easting - 2600000) / 1000000;
+    const xPrime = (northing - 1200000) / 1000000;
+
+    const latSec =
+      16.9023892 +
+      3.238272 * xPrime -
+      0.270978 * yPrime ** 2 -
+      0.002528 * xPrime ** 2 -
+      0.0447 * yPrime ** 2 * xPrime -
+      0.014 * xPrime ** 3;
+
+    const lonSec =
+      2.6779094 +
+      4.728982 * yPrime +
+      0.791484 * yPrime * xPrime +
+      0.1306 * yPrime * xPrime ** 2 -
+      0.0436 * yPrime ** 3;
+
+    return { lat: (latSec * 100) / 36, lon: (lonSec * 100) / 36 };
+  }
+
+  function wgs84ToLv95(lon, lat) {
+    const latPrime = (lat * 3600 - 169028.66) / 10000;
+    const lonPrime = (lon * 3600 - 26782.5) / 10000;
+
+    const easting =
+      2600072.37 +
+      211455.93 * lonPrime -
+      10938.51 * lonPrime * latPrime -
+      0.36 * lonPrime * latPrime ** 2 -
+      44.54 * lonPrime ** 3;
+
+    const northing =
+      1200147.07 +
+      308807.95 * latPrime +
+      3745.25 * lonPrime ** 2 +
+      76.63 * latPrime ** 2 -
+      194.56 * lonPrime ** 2 * latPrime +
+      119.79 * latPrime ** 3;
+
+    return { easting, northing };
+  }
+
+  // Generic LV95<->WGS84 coordinate-array mapper, one nesting level per
+  // geometry type: LineString=[pt], Polygon/MultiLineString=[[pt]],
+  // MultiPolygon=[[[pt]]].
+  function mapCoordsDeep(coords, fn, depth) {
+    if (depth === 0) return fn(coords);
+    return coords.map((c) => mapCoordsDeep(c, fn, depth - 1));
+  }
+  const GEOM_DEPTH = { LineString: 1, Polygon: 2, MultiLineString: 2, MultiPolygon: 3 };
+
+  // Reprojects an LV95 turf geometry (LineString/Polygon/MultiLineString/
+  // MultiPolygon) to WGS84, buffers it there (turf.buffer's native
+  // assumption), reprojects the result back to LV95. distanceMeters
+  // negative = inward buffer (setback); only meaningful for
+  // Polygon/MultiPolygon. Buffering a LineString always grows outward from
+  // the line (used for internal-vs-external Grenzabstand strips in
+  // areal.js), so distanceMeters should be positive there.
+  function bufferLV95(featureLV95, distanceMeters) {
+    const type = featureLV95.geometry.type;
+    const depth = GEOM_DEPTH[type];
+    const wgs84Coords = mapCoordsDeep(featureLV95.geometry.coordinates, ([e, n]) => {
+      const { lon, lat } = lv95ToWgs84(e, n);
+      return [lon, lat];
+    }, depth);
+
+    const featureWgs84 = { type: 'Feature', properties: {}, geometry: { type, coordinates: wgs84Coords } };
+    const bufferedWgs84 = turf.buffer(featureWgs84, distanceMeters, { units: 'meters' });
+    if (!bufferedWgs84) return null; // negative buffer can collapse the polygon to nothing
+
+    const outType = bufferedWgs84.geometry.type; // buffer() always outputs (Multi)Polygon
+    const backCoords = mapCoordsDeep(bufferedWgs84.geometry.coordinates, ([lon, lat]) => {
+      const { easting, northing } = wgs84ToLv95(lon, lat);
+      return [easting, northing];
+    }, GEOM_DEPTH[outType]);
+
+    return outType === 'Polygon' ? turf.polygon(backCoords) : turf.multiPolygon(backCoords);
+  }
+
+  // Exact planar area via the shoelace formula -- no reprojection needed or
+  // wanted, since LV95 coordinates are already Cartesian meters. Do not use
+  // turf.area() on LV95 geometry (same WGS84 assumption problem as buffer).
+  // Subtracts hole rings (coordinates[1:]) from the exterior ring's area.
+  function planarAreaLV95(polygonCoordinates) {
+    function ringArea(ring) {
+      let sum = 0;
+      for (let i = 0; i < ring.length - 1; i++) {
+        const [x1, y1] = ring[i];
+        const [x2, y2] = ring[i + 1];
+        sum += x1 * y2 - x2 * y1;
+      }
+      return Math.abs(sum / 2);
+    }
+    const [exterior, ...holes] = polygonCoordinates;
+    return ringArea(exterior) - holes.reduce((sum, hole) => sum + ringArea(hole), 0);
+  }
+
+  // Handles Polygon OR MultiPolygon features -- unlike planarAreaLV95 above
+  // (which takes raw Polygon .coordinates only), this takes a full turf
+  // Feature and sums area across parts for MultiPolygon. Needed because
+  // Arealüberbauung selections can legitimately produce a MultiPolygon
+  // (non-contiguous parcel selection, section 11 step 4 -- the plan
+  // explicitly doesn't require adjacency).
+  function planarAreaAnyLV95(feature) {
+    return feature.geometry.type === 'Polygon'
+      ? planarAreaLV95(feature.geometry.coordinates)
+      : feature.geometry.coordinates.reduce((sum, poly) => sum + planarAreaLV95(poly), 0);
+  }
+
+  // Smallest-area rectangle enclosing a feature, by rotating calipers over
+  // the convex hull. This is the measure the BZO itself uses for building
+  // length -- Zumikon Art. 18 says explicitly to start from "dem
+  // flächenkleinsten Rechteck, welches das Gebäude umfasst". An axis-aligned
+  // bounding box would overstate the length of any building sitting at an
+  // angle to the coordinate grid, which most of them do.
+  function minAreaRectangleLV95(feature) {
+    const g = feature.geometry;
+    const pts = g.type === 'Polygon' ? g.coordinates.flat(1) : g.coordinates.flat(2);
+    if (pts.length < 3) return null;
+    let hull;
+    try {
+      hull = turf.convex(turf.featureCollection(pts.map((p) => turf.point(p))));
+    } catch (e) { return null; }
+    if (!hull) return null;
+    const ring = hull.geometry.coordinates[0];
+
+    let best = null;
+    for (let i = 0; i < ring.length - 1; i++) {
+      const a = ring[i], b = ring[i + 1];
+      const ang = Math.atan2(b[1] - a[1], b[0] - a[0]);
+      const c = Math.cos(-ang), s = Math.sin(-ang);
+      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      for (const p of ring) {
+        const x = p[0] * c - p[1] * s;
+        const y = p[0] * s + p[1] * c;
+        if (x < minX) minX = x; if (x > maxX) maxX = x;
+        if (y < minY) minY = y; if (y > maxY) maxY = y;
+      }
+      const area = (maxX - minX) * (maxY - minY);
+      if (!best || area < best.area) best = { area, ang, minX, maxX, minY, maxY };
+    }
+    if (!best) return null;
+
+    const c = Math.cos(best.ang), s = Math.sin(best.ang);
+    const toWorld = (x, y) => [x * c - y * s, x * s + y * c];
+    const corners = [
+      toWorld(best.minX, best.minY), toWorld(best.maxX, best.minY),
+      toWorld(best.maxX, best.maxY), toWorld(best.minX, best.maxY),
+    ];
+    corners.push(corners[0]);
+    const w = best.maxX - best.minX, h = best.maxY - best.minY;
+    return {
+      lengthM: Math.max(w, h), widthM: Math.min(w, h), corners,
+      // Rotated frame, so callers can slice along the long axis.
+      ang: best.ang, minX: best.minX, maxX: best.maxX, minY: best.minY, maxY: best.maxY,
+      longAxisIsX: w >= h,
+    };
+  }
+
+  // Scales each part of a Polygon/MultiPolygon about its OWN centroid, in
+  // planar LV95. Per-part centroids keep separate volumes where they are
+  // instead of pulling them together. turf.transformScale is not used: it
+  // works in WGS84 and would distort LV95 input.
+  function scalePartsLV95(feature, factor) {
+    if (factor >= 0.999) return feature;
+    const scaleRings = (rings) => {
+      const pts = rings.flat();
+      const cx = pts.reduce((s, p) => s + p[0], 0) / pts.length;
+      const cy = pts.reduce((s, p) => s + p[1], 0) / pts.length;
+      return rings.map((r) => r.map(([x, y]) => [cx + (x - cx) * factor, cy + (y - cy) * factor]));
+    };
+    const g = feature.geometry;
+    return g.type === 'Polygon'
+      ? turf.polygon(scaleRings(g.coordinates))
+      : turf.multiPolygon(g.coordinates.map(scaleRings));
+  }
+
+  // Rigid translation in planar LV95 -- used to drag the built volume around
+  // inside its legal envelope. Unlike scalePartsLV95, this moves the whole
+  // feature as one body (all parts together), which is what dragging one
+  // building means; per-part translation would let disjoint pieces of the
+  // same footprint drift apart.
+  function translateLV95(feature, dE, dN) {
+    const shift = (rings) => rings.map((r) => r.map(([x, y]) => [x + dE, y + dN]));
+    const g = feature.geometry;
+    return g.type === 'Polygon'
+      ? turf.polygon(shift(g.coordinates))
+      : turf.multiPolygon(g.coordinates.map(shift));
+  }
+
+  // Finds a position (not just centred, and not clipped) where a
+  // lengthM x widthM rectangle at the given angle sits ENTIRELY inside
+  // `area` -- used to place the default cuboid building volume. Centring it
+  // on the buildable area's own bounding rectangle and clipping whatever
+  // poked out of a concave notch (Waldabstand, say) produced exactly the
+  // notched, non-rectangular shape a cuboid was meant to avoid; this instead
+  // searches nearby positions for one where the full rectangle actually
+  // fits, and only falls back to clipping if genuinely none does.
+  //
+  // Search is a grid over the candidate centre in the rectangle's own
+  // (rotated) frame, tried nearest-to-natural-centre first: cheap (a few
+  // hundred turf.booleanWithin calls at most, each O(vertices)) and
+  // sufficient for the roughly-convex-with-one-notch shapes this tool
+  // produces -- not a general bin-packing solver.
+  // No real building is sensibly narrower than this. Without a floor, the
+  // ratio/area search below (findBestRectangle) can satisfy "fits and has
+  // the right area" with an absurdly thin sliver -- e.g. a 0.3x-ratio
+  // rectangle at a shrunk area can come out under 2 m wide, which happened
+  // in practice (Zumikon parcel 5028's Baukörper). Better to refuse that
+  // combination outright and let the search try something else, or
+  // concede, than to draw a "building" nobody could construct.
+  const MIN_PRIMITIVE_WIDTH_M = 3.5;
+
+  function findCuboidPlacement(area, angle, lengthM, widthM) {
+    if (Math.min(lengthM, widthM) < MIN_PRIMITIVE_WIDTH_M) return null;
+    const g = area.geometry;
+    const pts = g.type === 'Polygon' ? g.coordinates.flat(1) : g.coordinates.flat(2);
+    const c = Math.cos(-angle), s = Math.sin(-angle);
+    const toLocal = (x, y) => [x * c - y * s, x * s + y * c];
+    const toWorld = (x, y) => [x * Math.cos(angle) - y * Math.sin(angle), x * Math.sin(angle) + y * Math.cos(angle)];
+
+    const local = pts.map(([x, y]) => toLocal(x, y));
+    const minX = Math.min(...local.map((p) => p[0])), maxX = Math.max(...local.map((p) => p[0]));
+    const minY = Math.min(...local.map((p) => p[1])), maxY = Math.max(...local.map((p) => p[1]));
+    const halfL = lengthM / 2, halfW = widthM / 2;
+    const rangeX = maxX - minX - lengthM, rangeY = maxY - minY - widthM;
+    if (rangeX < 0 || rangeY < 0) return null; // doesn't fit at this size at all
+
+    const rectAt = (cx, cy) => {
+      const corners = [[cx - halfL, cy - halfW], [cx + halfL, cy - halfW], [cx + halfL, cy + halfW], [cx - halfL, cy + halfW]];
+      const worldRing = corners.map(([x, y]) => toWorld(x, y));
+      worldRing.push(worldRing[0]);
+      return turf.polygon([worldRing]);
+    };
+
+    const cx0 = (minX + maxX) / 2, cy0 = (minY + maxY) / 2;
+    const N = 12;
+    const candidates = [];
+    for (let i = 0; i <= N; i++) {
+      for (let j = 0; j <= N; j++) {
+        const cx = rangeX > 0 ? minX + halfL + (rangeX * i) / N : cx0;
+        const cy = rangeY > 0 ? minY + halfW + (rangeY * j) / N : cy0;
+        candidates.push([cx, cy, Math.hypot(cx - cx0, cy - cy0)]);
+      }
+    }
+    candidates.sort((a, b) => a[2] - b[2]); // nearest the natural centre first
+
+    for (const [cx, cy] of candidates) {
+      const rect = rectAt(cx, cy);
+      if (turf.booleanWithin(rect, area)) return rect;
+    }
+    return null;
+  }
+
+  // Like findCuboidPlacement, but doesn't insist on one fixed aspect ratio
+  // OR the exact target area. A volumetric study should show a plain box
+  // wherever one fits: fixing the shape to the buildable area's own
+  // length:width ratio at its exact area works for most parcels, but for a
+  // buildable area that's mostly taken up by its own bounding box (a large
+  // floorplate relative to a notched, irregular buildable area -- the 1-
+  // Vollgeschoss case is exactly this, needing roughly double the 2-Voll-
+  // geschoss floorplate), NO rectangle of that exact area may fit anywhere,
+  // at any ratio or orientation, even though a slightly smaller one would.
+  // So the search has two dimensions: try a spread of ratios and both
+  // orientations (inner loop, as before) at the FULL target area first, and
+  // only if truly nothing fits at that area, retry the whole spread at a
+  // slightly smaller area, and so on. Returns { rect, achievedAreaM2 } so
+  // the caller can tell (and disclose) whether the box had to give up some
+  // area to stay a primitive shape -- returns null only if even a fairly
+  // small box doesn't fit anywhere, which should not happen for any real
+  // buildable area.
+  function findBestRectangle(area, targetAreaM2, baseAngle, naturalLengthM, naturalWidthM) {
+    const naturalRatio = naturalWidthM > 0 ? naturalLengthM / naturalWidthM : 1;
+    const ratios = [1, 1.3, 0.77, 1.6, 0.63, 2, 0.5, 2.6, 0.4, 3.5, 0.3]
+      .map((f) => naturalRatio * f)
+      .filter((r) => r > 0);
+    const allRatios = [naturalRatio, ...ratios];
+    const areaScales = [1, 0.95, 0.9, 0.85, 0.8, 0.72, 0.65, 0.55, 0.45, 0.35, 0.25];
+
+    for (const areaScale of areaScales) {
+      const areaM2 = targetAreaM2 * areaScale;
+      for (const angle of [baseAngle, baseAngle + Math.PI / 2]) {
+        for (const ratio of allRatios) {
+          const lengthM = Math.sqrt(areaM2 * ratio);
+          const widthM = Math.sqrt(areaM2 / ratio);
+          const rect = findCuboidPlacement(area, angle, lengthM, widthM);
+          if (rect) return { rect, achievedAreaM2: areaM2 };
+        }
+      }
+    }
+    return null;
+  }
+
+  // A rectangle from its own centre, angle and dimensions -- the inverse of
+  // reading corners/ang/lengthM/widthM back off minAreaRectangleLV95. Used
+  // to build an Attikageschoss footprint: same centre and orientation as the
+  // storey below, just smaller (inset per the 45° roof-line rule, capped at
+  // 60% of area).
+  function rectangleFromCenterLV95(cx, cy, angle, lengthM, widthM) {
+    const hL = lengthM / 2, hW = widthM / 2;
+    const toWorld = (x, y) => [cx + x * Math.cos(angle) - y * Math.sin(angle), cy + x * Math.sin(angle) + y * Math.cos(angle)];
+    const corners = [[-hL, -hW], [hL, -hW], [hL, hW], [-hL, hW]].map(([x, y]) => toWorld(x, y));
+    corners.push(corners[0]);
+    return turf.polygon([corners]);
+  }
+
+  // Attikageschoss footprint per block, per the 4 Faustregeln: inset by
+  // setbackM on all four sides (45°-Regel: horizontal Rücksprung = vertical
+  // Geschosshöhe), capped at 60% of the storey below's area. Shared between
+  // the initial computation (app.js) and every live recompute needed to keep
+  // the Attika following its block during a drag (viewer.js, and the 2D plan
+  // drag in app.js) -- one implementation, so "the Attika follows when you
+  // move the building" can't drift out of sync with how it was built.
+  //
+  // uphillBearingDeg (optional, compass bearing 0=N/90=E the slope rises
+  // toward): when given, the edge whose outward normal is closest to that
+  // bearing is the Bergseite (Gemeinderecht Hanglage-Ausnahme) and is left
+  // flush with the facade below for up to 2/3 of its length instead of
+  // inset -- the other three sides still get the normal setback.
+  function computeAttikaFootprints(blocks, setbackM, uphillBearingDeg = null) {
+    let attikaAreaM2 = 0, requestedAreaM2 = 0, anyImpossible = false;
+    // Per block, why it came out the size it did -- so the UI can show its
+    // working when it reports "no Attika fits here" instead of just asserting it.
+    const diagnostics = [];
+    const attikaBlocks = blocks.map((block) => {
+      const rect = minAreaRectangleLV95(block);
+      if (!rect) return null;
+      const belowAreaM2 = rect.lengthM * rect.widthM;
+      const capAreaM2 = belowAreaM2 * 0.6; // Faustregel 3: max. 60% der Grundfläche
+      requestedAreaM2 += capAreaM2;
+      const cx = (rect.corners[0][0] + rect.corners[2][0]) / 2, cy = (rect.corners[0][1] + rect.corners[2][1]) / 2;
+
+      // Everything below works in the rectangle's own frame: u along rect.ang
+      // (extent = lengthM), v perpendicular (extent = widthM), which is
+      // exactly what rectangleFromCenterLV95 consumes. Deriving the Bergseite
+      // from corner INDICES instead looked equivalent and wasn't --
+      // minAreaRectangleLV95 doesn't guarantee which corner it starts at, so
+      // the same block could come back with lengthM and widthM swapped
+      // between two calls and the flush side would land on the wrong facade.
+      // minAreaRectangleLV95's `ang` is its rotated FRAME's x-axis, which is
+      // the long axis only when longAxisIsX -- otherwise lengthM runs along
+      // the frame's y-axis and the true long-axis bearing is ang + 90°.
+      // rectangleFromCenterLV95 always puts lengthM along the angle it is
+      // given, so it needs the long-axis bearing, not the frame's.
+      const axisAng = rect.longAxisIsX ? rect.ang : rect.ang + Math.PI / 2;
+      const cosA = Math.cos(axisAng), sinA = Math.sin(axisAng);
+      const hL = rect.lengthM / 2, hW = rect.widthM / 2;
+
+      // Which of the four outward normals (+u, -u, +v, -v) points most nearly
+      // uphill -- that facade is the Bergseite.
+      let bergAxis = null, bergSign = 0;
+      if (uphillBearingDeg != null) {
+        let bestDiff = Infinity;
+        for (const [axis, sign] of [['u', 1], ['u', -1], ['v', 1], ['v', -1]]) {
+          const du = axis === 'u' ? sign : 0, dv = axis === 'v' ? sign : 0;
+          const dE = du * cosA - dv * sinA, dN = du * sinA + dv * cosA;
+          let bearing = Math.atan2(dE, dN) * 180 / Math.PI;
+          if (bearing < 0) bearing += 360;
+          const raw = Math.abs(bearing - uphillBearingDeg);
+          const diff = Math.min(raw, 360 - raw);
+          if (diff < bestDiff) { bestDiff = diff; bergAxis = axis; bergSign = sign; }
+        }
+      }
+
+      // Extent along each local axis, and where the rectangle's centre sits.
+      let extU, extV, offU = 0, offV = 0;
+      if (bergAxis === null) {
+        extU = rect.lengthM - 2 * setbackM;
+        extV = rect.widthM - 2 * setbackM;
+      } else {
+        // Bergseite flush (no setback there), but only over max. 2/3 of that
+        // facade's length; the remaining sides keep the ordinary setback, and
+        // the flush run additionally can't spill past them.
+        const facadeLen = bergAxis === 'u' ? rect.widthM : rect.lengthM;
+        const depthAxis = bergAxis === 'u' ? rect.lengthM : rect.widthM;
+        const flushLen = Math.min(facadeLen - 2 * setbackM, facadeLen * 2 / 3);
+        const depth = depthAxis - setbackM;
+        if (bergAxis === 'u') { extU = depth; extV = flushLen; }
+        else { extV = depth; extU = flushLen; }
+        // Push the centre toward the Bergseite by half the one-sided setback,
+        // so the flush facade actually lands on the facade below rather than
+        // the block staying centred and merely getting smaller.
+        const shift = bergSign * setbackM / 2;
+        if (bergAxis === 'u') offU = shift; else offV = shift;
+      }
+      const diag = {
+        belowLengthM: rect.lengthM, belowWidthM: rect.widthM,
+        bergseite: bergAxis !== null,
+        // The facade the flush run sits on, and how long that run may be.
+        bergseiteFacadeLenM: bergAxis === null ? null : (bergAxis === 'u' ? rect.widthM : rect.lengthM),
+        flushLenM: bergAxis === null ? null : (bergAxis === 'u' ? extV : extU),
+        narrowestM: Math.min(extU, extV), possible: false,
+      };
+      diagnostics.push(diag);
+      if (extU <= 0 || extV <= 0) { anyImpossible = true; return null; }
+      const scale = Math.min(1, Math.sqrt(capAreaM2 / (extU * extV)));
+      const finalL = extU * scale, finalW = extV * scale;
+      diag.narrowestM = Math.min(finalL, finalW);
+      if (finalL < MIN_PRIMITIVE_WIDTH_M || finalW < MIN_PRIMITIVE_WIDTH_M) { anyImpossible = true; return null; }
+      diag.possible = true;
+      // Re-anchor after the 60% cap shrinks the box: the Bergseite facade has
+      // to stay ON the facade below, so pin that edge and let the cap eat into
+      // the valley side instead of scaling the offset (which would pull the
+      // flush wall inward and quietly turn it back into a setback).
+      if (bergAxis !== null) {
+        const edgePos = bergSign * (bergAxis === 'u' ? hL : hW);
+        const half = (bergAxis === 'u' ? finalL : finalW) / 2;
+        if (bergAxis === 'u') offU = edgePos - bergSign * half; else offV = edgePos - bergSign * half;
+      }
+      const offCx = cx + offU * cosA - offV * sinA;
+      const offCy = cy + offU * sinA + offV * cosA;
+      attikaAreaM2 += finalL * finalW;
+      return rectangleFromCenterLV95(offCx, offCy, axisAng, finalL, finalW);
+    });
+    return { attikaBlocks, attikaAreaM2, requestedAreaM2, anyImpossible, diagnostics };
+  }
+
+  window.MachbarkeitTool.computeAttikaFootprints = computeAttikaFootprints;
+  window.MachbarkeitTool.rectangleFromCenterLV95 = rectangleFromCenterLV95;
+  window.MachbarkeitTool.MIN_PRIMITIVE_WIDTH_M = MIN_PRIMITIVE_WIDTH_M;
+  window.MachbarkeitTool.findBestRectangle = findBestRectangle;
+  window.MachbarkeitTool.findCuboidPlacement = findCuboidPlacement;
+  window.MachbarkeitTool.translateLV95 = translateLV95;
+  window.MachbarkeitTool.scalePartsLV95 = scalePartsLV95;
+  window.MachbarkeitTool.minAreaRectangleLV95 = minAreaRectangleLV95;
+  window.MachbarkeitTool.lv95ToWgs84 = lv95ToWgs84;
+  window.MachbarkeitTool.wgs84ToLv95 = wgs84ToLv95;
+  window.MachbarkeitTool.bufferLV95 = bufferLV95;
+  window.MachbarkeitTool.planarAreaLV95 = planarAreaLV95;
+  window.MachbarkeitTool.planarAreaAnyLV95 = planarAreaAnyLV95;
+})();

@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>CORS test — geo.admin.ch reachability</title>
+<style>
+  body { font-family: -apple-system, sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; }
+  .test { border: 1px solid #ccc; border-radius: 6px; padding: 1rem; margin-bottom: 1rem; }
+  .pass { border-color: #2e7d32; background: #e8f5e9; }
+  .fail { border-color: #c62828; background: #ffebee; }
+  .pending { border-color: #999; background: #f5f5f5; }
+  h2 { margin-top: 0; font-size: 1rem; }
+  pre { white-space: pre-wrap; word-break: break-all; background: #fff; padding: 0.5rem; border-radius: 4px; font-size: 0.8rem; }
+  .verdict { font-weight: bold; }
+</style>
+</head>
+<body>
+<h1>Step 0 — CORS reachability test</h1>
+<p>
+  Per the build plan: this must PASS before any pipeline code is built. If it fails, the
+  "no backend" architecture assumption breaks and needs revisiting (e.g. a local proxy).
+  Must be served over <code>http(s)://</code> — opening this file directly via
+  <code>file://</code> will show false failures.
+</p>
+
+<div id="test-search" class="test pending">
+  <h2>Test 1 — SearchServer (geocoding)</h2>
+  <div class="verdict">PENDING…</div>
+  <pre class="detail"></pre>
+</div>
+
+<div id="test-height" class="test pending">
+  <h2>Test 2 — height (swissALTI3D terrain)</h2>
+  <div class="verdict">PENDING…</div>
+  <pre class="detail"></pre>
+</div>
+
+<script>
+async function runTest(id, url, validate) {
+  const el = document.getElementById(id);
+  const verdict = el.querySelector('.verdict');
+  const detail = el.querySelector('.detail');
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
+    const data = await res.json();
+    const problem = validate(data);
+    if (problem) throw new Error(problem);
+    el.className = 'test pass';
+    verdict.textContent = 'PASS';
+    detail.textContent = JSON.stringify(data, null, 2);
+  } catch (err) {
+    el.className = 'test fail';
+    verdict.textContent = 'FAIL — ' + err.message;
+    detail.textContent = (err.stack || String(err)) +
+      '\n\nIf this is a TypeError: Failed to fetch with no HTTP status at all, ' +
+      'it is almost certainly CORS or file:// being blocked by the browser, not the API itself.';
+  }
+}
+
+runTest(
+  'test-search',
+  'https://api3.geo.admin.ch/rest/services/api/SearchServer?searchText=Imbisb%C3%BChlstrasse%2057%2C%208049%20Z%C3%BCrich&type=locations&origins=address&limit=1',
+  (data) => {
+    if (!Array.isArray(data.results) || data.results.length === 0) return 'no results array / empty results';
+    return null;
+  }
+);
+
+runTest(
+  'test-height',
+  'https://api3.geo.admin.ch/rest/services/height?easting=2683000&northing=1250000',
+  (data) => {
+    if (typeof data.height === 'undefined') return 'response has no "height" field';
+    return null;
+  }
+);
+</script>
+</body>
+</html>

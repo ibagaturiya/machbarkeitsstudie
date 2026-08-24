@@ -1,0 +1,64 @@
+{
+  "_comment": "Resolves the section 11 / Art. 9 E-BZO data gap: cantonal Grenz-/Gebäudeabstand figures that apply for INTERNAL boundaries within a merged Arealüberbauung, replacing the communal Grundabstand from bzo-zurich-wohnzonen.json. Sourced from the current, full PBG text (source/pbg-700.1-current.pdf, Nachtrag 134, Stand 1.10.2026), not the ABV -- ABV §§21-26 govern the communal Grenzabstand system, which Art. 9 E-BZO explicitly opts out of.",
+
+  "trigger": {
+    "article": "Art. 9, E-BZO",
+    "version": "E-BZO Entwurf, Stand 6. Januar 2026",
+    "paragraph_text": "Innerhalb von Arealüberbauungen gelten für Grenz- und Gebäudeabstände die kantonalen Abstandsvorschriften.",
+    "screenshot": null
+  },
+
+  "grenzabstand_kantonal_base_m": {
+    "value": 3.5,
+    "source": {
+      "article": "§ 270 Abs. 1, PBG (700.1)",
+      "version": "PBG, Nachtrag 134, Stand 1.10.2026",
+      "paragraph_text": "Alle andern Gebäude dürfen, sofern nicht der Grenzbau vorgeschrieben oder erlaubt ist, die im Abstand von 3,5 m parallel zur Grenze verlaufende Linie nicht überschreiten.",
+      "screenshot": null
+    }
+  },
+
+  "gebaeudeabstand_kantonal_min_m": {
+    "value": 7,
+    "note": "= sum of both sides' required Grenzabstand, not necessarily 2x the base if the two buildings face different height-adjusted requirements.",
+    "source": {
+      "article": "§ 271, PBG (700.1)",
+      "version": "PBG, Nachtrag 134, Stand 1.10.2026",
+      "paragraph_text": "Der Abstand zwischen Gebäuden, die Grenzabstände einhalten müssen, hat ohne Rücksicht auf Grundstückgrenzen der Summe der beidseitig nötigen Grenzabstände zu entsprechen.",
+      "screenshot": null
+    }
+  },
+
+  "mehrhoehenzuschlag": {
+    "rule": "Building parts exceeding the Fassadenhöhe permitted under Regelüberbauung get their Grenz- and Gebäudeabstand increased by the excess height, 1:1 (per meter over -> per meter added to the required distance). This is the cantonal-system equivalent of the communal Mehrhöhenzuschlag in ABV §§21-26 -- do not reuse the ABV mechanism/numbers here, they're for the communal system Art. 9 opts out of.",
+    "not_yet_resolved": "Which reference Fassadenhöhe counts as 'Regelüberbauung zulässige Fassadenhöhe' for an Arealüberbauung specifically (the standalone zone's traufseitige Fassadenhöhe max from bzo-zurich-wohnzonen.json, or the Areal-bonus figure from Art. 7(2) E-BZO)? Not addressed by any source read so far. Needs a real answer before this feeds envelope math for tall Areal buildings (e.g. W6/übrige Zonen at 25 m, well past most plausible reference heights) -- do not guess, flag as open in the UI/checklist until resolved.",
+    "source": {
+      "article": "§ 260 Abs. 3, PBG (700.1)",
+      "version": "PBG, Nachtrag 134, Stand 1.10.2026",
+      "paragraph_text": "Die Grenz- und Gebäudeabstände sind bei seitlich gegliederten Gebäuden für jeden Teil getrennt zu messen. Für Gebäudeteile, welche die für die Regelüberbauung zulässige Fassadenhöhe überschreiten, sind sie um das Mass der Mehrhöhe zu vergrössern.",
+      "screenshot": null
+    }
+  },
+
+  "exempt_small_structures": {
+    "rule": "Buildings with total height <= 1.5 m and footprint <= 2 sqm need no Grenz- or Gebäudeabstand at all.",
+    "source": {
+      "article": "§ 260 Abs. 4, PBG (700.1)",
+      "version": "PBG, Nachtrag 134, Stand 1.10.2026",
+      "paragraph_text": "Gebäude, deren Gesamthöhe nicht mehr als 1,5 m beträgt und die eine Bodenfläche von höchstens 2 m2 überlagern, müssen keine Grenz- und Gebäudeabstände einhalten.",
+      "screenshot": null
+    }
+  },
+
+  "boundary_scope_rule": {
+    "rule": "The cantonal figures above apply ONLY to boundaries internal to the merged Areal (previously-shared edges between the merged parcels). Distances toward actual outside neighbors, forests, water bodies, and streets may NOT be reduced by an areal-specific rule -- this is the legal basis for the outer-vs-internal boundary split already scoped in build plan section 11, step 2. It is not just a modeling convenience, it's required by law.",
+    "source": {
+      "article": "§ 72 Abs. 2, PBG (700.1)",
+      "version": "PBG, Nachtrag 134, Stand 1.10.2026",
+      "paragraph_text": "Die Abstände gegenüber Waldungen, Gewässern, Nachbargrundstücken und Strassen − ausser solchen, die vorwiegend der Arealerschliessung dienen − dürfen nicht verringert werden.",
+      "screenshot": null
+    }
+  },
+
+  "verify_before_use": "Re-check whether Nachtrag 134 is still the current PBG version, and whether the E-BZO (still a draft under negative Vorwirkung as of this writing) has been formally adopted, before relying on this file -- same staleness caveat as bzo-zurich-wohnzonen.json."
+}

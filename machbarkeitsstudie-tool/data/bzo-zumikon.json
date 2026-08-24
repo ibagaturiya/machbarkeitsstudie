@@ -1,0 +1,72 @@
+{
+  "_meta": {
+    "gemeinde": "Zumikon",
+    "bfs_nr": 160,
+    "version": "Bau- und Zonenordnung Gemeinde Zumikon, 17.09.2019",
+    "article_grundmasse": "Art. 17, BZO Zumikon",
+    "legal_status": "In Kraft (Genehmigung BD 08.02.2019, Inkraftsetzung 11.10.2019). Hinweis: es existiert eine teilweise Nichtgenehmigung vom 1. April 2026 zu einer Teilrevision -- vor Verwendung prüfen, ob die hier erfassten Werte davon betroffen sind.",
+    "data_last_verified": "2026-08-22",
+    "source_pdf": "source/bzo-zumikon-2019.pdf",
+    "hoehenmetrik": "Gebäudehöhe",
+    "_hoehenmetrik_note": "Zumikon regelt die Höhe als Gebäudehöhe (plus separate Firsthöhe), NICHT als traufseitige Fassadenhöhe wie die Stadt Zürich. Nicht als dasselbe Mass behandeln.",
+    "_grenzabstand_note": "Zumikon kennt zwei Grenzabstände (Art. 17/18): der GROSSE gilt in W2/25 für die beiden am stärksten nach Süden gerichteten Gebäudeseiten, in W2/35, W2/40 und W2/60 für die längere, am stärksten nach Süden gerichtete Seite; der KLEINE für alle übrigen Seiten. Dieses Tool puffert einheitlich mit dem kleinen Grenzabstand und weist im Output darauf hin -- der reale Fussabdruck ist auf der Südseite kleiner.",
+    "_gruenflaechenziffer_note": "Die BZO Zumikon kennt in Art. 17 keine Grünflächenziffer für die Wohnzonen. Dieses Kriterium entfällt daher hier (null), es wird NICHT als 0% behandelt."
+  },
+
+  "W2/25": {
+    "vollgeschosse_max": 2,
+    "anrechenbares_untergeschoss_max": 1,
+    "anrechenbares_dach_attika_max": 2,
+    "gebaeudehoehe_max_m": 6.5,
+    "firsthoehe_max_m": 4.5,
+    "gesamtlaenge_max_m": 35,
+    "grundabstand_min_m": 5,
+    "grosser_grenzabstand_min_m": 10,
+    "ausnuetzungsziffer_max_pct": 25,
+    "gruenflaechenziffer_min_pct": null,
+    "kronenbedeckungsgrad_min_pct": null,
+    "source": { "article": "Art. 17, BZO Zumikon", "version": "BZO Zumikon, 17.09.2019", "paragraph_text": "", "screenshot": null }
+  },
+  "W2/35": {
+    "vollgeschosse_max": 2,
+    "anrechenbares_untergeschoss_max": 1,
+    "anrechenbares_dach_attika_max": 2,
+    "gebaeudehoehe_max_m": 7.0,
+    "firsthoehe_max_m": 5,
+    "gesamtlaenge_max_m": 35,
+    "grundabstand_min_m": 5,
+    "grosser_grenzabstand_min_m": 9,
+    "ausnuetzungsziffer_max_pct": 35,
+    "gruenflaechenziffer_min_pct": null,
+    "kronenbedeckungsgrad_min_pct": null,
+    "source": { "article": "Art. 17, BZO Zumikon", "version": "BZO Zumikon, 17.09.2019", "paragraph_text": "", "screenshot": null }
+  },
+  "W2/40": {
+    "vollgeschosse_max": 2,
+    "anrechenbares_untergeschoss_max": 1,
+    "anrechenbares_dach_attika_max": 2,
+    "gebaeudehoehe_max_m": 7.5,
+    "firsthoehe_max_m": 6,
+    "gesamtlaenge_max_m": 35,
+    "grundabstand_min_m": 5,
+    "grosser_grenzabstand_min_m": 9,
+    "ausnuetzungsziffer_max_pct": 40,
+    "gruenflaechenziffer_min_pct": null,
+    "kronenbedeckungsgrad_min_pct": null,
+    "source": { "article": "Art. 17, BZO Zumikon", "version": "BZO Zumikon, 17.09.2019", "paragraph_text": "", "screenshot": null }
+  },
+  "W2/60": {
+    "vollgeschosse_max": 2,
+    "anrechenbares_untergeschoss_max": 1,
+    "anrechenbares_dach_attika_max": 2,
+    "gebaeudehoehe_max_m": 8.1,
+    "firsthoehe_max_m": 6,
+    "gesamtlaenge_max_m": 35,
+    "grundabstand_min_m": 5,
+    "grosser_grenzabstand_min_m": 9,
+    "ausnuetzungsziffer_max_pct": 60,
+    "gruenflaechenziffer_min_pct": null,
+    "kronenbedeckungsgrad_min_pct": null,
+    "source": { "article": "Art. 17, BZO Zumikon", "version": "BZO Zumikon, 17.09.2019", "paragraph_text": "", "screenshot": null }
+  }
+}
