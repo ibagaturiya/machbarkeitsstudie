@@ -23,7 +23,7 @@ globalThis.fetch = async (url) => {
   }
 };
 
-for (const f of ['js/normkette.js', 'js/envelope.js', 'js/rules.js']) {
+for (const f of ['js/normkette.js', 'js/checklist.js', 'js/envelope.js', 'js/rules.js']) {
   // Plain scripts attaching to window.MachbarkeitTool — evaluate in order.
   // eslint-disable-next-line no-eval
   (0, eval)(await readFile(join(root, f), 'utf8'));
@@ -44,7 +44,7 @@ function check(name, actual, expected, tol = 0.01) {
 }
 
 // ---------------------------------------------------------------------------
-// 0) Normhierarchie und Normkette — js/normkette.js
+// 0) Normhierarchie, Normkette und die Werkleitungs-Abgrenzung
 //    Die Kette ist reine Ordnung ueber ein fertiges Ergebnis, kein zweiter
 //    Rechenweg. Geprueft wird deshalb genau das: dass die Raenge des
 //    Stufenbaus stimmen, dass die Anwendungsreihenfolge von REGELN.md 3
@@ -94,6 +94,26 @@ function check(name, actual, expected, tol = 0.01) {
   const ohne = T.buildNormkette({ ...fakeResult, hasDirectional: false }, { withGeometry: false });
   check('ohne grossen Grenzabstand fehlt der Schritt',
     ohne.schritte.some((x) => x.titel.startsWith('Grosser Grenzabstand')), false);
+
+  // Werkleitungen: die Leitungs-BAULINIE ist gerechnet (§ 96 Abs. 2 lit. c
+  // PBG), der Kataster und das Leitungsbaurecht sind es nicht. Der Eintrag
+  // darf deshalb NIE 'pass' werden — auch dann nicht, wenn gar keine Baulinie
+  // gefunden wurde, denn "keine Baulinie" heisst nicht "keine Leitung".
+  const leer = { concerned: false };
+  for (const [fall, baulinien] of [['ohne Baulinie', { applies: false }], ['mit Baulinie', { applies: true }]]) {
+    const cl = await T.buildChecklist({
+      parcelPolygon: null, rules: { meta: {} }, gemeinde: 'Zumikon', bfsNr: 160,
+      restrictions: { waldabstand: leer, gewaesserraum: leer, baulinien: leer },
+      wald: { applies: false }, waldLossInFootprintM2: 0, baulinien, baulinienLossM2: 0,
+    });
+    const wl = cl.tierB.find((x) => x.key === 'werkleitungen');
+    check(`Werkleitungen erscheinen (${fall})`, !!wl, true);
+    check(`Werkleitungen bleiben review (${fall})`, wl.status, 'review');
+    check(`Werkleitungen nennen den Kataster als ungeprueft (${fall})`,
+      wl.text.includes('Werkleitungskataster'), true);
+    check(`Werkleitungen nennen die Rechtsgrundlage der Baulinie (${fall})`,
+      wl.text.includes('§ 96 Abs. 2 lit. c PBG'), true);
+  }
 }
 
 // ---------------------------------------------------------------------------

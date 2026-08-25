@@ -180,6 +180,17 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     ];
 
     const tierB = [
+      // Werkleitungen liegen auf zwei Ebenen, und nur eine davon ist
+      // gerechnet. Das getrennt zu sagen ist der ganze Punkt: "Baulinie
+      // geprueft" ist keine Antwort auf "liegt da ein Rohr?".
+      {
+        key: 'werkleitungen',
+        label: 'Werkleitungen',
+        status: 'review',
+        text: baulinien && baulinien.applies
+          ? 'Gerechnet ist nur die Baulinie für Versorgungsleitungen (§ 96 Abs. 2 lit. c PBG), soweit im kantonalen Datensatz ogd-0158 geführt — innerhalb der Baulinie gilt Bauverbot (§ 99 PBG), auf ihr darf nur gebaut werden, wenn die Grenz- und Gebäudeabstände es erlauben (§ 268 PBG). Eine solche Linie schneidet diese Parzelle und ist oben abgezogen. NICHT geprüft: die tatsächlich verlegten Werkleitungen (Werkleitungskataster der Gemeinde) sowie Durchleitungs- und Leitungsbaurechte im Grundbuch. Beides kann Untergeschoss, Fundation und Erschliessung einschränken — Werkleitungsplan bei der Gemeinde und Grundbuchauszug einholen.'
+          : 'Baulinien für Versorgungsleitungen (§ 96 Abs. 2 lit. c PBG) werden aus dem kantonalen Datensatz ogd-0158 gerechnet; für diese Parzelle wurde keine gefunden. NICHT geprüft: die tatsächlich verlegten Werkleitungen (Werkleitungskataster der Gemeinde) sowie Durchleitungs- und Leitungsbaurechte im Grundbuch — eine Leitung kann bestehen, ohne dass eine Baulinie festgesetzt ist. Beides kann Untergeschoss, Fundation und Erschliessung einschränken; Werkleitungsplan bei der Gemeinde und Grundbuchauszug einholen.',
+      },
       {
         key: 'sonderbauvorschriften',
         label: 'Sonderbauvorschriften / Gestaltungsplan',

@@ -177,7 +177,24 @@ Code-Kommentare in `waldabstand.js`). Ohne Linie: kein Abzug. Seite nicht
 bestimmbar: kein Abzug, aber `review`.
 
 ### 3.7 Baulinien
-Gleiches Verfahren wie Waldabstand, gleicher Abzug.
+Gleiches Verfahren wie Waldabstand, gleicher Abzug. Rechtsgrundlage:
+**§ 99 Abs. 1 PBG** (innerhalb der Baulinie nur zweckkonforme Bauten),
+Baulinienarten **§ 96 Abs. 2 PBG**.
+
+**Werkleitungen (Issue #1) — was hier drin ist und was nicht.** Zu den drei
+Baulinienarten gehören ausdrücklich die **Baulinien für Versorgungsleitungen**
+(§ 96 Abs. 2 lit. c; auf ihnen darf nur gebaut werden, soweit die Grenz- und
+Gebäudeabstände es erlauben, § 268). Sind sie in ogd-0158 geführt, sind sie
+damit **gerechnet** — ohne Sonderbehandlung, sie sind einfach Baulinien.
+
+**Nicht** gerechnet sind die *tatsächlich verlegten* Werkleitungen
+(Werkleitungskataster der Gemeinde) und die *Durchleitungs- und
+Leitungsbaurechte* im Grundbuch. Eine Leitung kann liegen, ohne dass je eine
+Baulinie festgesetzt wurde. Beides erscheint als Tier-B-Eintrag «Werkleitungen»
+(`review`, nie `pass`) und lässt sich unter «Mehr › Grundbuch» als Fussnote
+erfassen — dort neu mit eigenem Feld, weil ein Leitungsbaurecht anders als ein
+Näherbaurecht regelmässig Untergeschoss und Fundation trifft, nicht nur die
+Grundfläche.
 
 ### 3.8 Max. Gebäudelänge → Aufteilung in Baukörper
 Grenzwert = `gesamtlaenge_max_m`, ersatzweise
@@ -274,6 +291,7 @@ dasselbe (gebaute) Volumen.
   Ortsbildschutz/Denkmalpflege (Gate über **BFS-Nr. 261**, nicht den
   überschreibbaren Gemeindenamen), Kronenbedeckungsgrad, **NEU:**
   Strassenabstand Art. 32 BZO Zumikon (2 m ohne Verkehrsbaulinien), **NEU:**
+  Werkleitungen (Kataster + Leitungsbaurechte, siehe 3.7), **NEU:**
   Begrünung Art. 29 Abs. 2 BZO Zumikon (25 % im Perimeter).
 * Ausfälle einer Datenquelle ⇒ `review` («nicht prüfbar»), nie `pass`.
 * Die Checkliste wird bei Geschoss-/Fassadenwechsel **mit neu gerechnet**.
@@ -322,7 +340,10 @@ Annahmen werden im Quellen-Abschnitt des Tools ausdrücklich als
   Rechnung.
 * **Dachgeschoss** im Schrägdach als Geometrie (Fläche wird angerechnet, 3.11).
 * **Gewässerraum**, **Sonderbauvorschriften**, **Denkmalschutz** — nur erkannt.
-* **Näherbaurecht / Wegrecht / Dienstbarkeiten** — nur Fussnote.
+* **Näherbaurecht / Wegrecht / Durchleitungs- und Leitungsbaurechte /
+  übrige Dienstbarkeiten** — nur Fussnote (manuelle Erfassung).
+* **Werkleitungskataster** der Gemeinde — nicht abgefragt; nur die Baulinie
+  für Versorgungsleitungen wird gerechnet (3.7).
 * **Lärm** (LSV), **Energie**, **Parkierung**, **Brandschutz**, **Aussenraum**.
 * **Bestandesbauten** — die Parzelle wird als leer gerechnet.
 * **Herabsetzung des Grenzabstands** (Art. 15 BZO 2016) — nicht modelliert

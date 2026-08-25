@@ -344,6 +344,9 @@
   }
 
   // ---- Grundbuchauszug (manual, footnote only) ----------------------------
+  const leitungsrechtYes = document.getElementById('leitungsrecht-yes');
+  const leitungsrechtFields = document.getElementById('leitungsrecht-fields');
+  const leitungsrechtDetail = document.getElementById('leitungsrecht-detail');
   const naeherbaurechtYes = document.getElementById('naeherbaurecht-yes');
   const naeherbaurechtFields = document.getElementById('naeherbaurecht-fields');
   const naeherbaurechtDetail = document.getElementById('naeherbaurecht-detail');
@@ -356,6 +359,11 @@
 
   function buildGrundbuchFootnote() {
     const parts = [];
+    // Leitungsbaurecht zuerst: es ist das einzige der drei, das regelmaessig
+    // das Untergeschoss und die Fundation trifft, nicht nur die Grundflaeche.
+    if (leitungsrechtYes.checked) {
+      parts.push(`Durchleitungs-/Leitungsbaurecht vorhanden${leitungsrechtDetail.value.trim() ? ` (${leitungsrechtDetail.value.trim()})` : ''}`);
+    }
     if (naeherbaurechtYes.checked) {
       parts.push(`Näherbaurecht vorhanden${naeherbaurechtDetail.value.trim() ? ` (${naeherbaurechtDetail.value.trim()})` : ''}`);
     }
@@ -378,6 +386,10 @@
     }
   }
 
+  leitungsrechtYes.addEventListener('change', () => {
+    leitungsrechtFields.classList.toggle('visible', leitungsrechtYes.checked);
+    refreshGrundbuchFootnote();
+  });
   naeherbaurechtYes.addEventListener('change', () => {
     naeherbaurechtFields.classList.toggle('visible', naeherbaurechtYes.checked);
     refreshGrundbuchFootnote();
@@ -386,7 +398,7 @@
     wegrechtFields.classList.toggle('visible', wegrechtYes.checked);
     refreshGrundbuchFootnote();
   });
-  [naeherbaurechtDetail, wegrechtDetail, otherDienstbarkeit].forEach((el) =>
+  [leitungsrechtDetail, naeherbaurechtDetail, wegrechtDetail, otherDienstbarkeit].forEach((el) =>
     el.addEventListener('input', refreshGrundbuchFootnote)
   );
 

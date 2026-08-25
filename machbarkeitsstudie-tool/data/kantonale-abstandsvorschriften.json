@@ -77,6 +77,15 @@
     "waldabstand": {
       "source": { "article": "§ 262 Abs. 1, PBG", "doc": "pbg", "page": 62, "highlight": "Waldabstandslinie", "paragraph_text": "Gebäude dürfen die im Zonenplan festgelegte Waldabstandslinie nicht überschreiten; ausserhalb des Bauzonengebiets beträgt der Abstand von der forstrechtlichen Waldgrenze 30 m." }
     },
+    "baulinien_bauverbot": {
+      "rule": "Innerhalb der Baulinien dürfen nur Bauten erstellt werden, die dem Zweck der Baulinie nicht widersprechen. Das Werkzeug zieht die Fläche jenseits der Baulinie geometrisch ab (Datensatz ogd-0158) — gleiches Verfahren wie beim Waldabstand.",
+      "source": { "article": "§ 99 Abs. 1, PBG", "doc": "pbg", "page": 24, "highlight": "Innerhalb der Baulinien", "paragraph_text": "Innerhalb der Baulinien dürfen grundsätzlich nur Bauten und Anlagen erstellt werden, die dem Zweck der Baulinien nicht widersprechen." }
+    },
+    "baulinien_versorgungsleitungen": {
+      "rule": "Baulinien für Versorgungsleitungen sind eine der drei Baulinienarten und werden wie jede andere Baulinie abgezogen, soweit sie im Datensatz ogd-0158 geführt sind. Damit ist die LEITUNGSBAULINIE gerechnet — die tatsächlich verlegte Werkleitung (Werkleitungskataster der Gemeinde) und das Durchleitungs-/Leitungsbaurecht im Grundbuch sind es NICHT und erscheinen in der Checkliste als review.",
+      "source": { "article": "§ 96 Abs. 2 lit. c, PBG", "doc": "pbg", "page": 24, "highlight": "Versorgungsleitungen", "paragraph_text": "Es sind folgende Baulinien zu unterscheiden und im Baulinienplan als solche zu bezeichnen: ... c. Baulinien für Versorgungsleitungen und für Anschlussgleise." },
+      "see_also": { "article": "§ 268, PBG", "doc": "pbg", "page": 63, "paragraph_text": "Auf Baulinien für Versorgungsleitungen und Anschlussgleise darf nur gebaut werden, wenn es die Vorschriften über die Grenz- und Gebäudeabstände gegenüber Nachbargrundstücken erlauben." }
+    },
     "firsthoehe_altrecht": {
       "rule": "Der First muss innerhalb von 45°-Ebenen ab der Schnittlinie Dachfläche/Fassade liegen und darf höchstens bis zu einer oberen Ebene steigen (BZO-abhängiger Zuschlag über der Gebäudehöhe, Default 7 m).",
       "source": { "article": "§ 281 aPBG (Anhang bisheriges Recht)", "doc": "pbg", "page": 100, "highlight": "First", "paragraph_text": "Der First eines Schrägdaches muss innerhalb von Ebenen liegen, die a. unter 45° an die Schnittlinie zwischen der Dachfläche und der zugehörigen Fassade angelegt werden, b. höchstens aber bis zu einer oberen Ebene ansteigen, die unter Vorbehalt abweichender Regelungen in der Bau- und Zonenordnung in 7 m Höhe parallel zur Verbindung zwischen den massgeblichen Schnittlinien verläuft." }
