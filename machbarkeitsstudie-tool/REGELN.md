@@ -13,6 +13,41 @@ Zahlenbeispiele durchgehend Zumikon W2/25.
 
 ---
 
+## 0. Normhierarchie — welcher Rang gibt was vor
+
+Die Reihenfolge, in der das Werkzeug rechnet (Abschnitt 3), ist **nicht** die
+Rangordnung des Rechts. Sie mischt die Stufen, weil sie der Geometrie folgt:
+Grundabstand (Gemeinde) → Waldabstand (Kanton) → Ausnützung (Kanton + Gemeinde).
+Beide Ordnungen zeigt das Panel **«Ablauf & Normkette»** nebeneinander —
+Rangabzeichen je Schritt, Ablauf von oben nach unten.
+
+| Rang | Ebene | Erlass | Was das Werkzeug daraus verwendet |
+|---|---|---|---|
+| 1 | Bund | RPG | **nichts gerechnet.** Die Bauzonenzugehörigkeit wird vorausgesetzt, nicht geprüft. |
+| 2 | Kanton | PBG 700.1, ABV 700.2 | Begriffe und Messweisen (§ 255–257 Ziffern, § 260/§ 22 ABV Grenzabstand, § 271 Gebäudeabstand), Waldabstand § 262, Baulinien § 96/99, § 281 aPBG Firsthöhe |
+| 3 | Gemeinde | BZO + Zonenplan | Zone, Grund- und grosser Grenzabstand, AZ/ÜZ/GFZ-Werte, Höhen, Gesamtlänge, Attikaprofil |
+| 4 | Privatrecht | ZGB — Grundbuch, Dienstbarkeiten | **nichts gerechnet.** Näherbau-, Weg- und Leitungsbaurechte nur als Fussnote; beizubringen sind Grundbuchauszug, Katasterplan der amtlichen Vermessung und Höhenaufnahme. |
+| — | Amtliche Daten | AV, ÖREB, swissALTI3D, GIS-ZH | Geometrie und Betroffenheit, nicht Recht |
+| — | Werkzeug-Annahme | ohne Gesetzeszitat | Abschnitt 5, im Quellen-Abschnitt eigens gelistet |
+
+Tieferes Recht konkretisiert höheres und darf ihm nicht widersprechen. Wo
+kantonale und kommunale Werte beide bestehen, gilt der kommunale (Abschnitt
+3.3) — das ist keine Ausnahme von der Hierarchie, sondern die vom PBG selbst
+vorgesehene Delegation.
+
+**Werkleitungen** liegen bewusst auf zwei Rängen: die *Baulinie für
+Versorgungsleitungen* (§ 96 Abs. 2 lit. c PBG, Bauverbot § 99, Abstand § 268)
+ist kantonales Recht und wird **gerechnet**, sofern sie im Datensatz ogd-0158
+geführt ist. Die *tatsächliche Werkleitung* und das *Leitungsbaurecht* stehen
+im Werkleitungskataster der Gemeinde und im Grundbuch — beides liegt dem
+Werkzeug nicht vor und erscheint als `review`, nie als bestanden.
+
+Code: `js/normkette.js` (`NORM_EBENEN`, `buildNormkette`). Das Modul rechnet
+nichts nach; es ordnet ausschliesslich das fertige Ergebnisobjekt von
+`analyse()`. Golden-Test: Abschnitt 0 in `tests/run-tests.mjs`.
+
+---
+
 ## 1. Geltungsbereich
 
 | | |
@@ -297,6 +332,11 @@ Annahmen werden im Quellen-Abschnitt des Tools ausdrücklich als
 
 ## 7. Nachvollziehbarkeit
 
+* **Ablauf & Normkette** (einklappbares Panel, linke Spalte): während der
+  Rechnung das Live-Protokoll des Laufs, danach jeder Schritt mit seiner
+  Normebene, seiner Rechtsgrundlage und der Fläche, die er kostet — plus die
+  abspielbare Animation, die die Fläche Schicht für Schicht schrumpfen zeigt.
+  Ein Klick auf einen Schritt springt die Animation dorthin.
 * Jede Zwischenzahl steht in der Ergebnistabelle; die Kette Parzellenfläche →
   anrechenbare Fläche → Fussabdruck → Deckel → GFA → Geschosse → Volumen →
   Kosten ist vollständig sichtbar.

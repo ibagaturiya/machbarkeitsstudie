@@ -59,6 +59,60 @@
     --map-filter: invert(0.92) hue-rotate(180deg) brightness(0.9) contrast(0.8) saturate(0.9);
   }
 
+  /* ---- Ablauf & Normkette ---------------------------------------------
+     Ein einklappbares Panel am Fuss der linken Spalte: waehrend der Rechnung
+     das Live-Protokoll, danach die Normkette mit der Rangordnung der
+     angewandten Vorschriften und der Schicht-Animation daneben.
+     <details> bleibt bewusst display:block -- .pane ist display:flex, und
+     ein flex-Container als <details> hat in mehreren Engines den
+     zugeklappten Zustand aufgebrochen. */
+  #pane-ablauf { display: block; flex: 0 0 auto; overflow: hidden;
+                 border-top: 1px solid var(--border); background: var(--bg-pane);
+                 padding: 0.4rem 0.8rem 0.5rem; }
+  #pane-ablauf > summary { cursor: pointer; list-style: none; display: flex;
+                 justify-content: space-between; align-items: baseline; gap: 0.5rem;
+                 font-size: 0.72rem; text-transform: uppercase; letter-spacing: .09em;
+                 color: var(--accent); padding: 0.2rem 0; }
+  #pane-ablauf > summary::-webkit-details-marker { display: none; }
+  #pane-ablauf > summary::before { content: '\25B8'; margin-right: 0.35rem; transition: transform .15s; }
+  #pane-ablauf[open] > summary::before { transform: rotate(90deg); display: inline-block; }
+  .ablauf-body { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 0.8rem;
+                 max-height: 44vh; overflow-y: auto; padding: 0.4rem 0 0.2rem; }
+  @media (max-width: 1100px) { .ablauf-body { grid-template-columns: 1fr; } }
+  .nk-stage { border: 1px solid var(--border); border-radius: 4px; background: var(--bg-raised); }
+  .nk-stage svg { display: block; border-radius: 4px; }
+  .nk-caption { font-size: 0.78rem; color: var(--text-muted); margin: 0.3rem 0; min-height: 1.1em; }
+  #nk-play { font-size: 0.78rem; padding: 0.25rem 0.6rem; }
+  .nk-legend { margin-top: 0.5rem; display: flex; flex-wrap: wrap; gap: 0.25rem; }
+  .nk-ebene, .nk-rang { font-size: 0.66rem; text-transform: uppercase; letter-spacing: .05em;
+                 padding: 0.08rem 0.32rem; border-radius: 3px; white-space: nowrap;
+                 color: var(--nk-col); border: 1px solid var(--nk-col); background: transparent; }
+  .nk-live { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.72rem;
+             color: var(--text-muted); background: var(--bg-sunken); border: 1px solid var(--border-soft);
+             border-radius: 4px; padding: 0.3rem 0.45rem; max-height: 7.5em; overflow-y: auto;
+             margin-bottom: 0.5rem; }
+  .nk-live:empty { display: none; }
+  .nk-live-line { white-space: pre-wrap; }
+  .nk-list { list-style: none; margin: 0; padding: 0; }
+  .nk-step { display: flex; gap: 0.45rem; align-items: baseline; padding: 0.3rem 0.35rem;
+             border-bottom: 1px solid var(--border-soft); border-radius: 3px; }
+  .nk-step[data-stage]:not([data-stage="-1"]) { cursor: pointer; }
+  .nk-step[data-stage]:not([data-stage="-1"]):hover { background: var(--bg-sunken); }
+  .nk-step.is-current { background: var(--accent-soft); outline: 1px solid var(--accent); }
+  .nk-rang { flex: none; }
+  .nk-body { min-width: 0; display: flex; flex-wrap: wrap; gap: 0.2rem 0.5rem; align-items: baseline; }
+  .nk-titel { font-size: 0.84rem; font-weight: 600; }
+  .nk-wert { font-size: 0.8rem; color: var(--text); }
+  .nk-verlust { font-size: 0.78rem; color: var(--flag-badge); font-variant-numeric: tabular-nums; }
+  .nk-grundlage { flex-basis: 100%; font-size: 0.74rem; color: var(--text-faint); }
+  .nk-detail { flex-basis: 100%; font-size: 0.76rem; color: var(--text-muted); }
+  /* Ein Ausfall wird nie gruen dargestellt (REGELN.md 2/3.17) -- 'review'
+     traegt hier dieselbe Farbe wie in der Checkliste. */
+  .nk-step.nk-review { background: var(--review-bg); }
+  .nk-step.nk-review .nk-wert { color: var(--review-badge); }
+  .nk-step.nk-skip { opacity: .62; }
+  .nk-step.nk-info .nk-wert { color: var(--text-faint); font-style: italic; }
+
   body { font-family: -apple-system, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem;
          background: var(--bg); color: var(--text); }
   h1 { font-size: 1.4rem; }
@@ -551,6 +605,28 @@
         <div id="flags"></div>
       </div>
     </section>
+
+    <!-- Ablauf & Normkette: das Protokoll des laufenden Durchgangs und
+         danach die Rangordnung der angewandten Vorschriften. Eingeklappt
+         kostet es eine Zeile, aufgeklappt zeigt es links die Schicht fuer
+         Schicht schrumpfende Flaeche, rechts die Kette. -->
+    <details id="pane-ablauf">
+      <summary>Ablauf &amp; Normkette
+        <span class="pane-hint">Bund &rsaquo; Kanton &rsaquo; Gemeinde &rsaquo; Privatrecht</span>
+      </summary>
+      <div class="ablauf-body">
+        <div class="nk-side">
+          <div class="nk-stage" id="nk-stage"></div>
+          <div class="nk-caption" id="nk-caption"></div>
+          <button type="button" id="nk-play">&#9654; Abspielen</button>
+          <div class="nk-legend" id="nk-legend"></div>
+        </div>
+        <div class="nk-main">
+          <div class="nk-live" id="nk-live"></div>
+          <ol class="nk-list" id="nk-list"></ol>
+        </div>
+      </div>
+    </details>
   </div>
 
   <!-- right half, full height: geometry -->
@@ -664,6 +740,7 @@
 <script src="js/print.js?v=dev"></script>
 <script src="js/parcel-selector.js?v=dev"></script>
 <script src="js/evidence.js?v=dev"></script>
+<script src="js/normkette.js?v=dev"></script>
 <script src="js/app.js?v=dev"></script>
 </body>
 </html>

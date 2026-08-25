@@ -81,6 +81,7 @@
     localStorage.setItem('machbarkeit-theme', next);
     applyThemeIcon();
     if (lastResult) renderViewer(lastResult);
+    ablaufPanel.redraw();
   });
 
   // Tabs in the geometry pane. The 3D canvas is sized by CSS, so it must be
@@ -252,9 +253,27 @@
     if (!optionsEl.hidden && text.length >= 2) runSearch(text);
   });
 
+  // Ablauf & Normkette (js/normkette.js). Das Panel haelt seinen Abspiel-
+  // zustand selbst; app.js meldet ihm nur den Fortschritt und am Ende das
+  // fertige Ergebnisobjekt.
+  const ablaufPanel = T.mountAblaufPanel({
+    panelEl: document.getElementById('pane-ablauf'),
+    liveEl: document.getElementById('nk-live'),
+    listEl: document.getElementById('nk-list'),
+    stageEl: document.getElementById('nk-stage'),
+    captionEl: document.getElementById('nk-caption'),
+    playBtn: document.getElementById('nk-play'),
+    legendEl: document.getElementById('nk-legend'),
+    isDark,
+  });
+
+  // Jede Statusmeldung ist zugleich eine Protokollzeile: der Nutzer sieht im
+  // Kopf nur die aktuelle, im Panel die ganze Abfolge des Laufs. Eine zweite
+  // Aufrufstelle je Schritt waere sonst unvermeidlich aus dem Tritt geraten.
   function setStatus(text, isError) {
     statusEl.textContent = text;
     statusEl.className = isError ? 'error' : '';
+    if (text) ablaufPanel.live(isError ? `FEHLER — ${text}` : text);
   }
 
   // "2 Vollgeschosse", "2 Vollgeschosse + 1 Attika" -- used everywhere a
@@ -442,6 +461,10 @@
     const setbackResult = runSetback(grundabstandUsedM);
     let setbackFootprint = setbackResult.feature;
     const grenzabstandDegraded = setbackResult.degradedTo;
+    // Momentaufnahme fuer die Normketten-Animation (normkette.js): der Ring
+    // NACH den Grenzabstaenden, aber VOR Wald- und Baulinienabzug. Reines
+    // Festhalten, keine zusaetzliche Rechnung.
+    const setbackRingFeature = setbackFootprint;
 
     let footprintBeforeWaldM2 = setbackFootprint ? T.planarAreaAnyLV95(setbackFootprint) : 0;
     // The slice the cut actually takes out of the buildable footprint -- kept
@@ -453,6 +476,7 @@
       setbackFootprint = turf.difference(setbackFootprint, wald.forbidden);
     }
     const afterWaldM2raw = setbackFootprint ? T.planarAreaAnyLV95(setbackFootprint) : 0;
+    const afterWaldFeature = setbackFootprint;   // Momentaufnahme, siehe oben
     if (setbackFootprint && baulinien.forbidden) {
       try { baulinienRemoved = turf.intersect(setbackFootprint, baulinien.forbidden); } catch (e) { baulinienRemoved = null; }
       setbackFootprint = turf.difference(setbackFootprint, baulinien.forbidden);
@@ -688,7 +712,8 @@
       }
     }
 
-    return { setbackFootprint, footprintBeforeWaldM2, waldRemoved, baulinienRemoved, baulinienLossM2,
+    return { setbackRingFeature, afterWaldFeature,
+             setbackFootprint, footprintBeforeWaldM2, waldRemoved, baulinienRemoved, baulinienLossM2,
              footprintAfterWaldM2, waldLossInFootprintM2, lengthLimitM, areaRect, lengthExceeded,
              gebaeudeabstandM, massing, buildableArea, footprintRect, lengthLossM2,
              setbackFootprintAreaM2, reconciled, massingModel, hasDirectional, chosenIdx,
@@ -754,6 +779,10 @@
     const merged = polygons.reduce((acc, poly) => turf.union(acc, poly));
     const isSingleShape = merged.geometry.type === 'Polygon';
     const parcelAreaM2 = T.planarAreaAnyLV95(merged);
+    ablaufPanel.live(selection.length > 1
+      ? `${selection.length} Parzellen vereinigt — ${Math.round(parcelAreaM2)} m²`
+      : `Parzelle ${anchor.parcelNumber || anchor.egrid || ''} — ${Math.round(parcelAreaM2)} m²`);
+    ablaufPanel.live(`Zone ${anchor.zone} · ${rules.gemeinde} · ${rulesData.article_grundmasse}`);
 
     // Waldabstand is a real geometric constraint, computed and subtracted --
     // not just flagged. The Grundabstand is measured from the parcel edge and
@@ -770,6 +799,7 @@
     // and its constraint is reported as "nicht prüfbar", never as a silent
     // pass and never as a dead analysis.
     const degraded = [];
+    ablaufPanel.live('Waldabstandslinie, Baulinien und Terrain werden abgefragt…');
     const [wald, baulinien, terrainGrid] = await Promise.all([
       T.computeWaldabstand(merged).catch((e) => {
         degraded.push(`Waldabstand konnte nicht geprüft werden (${e.message || e}). Der Fussabdruck ist OHNE Waldabstands-Abzug gerechnet — manuell prüfen.`);
@@ -781,6 +811,7 @@
       }),
       T.sampleTerrainGrid(bb[0], bb[1], bb[2], bb[3], 7, 7).catch(() => null),
     ]);
+    ablaufPanel.live(`Wald: ${wald.failed ? 'nicht prüfbar' : (wald.applies ? 'Abstandslinie schneidet die Parzelle' : 'kein Abzug')} · Baulinien: ${baulinien.failed ? 'nicht prüfbar' : (baulinien.applies ? 'vorhanden' : 'kein Abzug')}`);
     const slope = terrainGrid ? T.fitTerrainSlope(terrainGrid.points) : null;
     const hang = slope ? { ...slope, isHang: slope.slopePercent >= 10 } : null;
 
@@ -814,6 +845,8 @@
     // app (the flag text, the floor plan's highlighted edge) sees the real
     // index instead of the still-unresolved null.
     southFacadeIndex = derived.chosenIdx;
+    ablaufPanel.live(`Fussabdruck abgeleitet — ${Math.round(derived.reconciled.usableFootprintAreaM2)} m² bebaubar, bindend: ${derived.reconciled.bindingConstraint}`);
+    ablaufPanel.live('ÖREB-Kataster und Höhenmodell werden abgefragt…');
 
     const [terrainHeight, restrictionsPerParcel] = await Promise.all([
       T.getTerrainHeight(anchor.easting, anchor.northing).catch(() => null),
@@ -837,13 +870,15 @@
       baulinien: agg('baulinien'),
     };
 
+    ablaufPanel.live('Checkliste wird erstellt…');
     const checklist = await T.buildChecklist({ parcelPolygon: merged, restrictions, rules, gemeinde: rules.gemeinde, bfsNr: anchor.bfsNr, wald, waldLossInFootprintM2: derived.waldLossInFootprintM2, baulinien, baulinienLossM2: derived.baulinienLossM2 })
       .catch((e) => {
         degraded.push(`Checkliste unvollständig: ${e.message || e}`);
         return { tierA: [], tierB: [{ status: 'warn', label: 'Checkliste', text: 'Konnte nicht vollständig erstellt werden — Datenquelle nicht erreichbar. Manuell prüfen.' }] };
       });
 
-    return { selection, anchor, rules, rulesData, merged, isSingleShape, parcelAreaM2,
+    return { setbackRingFeature: derived.setbackRingFeature, afterWaldFeature: derived.afterWaldFeature,
+             selection, anchor, rules, rulesData, merged, isSingleShape, parcelAreaM2,
              anrechenbareFlaecheM2, flaechenAbzuege, degraded,
              mehrlaengen: derived.mehrlaengen, grundabstandUsedM: derived.grundabstandUsedM,
              chosenIndices: derived.chosenIndices,
@@ -1328,6 +1363,7 @@
   }
 
   function render(r) {
+    ablaufPanel.setResult(r);
     const { selection, anchor, rules, rulesData, merged, isSingleShape,
             setbackFootprint, reconciled, terrainHeight, restrictions, checklist } = r;
     const multi = selection.length > 1;
@@ -1727,6 +1763,7 @@
       // an address. Only the results go, since they no longer describe
       // anything on screen.
       runToken++; // and any run still in flight is now stale
+      ablaufPanel.reset();
       resultsEl.style.display = 'none';
       previewPdfBtn.style.display = 'none';
       closePrintPreview();
@@ -1738,6 +1775,7 @@
       return;
     }
     const myToken = ++runToken;
+    ablaufPanel.reset();
     setStatus('Berechne…');
     try {
       const result = await analyse(selection);

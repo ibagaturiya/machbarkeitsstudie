@@ -23,7 +23,7 @@ globalThis.fetch = async (url) => {
   }
 };
 
-for (const f of ['js/envelope.js', 'js/rules.js']) {
+for (const f of ['js/normkette.js', 'js/envelope.js', 'js/rules.js']) {
   // Plain scripts attaching to window.MachbarkeitTool — evaluate in order.
   // eslint-disable-next-line no-eval
   (0, eval)(await readFile(join(root, f), 'utf8'));
@@ -41,6 +41,59 @@ function check(name, actual, expected, tol = 0.01) {
   } else {
     console.log(`ok   ${name}`);
   }
+}
+
+// ---------------------------------------------------------------------------
+// 0) Normhierarchie und Normkette — js/normkette.js
+//    Die Kette ist reine Ordnung ueber ein fertiges Ergebnis, kein zweiter
+//    Rechenweg. Geprueft wird deshalb genau das: dass die Raenge des
+//    Stufenbaus stimmen, dass die Anwendungsreihenfolge von REGELN.md 3
+//    eingehalten ist, und dass ein Datenausfall nie als bestanden erscheint.
+{
+  const E = T.NORM_EBENEN;
+  check('Stufenbau: Bund vor Kanton vor Gemeinde', E.bund.rang < E.kanton.rang && E.kanton.rang < E.gemeinde.rang, true);
+  check('Privatrecht steht neben, nicht im oeffentlichen Stufenbau (Rang 4)', E.privat.rang, 4);
+  const raenge = Object.values(E).map((e) => e.rang);
+  check('jede Ebene hat einen eigenen Rang', new Set(raenge).size, raenge.length);
+
+  const rules = await T.getZoneRules({ zone: 'W2/25', gemeinde: 'Zumikon', kantonaleWerte: {} });
+  const reconciled = T.reconcileEnvelope({
+    parcelAreaM2: 1000, anrechenbareFlaecheM2: 1000, flaechenAbzuege: null,
+    setbackFootprintAreaM2: 400, rules,
+  });
+  // Minimales Ergebnisobjekt: nur die Felder, die die Kette liest. Ohne turf
+  // laeuft buildNormkette textuell durch — genau dafuer ist withGeometry da.
+  const fakeResult = {
+    rules, reconciled, anchor: { zone: 'W2/25' }, selection: [{}],
+    parcelAreaM2: 1000, anrechenbareFlaecheM2: 1000,
+    flaechenAbzuege: { waldM2: 0 }, grundabstandUsedM: 5,
+    hasDirectional: true, chosenIndices: [0, 1],
+    wald: { applies: true, failed: true }, baulinien: { applies: false, failed: false },
+    waldLossInFootprintM2: 0, baulinienLossM2: 0,
+    lengthExceeded: false, massingModel: null,
+  };
+  const kette = T.buildNormkette(fakeResult, { withGeometry: false });
+  const titel = kette.schritte.map((x) => x.titel);
+  const pos = (t) => titel.findIndex((x) => x.startsWith(t));
+  check('Kette beginnt beim Bundesrecht', kette.schritte[0].ebene, 'bund');
+  check('Grundabstand vor Waldabstand', pos('Grundabstand') < pos('Waldabstand'), true);
+  check('Waldabstand vor Baulinien', pos('Waldabstand') < pos('Baulinien'), true);
+  check('Baulinien vor Ausnuetzungsziffer', pos('Baulinien') < pos('Ausnützungsziffer'), true);
+  check('grosser Grenzabstand nur bei gerichteter Figur', pos('Grosser Grenzabstand') > 0, true);
+  check('Privatrecht wird ausgewiesen, nicht gerechnet',
+    kette.schritte.find((x) => x.ebene === 'privat').status, 'review');
+  const waldStep = kette.schritte[pos('Waldabstand')];
+  check('Ausfall des Wald-Dienstes ist review, nie ok', waldStep.status, 'review');
+  check('Ausfall wird als "nicht pruefbar" beziffert', waldStep.wert, 'nicht prüfbar');
+  check('jeder Schritt traegt eine bekannte Normebene',
+    kette.schritte.every((x) => !!E[x.ebene]), true);
+  check('Schrittnummern sind lueckenlos',
+    kette.schritte.every((x, i) => x.nr === i + 1), true);
+
+  // Ohne gerichtete Abstandsfigur faellt der Schritt weg statt mit 0 zu erscheinen.
+  const ohne = T.buildNormkette({ ...fakeResult, hasDirectional: false }, { withGeometry: false });
+  check('ohne grossen Grenzabstand fehlt der Schritt',
+    ohne.schritte.some((x) => x.titel.startsWith('Grosser Grenzabstand')), false);
 }
 
 // ---------------------------------------------------------------------------

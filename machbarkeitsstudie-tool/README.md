@@ -36,6 +36,14 @@ Opening `index.html` directly (`file://`) does **not** work: browsers block
    shape, one combined area, one outer Grundabstand ring, normal zone rules.
 4. Review on screen, then "PDF exportieren" for an A3 print.
 
+**Ablauf & Normkette** (collapsible panel, bottom of the left column) is the
+audit trail for a single run: the live log while the analysis is fetching and
+computing, then every step of the derivation with its legal level (Bund →
+Kanton → Gemeinde → Privatrecht), its Rechtsgrundlage and the area it costs.
+Press "Abspielen" — or click a step — to watch the buildable area shrink layer
+by layer. It orders the finished result object; it never recomputes anything
+(`js/normkette.js`).
+
 ## PDF export
 
 **"PDF exportieren"** composes an A3 landscape presentation — **one argument
