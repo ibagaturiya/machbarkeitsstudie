@@ -11,15 +11,9 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
 (function () {
   const T = window.MachbarkeitTool;
 
-  function safeOp(fn, fallback) {
-    try { return fn(); } catch (e) { return fallback; }
-  }
+  const safeOp = T.safeOp; // js/coordinates.js
 
-  function exteriorRingsOf(feature) {
-    return feature.geometry.type === 'Polygon'
-      ? [feature.geometry.coordinates[0]]
-      : feature.geometry.coordinates.map((poly) => poly[0]);
-  }
+  const exteriorRingsOf = T.exteriorRingsOf; // js/coordinates.js
 
   // Every boundary edge of the parcel, at least MIN_EDGE_M long (shorter is a
   // corner notch, not a facade), with its outward-facing compass bearing.
@@ -82,28 +76,87 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   // since bufferLV95 on a LineString produces a stadium shape) -- a
   // simplification the tool's own flag already names as such, not a full
   // per-edge variable offset around the whole polygon.
+  //
+  // Returns the same { feature, failedEdges } shape as the multi-edge version
+  // it delegates to — a caller that ignores failedEdges is reading a footprint
+  // that may be too large.
   function anisotropicSetback(parcelFeature, edge, smallM, bigM) {
     return anisotropicSetbackMulti(parcelFeature, edge ? [edge] : [], smallM, bigM);
+  }
+
+  // The bigM strip along one edge, with FLAT ends: a quad spanning exactly
+  // the edge's own extent, offset inward by bigM. NOT a line buffer — a
+  // buffer's stadium shape puts bigM-radius arcs around the edge ENDPOINTS,
+  // carving circular bites out of the parcel beyond the facade's span. That
+  // is stricter than the law: § 22 Abs. 2 ABV ("Bestehen gemäss Bau- und
+  // Zonenordnung zwei verschieden grosse Grundabstände, so ist der kleinere
+  // über die Gebäudeecken radial herumzuschlagen") wraps the SMALLER
+  // distance around the corners — beyond the Hauptfassade only the small
+  // Grundabstand applies. The rounded band also produced crescent-shaped
+  // buildable areas no rectangular building could fill (parcel 5029).
+  function edgeBandInward(parcelFeature, edge, bigM) {
+    const [ax, ay] = edge.a, [bx, by] = edge.b;
+    const len = Math.hypot(bx - ax, by - ay);
+    if (!len) return null;
+    let nx = -(by - ay) / len, ny = (bx - ax) / len;
+    // Point the normal INTO the parcel.
+    const probe = turf.point([(ax + bx) / 2 + nx * 0.5, (ay + by) / 2 + ny * 0.5]);
+    if (!turf.booleanPointInPolygon(probe, parcelFeature)) { nx = -nx; ny = -ny; }
+    return turf.polygon([[
+      [ax, ay], [bx, by],
+      [bx + nx * bigM, by + ny * bigM],
+      [ax + nx * bigM, ay + ny * bigM],
+      [ax, ay],
+    ]]);
   }
 
   // Same differential offset for SEVERAL Hauptfassaden at once (Art. 18 BZO
   // Zumikon: W2/25 puts the grosse Grenzabstand on the TWO most south-facing
   // sides). Each edge loses its own bigM band; the bands may overlap at a
   // shared corner, which difference() handles naturally.
+  //
+  // Returns { feature, failedEdges } — NOT a bare feature. Every step here can
+  // fail on degenerate geometry, and each failure used to be swallowed: a
+  // thrown intersect() or difference() simply skipped that Hauptfassade, so
+  // the 10 m band was never cut and the buildable area came out TOO LARGE,
+  // silently. That is the one direction a Machbarkeitsstudie must never fail
+  // in. The count is reported so the caller can fall back to something
+  // conservative and say so (CLAUDE.md §4; REGELN.md §2 — ein Ausfall wird nie
+  // als grünes PASS dargestellt).
   function anisotropicSetbackMulti(parcelFeature, edges, smallM, bigM) {
     let base = T.bufferLV95(parcelFeature, -smallM);
-    if (!base || !edges || !edges.length || bigM == null || bigM <= smallM) return base;
+    let failedEdges = 0;
+    if (!base || !edges || !edges.length || bigM == null || bigM <= smallM) {
+      return { feature: base, failedEdges: 0 };
+    }
     for (const edge of edges) {
       if (!edge) continue;
-      const edgeLine = turf.lineString([edge.a, edge.b]);
-      const band = T.bufferLV95(edgeLine, bigM);
-      if (!band) continue;
-      const bandInside = safeOp(() => turf.intersect(band, parcelFeature), null);
-      if (!bandInside) continue;
-      base = safeOp(() => turf.difference(base, bandInside), base) || base;
-      if (!base) return null;
+      // Explicit try/catch rather than safeOp: the two outcomes have to be
+      // told apart. A THROW means this facade's band was never cut and the
+      // area is too large — count it. A difference() that returns null is not
+      // a failure: the band covers everything that was left, so nothing
+      // remains buildable, which is a legitimate (and correct) result.
+      let band, bandInside;
+      try {
+        band = edgeBandInward(parcelFeature, edge, bigM);
+        bandInside = band ? turf.intersect(band, parcelFeature) : null;
+      } catch (e) {
+        failedEdges++;
+        continue;
+      }
+      if (!band || !bandInside) { failedEdges++; continue; }
+
+      let cut;
+      try {
+        cut = turf.difference(base, bandInside);
+      } catch (e) {
+        failedEdges++;
+        continue;
+      }
+      base = cut;
+      if (!base) return { feature: null, failedEdges };
     }
-    return base;
+    return { feature: base, failedEdges };
   }
 
   T.pickSouthFacade = pickSouthFacade;

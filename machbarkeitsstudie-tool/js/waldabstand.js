@@ -75,9 +75,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       : feature.geometry.coordinates;
   }
 
-  function safeOp(fn, fallback) {
-    try { return fn(); } catch (e) { return fallback; }
-  }
+  const safeOp = T.safeOp; // js/coordinates.js
 
   function unionAll(features) {
     return features.reduce((acc, f) => (acc ? safeOp(() => turf.union(acc, f), acc) : f), null);

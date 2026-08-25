@@ -67,8 +67,8 @@
       "source": { "article": "§ 260 Abs. 1/2, PBG", "doc": "pbg", "page": 62, "highlight": "Grenzabstand", "paragraph_text": "Der Grenzabstand ist die Entfernung zwischen der projizierten Fassadenlinie und der Grundstücksgrenze. Der Gebäudeabstand ist die Entfernung zwischen den projizierten Fassadenlinien zweier Gebäude." }
     },
     "grundabstand_messweise": {
-      "rule": "Der Grundabstand wird rechtwinklig zur projizierten Fassadenlinie und radial über die Gebäudeecken gemessen -- massgebend ist die GEBÄUDE-Fassade, nicht die Parzellengrenze.",
-      "source": { "article": "§ 22 Abs. 1, ABV (700.2)", "doc": "abv", "page": 5, "highlight": "radial", "paragraph_text": "Der Grundabstand ist der kleinste erforderliche Grenzabstand ohne Mehrlängen- und Mehrhöhenzuschlag; er wird rechtwinklig zur projizierten Fassadenlinie und radial über die Gebäudeecken gemessen." }
+      "rule": "Der Grundabstand wird rechtwinklig zur projizierten Fassadenlinie und radial über die Gebäudeecken gemessen -- massgebend ist die GEBÄUDE-Fassade, nicht die Parzellengrenze. Treffen zwei verschieden grosse Grundabstände aufeinander, wird der KLEINERE radial um die Ecken geführt -- der grosse Abstand reicht also nicht über die Hauptfassade hinaus.",
+      "source": { "article": "§ 22 Abs. 1/2, ABV (700.2)", "doc": "abv", "page": 5, "highlight": "radial", "paragraph_text": "Der Grundabstand ist der kleinste erforderliche Grenzabstand ohne Mehrlängen- und Mehrhöhenzuschlag; er wird rechtwinklig zur projizierten Fassadenlinie und radial über die Gebäudeecken gemessen. Bestehen gemäss Bau- und Zonenordnung zwei verschieden grosse Grundabstände, so ist der kleinere über die Gebäudeecken radial herumzuschlagen." }
     },
     "grenzabstand_zusammensetzung": {
       "rule": "Grenzabstand = Grundabstand + Mehrhöhenzuschlag + Mehrlängenzuschlag gemäss BZO (kommunales System).",

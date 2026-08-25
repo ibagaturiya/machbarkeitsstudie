@@ -71,6 +71,42 @@ function check(name, actual, expected, tol = 0.01) {
   check('AZ-Verbrauch bleibt 250 m² (Attika/UG frei)', mm.gfaUsedM2, 250);
   check('Attika-Geschosshöhe 3.25 m (min aus Zuschlag 4.5 und 3.25)', mm.attikaStoreyHeightM, 3.25);
   check('Volumen 1218.75 m³', mm.volumeM3, 1218.75);
+
+  // Der Baukörper ist zu schmal für das 45°-Profil (Art. 31 BZO): die Attika
+  // fällt weg — und mit ihr JEDE aus ihr abgeleitete Zahl. Sonst weist das
+  // Panel 9.75 m Höhe und 500 m² Nutzfläche aus, während das Modell einen
+  // 6.5-m-Kubus zeichnet (Parzelle 5029, Zumikon: 15.2 × 7.3 m Baukörper).
+  const dropped = T.suppressAttikaStorey(T.buildMassingModel({ footprintFeature: { fake: true }, reconciled: rec, rules }));
+  check('ohne darstellbare Attika: 2 Geschosse', dropped.storeys, 2);
+  check('gewählte Geschosszahl bleibt bekannt', dropped.requestedStoreys, 3);
+  check('Höhe fällt auf 6.5 m (2 × 3.25)', dropped.buildingHeightM, 6.5);
+  check('Attika-Fläche 0 m²', dropped.attikaFloorplateM2, 0);
+  check('Nutzfläche 375 m² (2×125 + UG 125, ohne Attika)', dropped.nutzflaecheTotalM2, 375);
+  check('Volumen 812.5 m³ (2 × 125 × 3.25)', dropped.volumeM3, 812.5);
+  check('AZ-Verbrauch unverändert 250 m²', dropped.gfaUsedM2, 250);
+}
+
+// ---------------------------------------------------------------------------
+// 1b) Eine Zone mit grossem Grenzabstand MUSS sagen, für wie viele Seiten er
+//     gilt (Art. 18 Abs. 1 BZO Zumikon: W2/25 zwei, W2/35-60 eine). Fehlt die
+//     Angabe, wurde früher stillschweigend 1 angenommen — genau der Fehler,
+//     der für W2/25 schon einmal behoben werden musste (REGELN.md §8).
+{
+  const rules = await T.getZoneRules({ zone: 'W2/25', gemeinde: 'Zumikon', kantonaleWerte: {} });
+  check('Zumikon W2/25: Südseiten-Angabe vorhanden', rules.grosser_grenzabstand_suedseiten, 2);
+
+  // Same lookup against a zone whose Südseiten-Angabe has been removed.
+  const zumikon = await T.loadGemeindeData('Zumikon');
+  const saved = zumikon['W2/25'].grosser_grenzabstand_suedseiten;
+  delete zumikon['W2/25'].grosser_grenzabstand_suedseiten;
+  let halted = false;
+  try {
+    await T.getZoneRules({ zone: 'W2/25', gemeinde: 'Zumikon', kantonaleWerte: {} });
+  } catch (e) {
+    halted = /grosser_grenzabstand_suedseiten/.test(e.message);
+  }
+  zumikon['W2/25'].grosser_grenzabstand_suedseiten = saved;
+  check('fehlende Südseiten-Angabe bricht ab statt zu raten', halted, true);
 }
 
 // ---------------------------------------------------------------------------

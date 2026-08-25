@@ -13,16 +13,10 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
 
 (function () {
   const T = window.MachbarkeitTool;
+  // Shared with app.js — see js/format.js. The local copy of esc used to
+  // leave the single quote unescaped; this one does not.
+  const esc = T.esc, fmt = T.fmt, fmtInt = T.fmtInt;
 
-  function esc(s) {
-    return String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  }
-  function fmt(n, d = 1) {
-    return typeof n === 'number' && isFinite(n) ? n.toFixed(d) : String(n);
-  }
-  function fmtInt(n) {
-    return Math.round(n).toLocaleString('de-CH');
-  }
 
   function sheet(title, kicker, bodyHtml, footerHtml, sourcesHtml) {
     return `<section class="sheet">
@@ -173,11 +167,14 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     const envelopeVolumeM3 = massingModel ? massingModel.volumeM3 : reconciled.usableFootprintAreaM2 * rules.heightM;
     const cost = T.estimateCost(envelopeVolumeM3);
     const dateStr = new Date().toLocaleDateString('de-CH');
-    const foot = `${esc(rules.gemeinde)} · ${esc(rulesData.version)} · erstellt ${dateStr}`;
+    // The zone rides in the running footer of every sheet: it is the premise
+    // of every number in the document, and a page read on its own has to say
+    // which zone it is talking about.
+    const foot = `${esc(rules.gemeinde)} · Zone ${esc(anchor.zone)} · ${esc(rulesData.version)} · erstellt ${dateStr}`;
 
     // ---- Sheet 1: Übersicht ------------------------------------------------
     const s1 = sheet(anchor.address || selection.map((p) => p.parcelNumber).join(' + '),
-      'Machbarkeitsstudie — Übersicht',
+      `Machbarkeitsstudie — Übersicht · Zone ${anchor.zone}${anchor.zoneLabel ? ` (${anchor.zoneLabel})` : ''}`,
       `<div class="cols c-6040">
         <div>
           <div class="hero">

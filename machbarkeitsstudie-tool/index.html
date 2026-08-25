@@ -169,6 +169,23 @@
   .version-banner { background: var(--warn-bg); border: 1px solid var(--warn-border); color: var(--warn-text); padding: 0.75rem 1rem; border-radius: 6px; margin-bottom: 1rem; font-size: 0.9rem; }
   .binding { background: var(--pass-bg); border: 1px solid var(--pass-badge); border-radius: 6px; padding: 1rem; margin-bottom: 1rem; }
   .binding.zero { background: var(--flag-bg); border-color: var(--flag-badge); }
+
+  /* Which zone the parcel is in decides every number below it, so it leads
+     the result panel rather than sitting as one row among thirty. */
+  .zone-headline { background: var(--accent-soft); border: 1px solid var(--accent);
+    border-radius: 6px; padding: 0.7rem 0.9rem; margin-bottom: 0.8rem; }
+  .zone-headline .zone-code { font-size: 1.5rem; font-weight: 700; line-height: 1.1;
+    display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
+  .zone-headline .zone-label { font-size: 0.95rem; margin-top: 0.15rem; }
+  .zone-headline .zone-meta { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.3rem; }
+  /* Sits next to the zone code: the derivation and the Grundmasse live in the
+     Zonenplan tab, this is the way there. */
+  .zone-proof-btn { font-size: 0.68rem; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase;
+    border: 1px solid var(--accent); background: transparent; color: var(--accent);
+    border-radius: 3px; padding: 0.15rem 0.4rem; cursor: pointer; }
+  .zone-proof-btn:hover { background: var(--accent-soft); }
+  .steckbrief-h { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.04em;
+    color: var(--text-muted); margin: 1.1rem 0 0.35rem; }
   table.numbers { border-collapse: collapse; margin-bottom: 1rem; }
   table.numbers td { padding: 0.25rem 0.75rem 0.25rem 0; }
   table.numbers td:first-child { color: var(--text-muted); }
@@ -264,16 +281,49 @@
      let the 3D view use all of it -- the other tabs (plan, zoning map,
      checklist, sources) keep normal block flow and scroll within tab-body. */
   #viewer-wrap.active { display: flex; flex-direction: column; height: 100%; min-height: 0; }
-  #viewer-wrap #viewer { flex: 1 1 58%; min-height: 0; }
-  #viewer-wrap #floorplan-legend { flex: none; }
+  #viewer-wrap #viewer-box { flex: 1 1 58%; min-height: 0; position: relative; }
+  #viewer-wrap #viewer-box #viewer { height: 100%; }
   /* resize:vertical gives the plan a drag handle (bottom-right corner) so it
      can be made taller than its default 34% share when there's a lot to look
      at -- flex-basis governs the initial size, the explicit height the user
      drags to takes over after that. overflow:auto is required by the CSS
      resize property to work at all. */
-  #viewer-wrap #floorplan { flex: 1 1 34%; min-height: 160px; height: auto; width: 100%;
-                             resize: vertical; overflow: auto; }
+  #viewer-wrap #floorplan-box { flex: 1 1 34%; min-height: 160px; width: 100%; position: relative;
+                                 resize: vertical; overflow: auto; }
+  #viewer-wrap #floorplan { height: 100%; min-height: 160px; }
   #viewer-wrap #floorplan svg { width: 100%; height: 100%; }
+
+  /* "?" help icons with hover/focus popups */
+  .info-tip { position: absolute; top: 8px; right: 8px; z-index: 15;
+              width: 22px; height: 22px; border-radius: 50%; cursor: help;
+              display: flex; align-items: center; justify-content: center;
+              background: var(--bg-raised); border: 1px solid var(--border);
+              color: var(--text-muted); font-size: 13px; font-weight: 600; user-select: none; }
+  .info-tip:hover, .info-tip:focus { border-color: var(--accent); color: var(--accent); }
+  .info-tip .tip-pop { display: none; position: absolute; top: 26px; right: 0;
+              width: 360px; max-width: 72vw; padding: 0.55rem 0.7rem;
+              background: var(--bg-pane); color: var(--text); border: 1px solid var(--border);
+              border-radius: 6px; box-shadow: 0 4px 18px rgba(0,0,0,.28);
+              font-size: 0.78rem; font-weight: 400; line-height: 1.45; text-align: left; cursor: auto; }
+  .info-tip:hover .tip-pop, .info-tip:focus .tip-pop, .info-tip:focus-within .tip-pop { display: block; }
+  /* Plan: the zoom buttons already occupy the top-right corner — help goes top-left. */
+  #floorplan-box .info-tip { right: auto; left: 8px; top: 14px; }
+  #floorplan-box .tip-pop { right: auto; left: 0; }
+  /* No content (e.g. nothing analysed yet) -> no icon. */
+  .info-tip:has(.tip-pop:empty) { display: none; }
+
+  /* Deploy stamp, bottom of the page — confirms which pushed version is
+     actually being served. __STAMP__ is replaced by the Pages workflow with
+     the deploy time (yyyy.mm.dd..hh.mm.ss, Europe/Zurich); locally the inline
+     script fills in the browser's clock in the same shape. The block itself
+     stays click-through so it never swallows clicks on the page beneath —
+     only the link takes pointer events back. */
+  #version-stamp { position: fixed; bottom: 2px; right: 8px; z-index: 40;
+                   font-size: 10px; color: var(--text-muted); opacity: .8;
+                   pointer-events: none; }
+  #version-stamp a { color: inherit; pointer-events: auto; }
+  #version-stamp a:hover { color: var(--accent); }
+  @media print { #version-stamp { display: none; } }
   #viewer { height: 100%; margin: 0; background: var(--bg-sunken); }
   #floorplan { max-width: none; margin: 0; border-top: 1px solid var(--border); padding-top: 0.5rem; }
   .zoning-map { display: block; border: none; }
@@ -282,6 +332,10 @@
   #results { display: none; }
   table.numbers td { font-size: 0.83rem; padding: 0.18rem 0.6rem 0.18rem 0; }
   .binding { padding: 0.6rem 0.7rem; font-size: 0.88rem; margin-bottom: 0.6rem; }
+  .zone-headline { padding: 0.5rem 0.65rem; margin-bottom: 0.6rem; }
+  .zone-headline .zone-code { font-size: 1.25rem; }
+  .zone-headline .zone-label { font-size: 0.85rem; }
+  .zone-headline .zone-meta { font-size: 0.74rem; }
   .version-banner { font-size: 0.75rem; padding: 0.45rem 0.6rem; }
   .flag { font-size: 0.78rem; padding: 0.4rem 0.55rem; }
   .checklist-item { font-size: 0.8rem; }
@@ -294,6 +348,10 @@
   .choice b { font-size: 0.82rem; color: var(--text); }
   .choice:hover { border-color: var(--accent); }
   .choice.active { border-color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+  /* Chosen, but the Attika didn't survive the 45°-Profil: the card stays
+     selectable and keeps its label, while saying what was actually built. */
+  .choice.unavailable b { text-decoration: line-through; text-decoration-thickness: 1px; opacity: 0.75; }
+  .choice-warn { color: var(--warn-text); font-size: 0.68rem; margin-top: 0.15rem; }
   .grundbuch-form { padding: 0.7rem; }
   .cost-estimate { padding: 0.7rem; }
   footer { margin-top: 1rem; font-size: 0.72rem; }
@@ -485,6 +543,7 @@
     <section class="pane" id="pane-numbers">
       <h2 class="pane-title">Ergebnis</h2>
       <div id="results">
+        <div class="zone-headline" id="zone-headline"></div>
         <div class="binding" id="binding-summary"></div>
         <div id="storey-select"></div>
         <table class="numbers" id="numbers-table"></table>
@@ -507,10 +566,19 @@
            dragging the building in the 3D view needs the plan visible at
            the same time to make sense of where it ends up. -->
       <div class="tab-pane active" id="viewer-wrap">
-        <div id="viewer"></div>
-        <p class="caption-line" id="viewer-hint">Zum Drehen ziehen, zum Zoomen scrollen. Den Baukörper direkt anfassen, um ihn innerhalb der Hülle zu verschieben.</p>
-        <div id="floorplan"></div>
-        <p class="caption-line" id="floorplan-legend"></p>
+        <!-- Interaction hints and the plan legend live behind "?" icons
+             (hover/focus popup) instead of permanent caption lines — the
+             text is reference material, not something to read on every
+             glance. app.js keeps writing into the same #viewer-hint /
+             #floorplan-legend ids. -->
+        <div class="canvas-box" id="viewer-box">
+          <div id="viewer"></div>
+          <div class="info-tip" tabindex="0" aria-label="Bedienung 3D-Modell">?<div class="tip-pop" id="viewer-hint">Zum Drehen ziehen, zum Zoomen scrollen. Den Baukörper direkt anfassen, um ihn innerhalb der Hülle zu verschieben.</div></div>
+        </div>
+        <div class="canvas-box" id="floorplan-box">
+          <div id="floorplan"></div>
+          <div class="info-tip" tabindex="0" aria-label="Legende Grundriss">?<div class="tip-pop" id="floorplan-legend"></div></div>
+        </div>
       </div>
       <div class="tab-pane" id="zoning-map"></div>
       <div class="tab-pane" id="checklist-wrap"><div id="checklist"></div></div>
@@ -563,6 +631,22 @@
 </div>
 <div id="print-doc"></div>
 
+<div id="version-stamp">version __STAMP__ - ivan bagaturiya <a href="https://bagaturiya.com" target="_blank" rel="noopener">bagaturiya.com</a></div>
+<script>
+  // Local run: the placeholder was not replaced by the deploy workflow, so
+  // stamp the browser's own clock in the same yyyy.mm.dd..hh.mm.ss shape.
+  (function () {
+    var v = document.getElementById('version-stamp');
+    if (v.innerHTML.indexOf('__' + 'STAMP' + '__') === -1) return;
+    var d = new Date();
+    var p = function (n) { return String(n).padStart(2, '0'); };
+    var stamp = d.getFullYear() + '.' + p(d.getMonth() + 1) + '.' + p(d.getDate())
+      + '..' + p(d.getHours()) + '.' + p(d.getMinutes()) + '.' + p(d.getSeconds());
+    v.innerHTML = v.innerHTML.replace('__' + 'STAMP' + '__', stamp + ' (lokal)');
+  })();
+</script>
+
+<script src="js/format.js?v=dev"></script>
 <script src="js/coordinates.js?v=dev"></script>
 <script src="js/geocode.js?v=dev"></script>
 <script src="js/zone-lookup.js?v=dev"></script>

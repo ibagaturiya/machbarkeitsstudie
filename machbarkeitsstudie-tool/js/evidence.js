@@ -13,6 +13,7 @@
 window.MachbarkeitTool = window.MachbarkeitTool || {};
 
 (function () {
+  const esc = window.MachbarkeitTool.esc; // js/format.js
   const PDFJS_VERSION = '3.11.174';
   const PDFJS_URL = `https://unpkg.com/pdfjs-dist@${PDFJS_VERSION}/build/pdf.min.js`;
   const PDFJS_WORKER_URL = `https://unpkg.com/pdfjs-dist@${PDFJS_VERSION}/build/pdf.worker.min.js`;
@@ -37,11 +38,6 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
 
   const docCache = new Map(); // file -> Promise<PDFDocumentProxy>
 
-  function esc(t) {
-    return String(t ?? '').replace(/[&<>"']/g, (c) => (
-      { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
-    ));
-  }
 
   function normalize(s) {
     return String(s).toLowerCase().replace(/\s+/g, ' ').replace(/[«»„“”"']/g, '').trim();

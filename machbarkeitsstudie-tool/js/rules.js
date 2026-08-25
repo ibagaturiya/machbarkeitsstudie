@@ -111,6 +111,21 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       );
     }
 
+    // A commune with a grosser Grenzabstand must also say to how many sides it
+    // applies: Art. 18 Abs. 1 BZO Zumikon puts it on the TWO most south-facing
+    // sides in W2/25 but on ONE in W2/35-W2/60. Defaulting the count to 1 was
+    // silently re-introducing a bug already fixed once for W2/25 (REGELN.md §8)
+    // for every commune added later — so the missing value halts here instead
+    // (CLAUDE.md §2: never a default on a legal value).
+    if (local.grosser_grenzabstand_min_m != null && local.grosser_grenzabstand_suedseiten == null) {
+      throw new Error(
+        `Zone "${zoneInfo.zone}" (${gemeinde}) kennt einen grossen Grenzabstand ` +
+        `(${local.grosser_grenzabstand_min_m} m), aber die Datei sagt nicht, für wie viele ` +
+        `Gebäudeseiten er gilt ("grosser_grenzabstand_suedseiten" fehlt). Ohne diese Angabe ` +
+        `lässt sich der Fussabdruck nicht bestimmen — Wert aus der BZO ergänzen (Art. 18 Abs. 1).`
+      );
+    }
+
     const merged = { ...zoneInfo.kantonaleWerte, ...local };
 
     // Zürich: the E-BZO draft binds only where stricter than the in-force

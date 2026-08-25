@@ -10,6 +10,8 @@
 // README.md for what that deliberately leaves on the table.
 (function () {
   const T = window.MachbarkeitTool;
+  // Shared with print.js and evidence.js — see js/format.js.
+  const esc = T.esc, fmt = T.fmt;
 
   const form = document.getElementById('address-form');
   const statusEl = document.getElementById('status');
@@ -17,6 +19,7 @@
   const selectionListEl = document.getElementById('selection-list');
   const resultsEl = document.getElementById('results');
   const versionBannerEl = document.getElementById('version-banner');
+  const zoneHeadlineEl = document.getElementById('zone-headline');
   const bindingSummaryEl = document.getElementById('binding-summary');
   const numbersTableEl = document.getElementById('numbers-table');
   const flagsEl = document.getElementById('flags');
@@ -262,9 +265,6 @@
     return attika > 0 ? `${base} + ${attika} Attika` : base;
   }
 
-  function fmt(n, digits = 1) {
-    return typeof n === 'number' ? n.toFixed(digits) : String(n);
-  }
 
   const COMPASS = ['Nord', 'Nordost', 'Ost', 'Südost', 'Süd', 'Südwest', 'West', 'Nordwest'];
   function compassLabel(bearingDeg) {
@@ -278,12 +278,21 @@
     ausnuetzungsziffer: 'Ausnützungsziffer (Ausnützungs-Maximum)',
   };
 
-  // All user- and API-sourced strings pass through here before innerHTML.
-  // (print.js has its own copy; the sinks here used to interpolate raw.)
-  function esc(s) {
-    return String(s ?? '').replace(/[&<>"']/g, (c) => (
-      { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
-    ));
+
+  // The canton writes its zone names lowercase ("dreigeschossige Wohnzone");
+  // as a headline they read as a sentence, so lift the first letter.
+  function capitalize(s) {
+    const t = String(s ?? '');
+    return t ? t[0].toUpperCase() + t.slice(1) : t;
+  }
+
+  // Dates out of the cantonal WFS arrive as ISO timestamps. Anything that
+  // isn't one is passed through untouched rather than turned into "Invalid
+  // Date" — the source string is still more useful than that.
+  function formatDateCH(value) {
+    if (!value) return null;
+    const m = String(value).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    return m ? `${m[3]}.${m[2]}.${m[1]}` : String(value);
   }
 
   // First provenance hit among candidate keys — used to attach the "Beleg"
@@ -378,7 +387,9 @@
     // (grosser_grenzabstand_suedseiten = 2), elsewhere to one.
     const hasDirectional = rules.grosser_grenzabstand_min_m != null
       && rules.grosser_grenzabstand_min_m > rules.grundabstand_min_m;
-    const suedCount = rules.grosser_grenzabstand_suedseiten || 1;
+    // No `|| 1` fallback: rules.js refuses a zone that has a grosser
+    // Grenzabstand without saying how many sides it covers.
+    const suedCount = rules.grosser_grenzabstand_suedseiten;
     const chosenIdx = southFacadeIdx != null ? southFacadeIdx : (facadeEdges ? facadeEdges.suggestedIndex : null);
     // The user's pick (or the auto suggestion) is the primary Hauptfassade;
     // where the zone demands a second one it comes from the automatic
@@ -404,15 +415,33 @@
     const mlz = rules.mehrlaengenzuschlag;
     let mehrlaengen = null;
 
-    const runSetback = (smallM) => (hasDirectional && chosenEdges.length
-      ? T.anisotropicSetbackMulti(merged, chosenEdges, smallM, rules.grosser_grenzabstand_min_m)
-      : T.bufferLV95(merged, -smallM));
+    // Returns { feature, degradedTo } — degradedTo is set only when the
+    // differential offset could not be built for one or more Hauptfassaden.
+    // The fallback is then the grosse Grenzabstand on ALL sides: a failure of
+    // the geometry must never hand back MORE buildable area than the law
+    // allows, and applying the larger distance everywhere is the only variant
+    // that cannot overstate. render() turns degradedTo into a flag — the user
+    // sees a smaller, explained footprint instead of a silently wrong one.
+    const runSetback = (smallM) => {
+      if (!(hasDirectional && chosenEdges.length)) {
+        return { feature: T.bufferLV95(merged, -smallM), degradedTo: null };
+      }
+      const bigM = rules.grosser_grenzabstand_min_m;
+      const res = T.anisotropicSetbackMulti(merged, chosenEdges, smallM, bigM);
+      if (!res.failedEdges) return { feature: res.feature, degradedTo: null };
+      return {
+        feature: T.bufferLV95(merged, -bigM),
+        degradedTo: { appliedM: bigM, failedEdges: res.failedEdges, edgeCount: chosenEdges.length },
+      };
+    };
 
     // One full derivation pass at a given Grundabstand — everything from the
     // setback ring to the placed massing. Runs once normally, twice when the
     // Mehrlängenzuschlag kicks in.
     const computePass = (grundabstandUsedM) => {
-    let setbackFootprint = runSetback(grundabstandUsedM);
+    const setbackResult = runSetback(grundabstandUsedM);
+    let setbackFootprint = setbackResult.feature;
+    const grenzabstandDegraded = setbackResult.degradedTo;
 
     let footprintBeforeWaldM2 = setbackFootprint ? T.planarAreaAnyLV95(setbackFootprint) : 0;
     // The slice the cut actually takes out of the buildable footprint -- kept
@@ -472,6 +501,18 @@
     // filled, so derive the storeys that can actually be built and use those
     // for the 3D view and the cost.
     const massingModel = T.buildMassingModel({ footprintFeature: setbackFootprint, reconciled, rules, storeysOverride: storeys });
+    // The Attika's Rücksprung has to be known BEFORE the box is shaped, not
+    // after: a 45°-Profil that eats `setback` off every side leaves a top
+    // storey only on a block at least 2 × setback + Mindestbreite deep, and
+    // the shape of the box is exactly what decides that. Passed into the
+    // rectangle search below as a preference (never as a requirement — where
+    // no such shape fits the buildable area, the search runs as before).
+    const attikaUeberhoehungM = (rules.meta && rules.meta.attika_profil_ueberhoehung_m) || 0;
+    const attikaSetbackM = massingModel && massingModel.attikaStoreys > 0
+      ? Math.max(0, massingModel.attikaStoreyHeightM - attikaUeberhoehungM)
+      : 0;
+    const attikaMinSideM = attikaSetbackM > 0 ? 2 * attikaSetbackM + T.MIN_PRIMITIVE_WIDTH_M : 0;
+    const shapeOpts = { minSideM: attikaMinSideM };
     if (massingModel && setbackFootprint) {
       if (massing && !massing.impossible) {
         // Length-split case (typically multi-parcel: the Gebäudelänge limit
@@ -514,7 +555,7 @@
           const blockTargetM2 = totalRawAreaM2 > 0 ? totalTargetAreaM2 * (blockRawAreaM2 / totalRawAreaM2) : 0;
           const blockRect = T.minAreaRectangleLV95(block);
           if (!blockRect || blockTargetM2 <= 0) return block;
-          const best = T.findBestRectangle(block, blockTargetM2, blockRect.ang, blockRect.lengthM, blockRect.widthM);
+          const best = T.findBestRectangle(block, blockTargetM2, blockRect.ang, blockRect.lengthM, blockRect.widthM, shapeOpts);
           if (best) {
             totalShortfallM2 += Math.max(0, blockTargetM2 - best.achievedAreaM2);
             return best.rect;
@@ -563,7 +604,7 @@
         // (lengthM:widthM) and angle -- just not its absolute size.
         const targetAreaM2 = massingModel.floorplateM2;
         const best = buildableArea
-          ? T.findBestRectangle(buildableArea, targetAreaM2, areaRect.ang, areaRect.lengthM, areaRect.widthM)
+          ? T.findBestRectangle(buildableArea, targetAreaM2, areaRect.ang, areaRect.lengthM, areaRect.widthM, shapeOpts)
           : null;
         let cuboid = best ? best.rect : null;
         // findBestRectangle already tried shrinking the box before giving up
@@ -605,9 +646,10 @@
         // ueberhoehung_m` (1 m in Zumikon) ABOVE the intersection line, so
         // the required horizontal Rücksprung is the Attika height MINUS that
         // allowance — not the full storey height. Where no such rule is on
-        // file (Zürich), the full height is used, conservatively.
-        const ueberhoehungM = (rules.meta && rules.meta.attika_profil_ueberhoehung_m) || 0;
-        const setbackM = Math.max(0, massingModel.attikaStoreyHeightM - ueberhoehungM);
+        // file (Zürich), the full height is used, conservatively. Derived
+        // above (attikaSetbackM), because the box was shaped to it.
+        const ueberhoehungM = attikaUeberhoehungM;
+        const setbackM = attikaSetbackM;
         // Art. 31 Abs. 2: hangseitig fassadenbündig is allowed when the
         // zulässige Gebäudehöhe is kept on that side INCLUDING the Attika —
         // a height condition, not a slope threshold. On the uphill facade the
@@ -635,6 +677,14 @@
         massingModel.attikaDiagnostics = attikaResult.diagnostics;
         massingModel.hangUphillBearingDeg = hangUphillBearingDeg;
         massingModel.hang = hang || null;
+        // Nothing survived the 45° profile on any Baukörper: there is no
+        // Attika to draw, so there is no Attika to REPORT either. Height,
+        // Volumen and Nutzfläche all fall back to the Vollgeschosse (the
+        // flag below explains why), which keeps the panel, the 3D height
+        // dimension and the printed sheet describing the same building.
+        if (attikaResult.anyImpossible && attikaResult.attikaAreaM2 <= 0) {
+          T.suppressAttikaStorey(massingModel);
+        }
       }
     }
 
@@ -642,7 +692,7 @@
              footprintAfterWaldM2, waldLossInFootprintM2, lengthLimitM, areaRect, lengthExceeded,
              gebaeudeabstandM, massing, buildableArea, footprintRect, lengthLossM2,
              setbackFootprintAreaM2, reconciled, massingModel, hasDirectional, chosenIdx,
-             chosenIndices, grundabstandUsedM };
+             chosenIndices, grundabstandUsedM, grenzabstandDegraded };
     }; // end computePass
 
     let pass = computePass(rules.grundabstand_min_m);
@@ -753,7 +803,7 @@
 
     // A new shape invalidates any facade the user had picked by hand.
     southFacadeIndex = null;
-    const facadeEdges = T.pickSouthFacade(merged, rules.grosser_grenzabstand_suedseiten || 1);
+    const facadeEdges = T.pickSouthFacade(merged, rules.grosser_grenzabstand_suedseiten);
 
     const derived = deriveFootprint({
       merged, parcelAreaM2, anrechenbareFlaecheM2, flaechenAbzuege, rules, wald, baulinien, facadeEdges,
@@ -806,7 +856,8 @@
              gebaeudeabstandM: derived.gebaeudeabstandM, areaRect: derived.areaRect,
              massingModel: derived.massingModel, baulinienRemoved: derived.baulinienRemoved,
              baulinienLossM2: derived.baulinienLossM2, setbackFootprint: derived.setbackFootprint,
-             hasDirectional: derived.hasDirectional };
+             hasDirectional: derived.hasDirectional,
+             grenzabstandDegraded: derived.grenzabstandDegraded };
   }
 
   // Kept separate so a tab switch can redraw it: three.js sizes the canvas
@@ -1181,6 +1232,101 @@
       .join('');
   }
 
+  // The Zonenplan tab used to hold a map and nothing else, which left the two
+  // questions the map raises unanswered: WHY this zone, and what it permits.
+  // Both are answered here, next to the picture — the derivation (which
+  // dataset was queried, at which point, with what legal status) and the full
+  // Grundmasse of the zone, each with its § button into the BZO page it is
+  // read from. Nothing here is recomputed: these are the same `rules` values
+  // the whole analysis runs on, shown in full instead of only where a number
+  // happened to be needed.
+  function buildZoneSteckbrief({ anchor, selection, rules, rulesData, reconciled, multi, regimeTag }) {
+    const zs = anchor.zoneSource || {};
+    const row = (k, v) => `<tr><td>${k}</td><td>${v}</td></tr>`;
+    const val = (v, unit = '') => (v == null || v === '' ? '—' : `${v}${unit}`);
+    // A value that doesn't exist in this zone gets no § button: there is no
+    // passage to show, and offering one would suggest the "—" was read
+    // somewhere rather than simply not being regulated here.
+    const massRow = (label, value, unit, provKeys, regimeKey) => {
+      if (value == null) return row(esc(label), '— (in dieser Zone nicht festgelegt)');
+      return row(esc(label), withProv(`${value}${unit}${regimeKey ? regimeTag(regimeKey) : ''}`, provFor(rules, ...provKeys)));
+    };
+
+    const objektRows = [
+      row('Adresse', esc(anchor.address || anchor.parcelNumber || '—')),
+      row('Gemeinde', esc(`${rules.gemeinde}${anchor.bfsNr ? ` (BFS-Nr. ${anchor.bfsNr})` : ''}`)),
+      row(multi ? 'Parzellen' : 'Parzelle', esc(selection.map((p) => p.parcelNumber).join(' + '))),
+      row('EGRID', esc(selection.map((p) => p.egrid).join(', '))),
+      row(multi ? 'Fläche (zusammengefasst)' : 'Parzellenfläche', `${fmt(reconciled.parcelAreaM2)} m²`),
+    ].join('');
+
+    const zoneRows = [
+      row('Zone', esc(anchor.zone)),
+      row('Bezeichnung', esc(anchor.zoneLabel ? capitalize(anchor.zoneLabel) : '—')),
+      ...(anchor.zoneDescription ? [row('Beschreibung', esc(anchor.zoneDescription))] : []),
+      row('Rechtsstatus', esc(val(zs.rechtsstatus))),
+      // The WFS hands back a full ISO timestamp ("2019-02-08T00:00:00"); the
+      // time of day is noise on an approval date.
+      row('Genehmigungsdatum', esc(val(formatDateCH(zs.genehmigungsdatum)))),
+      row('Kommunale Grundlage', esc(`${rulesData.version} — ${rulesData.article_grundmasse}`)),
+      row('Rechtsstatus der Grundlage', esc(rulesData.legal_status || '—')),
+      ...(zs.rechtsvorschriftUrl
+        ? [row('Rechtsvorschrift', `<a href="${esc(zs.rechtsvorschriftUrl)}" target="_blank" rel="noopener">Dokument der Gemeinde öffnen</a>`)]
+        : []),
+    ].join('');
+
+    // Which point produced the zone — the honest answer to "says who": a
+    // polygon lookup at one coordinate per parcel, not a reading of the plan.
+    const pointRows = selection.map((p) => row(
+      esc(`Abfragepunkt Parzelle ${p.parcelNumber}`),
+      esc(Number.isFinite(p.easting) ? `${p.easting.toFixed(1)} / ${p.northing.toFixed(1)} (LV95)` : '—') +
+      (p.zoneSource && p.zoneSource.edgeUncertain
+        ? ' <strong>— Punkt lag auf einer Zonengrenze, Zuordnung unsicher</strong>' : '')
+    )).join('');
+
+    const herleitungRows = [
+      row('Datensatz', 'Kantonale Nutzungsplanung, Grundnutzung (ogd-0156)'),
+      row('Dienst', 'WFS maps.zh.ch/wfs/OGDZHWFS, Layer ogd-0156_arv_basis_np_gn_zonenflaeche_f'),
+      pointRows,
+      row('Verfahren', 'Punkt-in-Polygon-Abfrage: die Zone stammt aus dem Polygon, das den Abfragepunkt enthält. Liegt eine Parzelle in zwei Zonen, erkennt das diese Abfrage nicht — Zonengrenze im Plan prüfen.'),
+    ].join('');
+
+    const heightIsFassade = rules.traufseitige_fassadenhoehe_max_m != null;
+    const massRows = [
+      massRow('Ausnützungsziffer max.', rules.ausnuetzungsziffer_max_pct, ' %', ['ausnuetzungsziffer_max_pct'], 'ausnuetzungsziffer_max_pct'),
+      massRow('Vollgeschosse max.', rules.vollgeschosse_max, '', ['vollgeschosse_max'], 'vollgeschosse_max'),
+      massRow('Anrechenbare Dach-/Attikageschosse', rules.anrechenbares_dach_attika_max, '', ['anrechenbares_dach_attika_max'], null),
+      massRow('Anrechenbare Untergeschosse', rules.anrechenbares_untergeschoss_max, '', ['anrechenbares_untergeschoss_max'], 'anrechenbares_untergeschoss_max'),
+      // Zürich under § 234 PBG: the height shown may be the in-force BZO 2016
+      // value rather than the draft's, and the row has to say which.
+      massRow(`${rules.heightMetric} max.`,
+        rules.heightM != null
+          ? `${rules.heightM} m${rules.heightRegime ? ' <span class="regime-tag" title="Strengeres Mass der in Kraft stehenden BZO 2016 (negative Vorwirkung, § 234 PBG)">BZO 2016</span>' : ''}`
+          : null,
+        '',
+        [rules.heightRegime ? 'gebaeudehoehe_max_m_bzo2016' : (heightIsFassade ? 'traufseitige_fassadenhoehe_max_m' : 'gebaeudehoehe_max_m')], null),
+      ...(rules.firsthoehe_zuschlag_m != null
+        ? [massRow('Firsthöhe (Zuschlag über der Gebäudehöhe, § 281 aPBG)', rules.firsthoehe_zuschlag_m, ' m', ['firsthoehe_zuschlag_m'], null)] : []),
+      massRow('Gesamtlänge max.', rules.gesamtlaenge_max_m != null ? rules.gesamtlaenge_max_m : rules.gebaeudelaenge_inkl_klein_anbauten_max_m, ' m',
+        ['gesamtlaenge_max_m', 'gebaeudelaenge_inkl_klein_anbauten_max_m'], 'gesamtlaenge_max_m'),
+      massRow('Kleiner Grenzabstand (Grundabstand) min.', rules.grundabstand_min_m, ' m', ['grundabstand_min_m'], null),
+      ...(rules.grosser_grenzabstand_min_m != null
+        ? [massRow('Grosser Grenzabstand min.', rules.grosser_grenzabstand_min_m, ' m', ['grosser_grenzabstand_min_m', 'grundabstand_min_m'], null)] : []),
+      massRow('Grünflächenziffer min.', rules.gruenflaechenziffer_min_pct, ' %', ['gruenflaechenziffer_min_pct'], 'gruenflaechenziffer_min_pct'),
+      ...(rules.ueberbauungsziffer_hauptgebaeude_max_pct != null
+        ? [massRow('Überbauungsziffer Hauptgebäude max.', rules.ueberbauungsziffer_hauptgebaeude_max_pct, ' %', ['ueberbauungsziffer_hauptgebaeude_max_pct'], 'ueberbauungsziffer_hauptgebaeude_max_pct')] : []),
+      ...(rules.attika_profil_ueberhoehung_m != null || (rules.meta && rules.meta.attika_profil_ueberhoehung_m != null)
+        ? [massRow('Attika-Profil: Überhöhung über der Schnittlinie', (rules.meta && rules.meta.attika_profil_ueberhoehung_m), ' m (45°-Profil)', ['attika_profil_ueberhoehung_m'], null)] : []),
+    ].join('');
+
+    return `<h2>Zonen-Steckbrief — ${esc(anchor.zone)}</h2>` +
+      `<div class="caption-line">Alle Angaben zu dieser Adresse und der Zone, aus der jede Zahl der Auswertung stammt. § öffnet die Belegstelle im Originaldokument.</div>` +
+      `<h3 class="steckbrief-h">Objekt</h3><table class="numbers">${objektRows}</table>` +
+      `<h3 class="steckbrief-h">Zone</h3><table class="numbers">${zoneRows}</table>` +
+      `<h3 class="steckbrief-h">Woher die Zonenzuordnung stammt</h3><table class="numbers">${herleitungRows}</table>` +
+      `<h3 class="steckbrief-h">Grundmasse dieser Zone</h3><table class="numbers">${massRows}</table>`;
+  }
+
   function render(r) {
     const { selection, anchor, rules, rulesData, merged, isSingleShape,
             setbackFootprint, reconciled, terrainHeight, restrictions, checklist } = r;
@@ -1188,6 +1334,40 @@
 
     versionBannerEl.textContent =
       `${rules.gemeinde} — Basis: ${rulesData.version}, ${rulesData.article_grundmasse} — Daten zuletzt geprüft: ${rulesData.data_last_verified}`;
+
+    // The zone leads the panel: every number underneath is derived from it,
+    // so it must be readable without hunting through the table.
+    // Two different questions hang on it, and they need two different proofs:
+    // WHICH zone this parcel is in (a point query against the cantonal
+    // dataset — the Steckbrief in the Zonenplan tab shows that derivation),
+    // and WHAT that zone permits (the BZO article — the § button opens the
+    // page with the Grundmasse table highlighted).
+    provRegistry = [];
+    const otherZonesInSelection = [...new Set(selection.map((p) => p.zone))].filter((z) => z !== anchor.zone);
+    const zoneGrundmasseProv = provFor(rules, 'ausnuetzungsziffer_max_pct', 'vollgeschosse_max', 'gebaeudehoehe_max_m');
+    zoneHeadlineEl.innerHTML =
+      `<div class="zone-code">Zone ${esc(anchor.zone)}${withProv('', zoneGrundmasseProv)}` +
+      `<button type="button" class="zone-proof-btn" id="zone-proof-btn" title="Herleitung der Zonenzuordnung und alle Grundmasse dieser Zone">Zonen-Beleg</button></div>` +
+      (anchor.zoneLabel ? `<div class="zone-label">${esc(capitalize(anchor.zoneLabel))}</div>` : '') +
+      `<div class="zone-meta">Gemeinde ${esc(rules.gemeinde)}` +
+      ` · Rechtsstatus ${esc(anchor.zoneSource ? anchor.zoneSource.rechtsstatus : 'inKraft')}` +
+      ` · kantonale Nutzungsplanung (ogd-0156)` +
+      (otherZonesInSelection.length
+        ? ` · Auswahl enthält auch ${esc(otherZonesInSelection.join(', '))} — gerechnet wird durchgehend mit ${esc(anchor.zone)}`
+        : '') +
+      `</div>`;
+    wireProvButtons(zoneHeadlineEl);
+    // "Zonen-Beleg" jumps to the Steckbrief rather than opening a second kind
+    // of modal: the derivation, the Grundmasse and the map belong together,
+    // and that is what the Zonenplan tab now holds.
+    const zoneProofBtn = document.getElementById('zone-proof-btn');
+    if (zoneProofBtn) {
+      zoneProofBtn.addEventListener('click', () => {
+        const tabBtn = document.querySelector('.tab[data-tab="zoning-map"]');
+        if (tabBtn) tabBtn.click();
+        zoningMapEl.scrollIntoView({ block: 'nearest' });
+      });
+    }
 
     bindingSummaryEl.className = reconciled.usableFootprintAreaM2 <= 0 ? 'binding zero' : 'binding';
     const mm = r.massingModel;
@@ -1206,14 +1386,27 @@
         `<div class="choice-label">Geschosse — freie Entwurfsentscheidung, die Ausnützungsziffer begrenzt nur die Geschossfläche (${fmt(mm.gfaUsedM2)} m²), nicht die Geschosszahl.${attikaNote}</div>` +
         `<div class="choice-row">` +
         mm.storeyOptions.map((n) => {
-          const plate = mm.gfaUsedM2 / n;
-          const cov = plate / reconciled.parcelAreaM2 * 100;
           const ordinary = Math.min(n, mm.ordinaryMax);
           const attika = Math.max(0, n - mm.ordinaryMax);
-          const heightM = ordinary * mm.ordinaryStoreyHeightM + attika * mm.attikaStoreyHeightM;
-          return `<button type="button" class="choice${n === mm.storeys ? ' active' : ''}" data-storeys="${n}">`
+          // Same arithmetic buildMassingModel does for the chosen option: the
+          // AZ is spent by the ORDINARY storeys only (§ 255 Abs. 2/3 PBG).
+          // Dividing the permitted GFA by the TOTAL storey count sold the
+          // Attika variant short -- the card advertised 74.3 m² je Geschoss
+          // for a building the tool then drew with 111.5 m² plates.
+          const plate = Math.min(reconciled.maxGfaM2, reconciled.usableFootprintAreaM2 * ordinary) / ordinary;
+          const cov = plate / reconciled.parcelAreaM2 * 100;
+          // Whether an Attika survives the 45° profile is only known for the
+          // option that was actually built (its footprint decides it), so the
+          // active card is the one that can carry the verdict.
+          const suppressedHere = !!mm.attikaSuppressed && n === mm.requestedStoreys;
+          const heightM = ordinary * mm.ordinaryStoreyHeightM
+            + (suppressedHere ? 0 : attika) * mm.attikaStoreyHeightM;
+          const active = n === (mm.requestedStoreys != null ? mm.requestedStoreys : mm.storeys);
+          return `<button type="button" class="choice${active ? ' active' : ''}${suppressedHere ? ' unavailable' : ''}" data-storeys="${n}">`
             + `<b>${storeyCountLabel(ordinary, attika)}</b><span>${fmt(plate)} m² je Geschoss</span>`
-            + `<span>${fmt(cov, 0)} % überbaut · ${fmt(heightM)} m hoch</span></button>`;
+            + `<span>${fmt(cov, 0)} % überbaut · ${fmt(heightM)} m hoch</span>`
+            + (suppressedHere ? `<span class="choice-warn">Attika hier nicht darstellbar — gerechnet mit ${storeyCountLabel(ordinary, 0)}</span>` : '')
+            + `</button>`;
         }).join('') +
         `</div>`;
       storeySelEl.querySelectorAll('.choice').forEach((b) => b.addEventListener('click', () => {
@@ -1224,7 +1417,9 @@
       storeySelEl.style.display = 'none';
     }
 
-    provRegistry = [];
+    // NOT reset here: the zone headline above already registered its § button
+    // against this same registry, and clearing it left that button pointing
+    // at a citation that no longer existed.
     const regimeTag = (key) => (rules.regimeOverrides && rules.regimeOverrides[key]
       ? ' <span class="regime-tag" title="Strengerer Wert der in Kraft stehenden BZO 2016 (negative Vorwirkung, § 234 PBG)">BZO 2016</span>' : '');
     const mm2 = r.massingModel;
@@ -1298,7 +1493,10 @@
     // they come first.
     for (const d of (r.degraded || [])) flags.push(esc(d));
     const mmForFlags = r.massingModel;
-    if (mmForFlags && mmForFlags.attikaStoreys > 0) {
+    // attikaSuppressed: the storey was chosen and then dropped for want of
+    // room under the 45° profile — attikaStoreys is 0 by then, but that is
+    // exactly the case this flag has to explain.
+    if (mmForFlags && (mmForFlags.attikaStoreys > 0 || mmForFlags.attikaSuppressed)) {
       const ueb = mmForFlags.attikaUeberhoehungM || 0;
       const profilText = ueb > 0
         ? `45°-Profil ab max. ${fmt(ueb)} m über der Schnittlinie (Art. 31 Abs. 1 BZO ${esc(rules.gemeinde)}), Rücksprung = Attikahöhe − ${fmt(ueb)} m = ${fmt(mmForFlags.attikaSetbackM)} m`
@@ -1314,7 +1512,7 @@
               ? ` Baukörper ${fmt(d.belowLengthM)} × ${fmt(d.belowWidthM)} m; auf der Bergseite ist die Wand fassadenbündig, die drei übrigen Seiten je ${fmt(sb)} m zurück — bleiben ${fmt(d.narrowestM)} m schmalste Ausdehnung.`
               : ` Baukörper ${fmt(d.belowLengthM)} × ${fmt(d.belowWidthM)} m minus ${fmt(sb)} m auf allen vier Seiten ergibt ${fmt(d.belowLengthM - 2 * sb)} × ${fmt(d.belowWidthM - 2 * sb)} m, also nur ${fmt(d.narrowestM)} m schmalste Ausdehnung.`)
           : '';
-        flags.push(`Kein Attikageschoss darstellbar: ${profilText} lässt zu wenig übrig — unter ${T.MIN_PRIMITIVE_WIDTH_M} m, was kein baubarer Raum mehr ist.${calc} Die Vollgeschosse darunter bleiben davon unberührt.`);
+        flags.push(`Kein Attikageschoss darstellbar: ${profilText} lässt zu wenig übrig — unter ${T.MIN_PRIMITIVE_WIDTH_M} m, was kein baubarer Raum mehr ist.${calc} Die Vollgeschosse darunter bleiben davon unberührt: gerechnet und dargestellt wird ${storeyCountLabel(mmForFlags.ordinaryStoreys, 0)} mit ${fmt(mmForFlags.buildingHeightM)} m Gebäudehöhe — Höhe, Volumen und Nutzfläche oben enthalten die Attika daher nicht. Zonenrechtlich zulässig wäre sie; sie scheitert allein an der Tiefe des Baukörpers.`);
       } else {
         const hg = mmForFlags.hang;
         const bergUsed = mmForFlags.hangUphillBearingDeg != null;
@@ -1357,6 +1555,14 @@
       flags.push(`${esc(rules.gemeinde)} kennt zwei Grenzabstände (Art. 18 BZO ${esc(rules.gemeinde)}): ${rules.grundabstand_min_m} m normal, ${rules.grosser_grenzabstand_min_m} m an der Hauptfassade${two ? 'n' : ''}. ${two ? `In dieser Zone gilt der grosse Grenzabstand für die BEIDEN am meisten gegen Süden gerichteten Gebäudeseiten (Art. 18 Abs. 1)` : (autoChosen ? 'Automatisch die am stärksten südorientierte Seite' : 'Die von Ihnen gewählte Seite')} (${edgeDescr}) — dort wurde mit ${rules.grosser_grenzabstand_min_m} m gerechnet, alle anderen Seiten mit ${rules.grundabstand_min_m} m. Im Grundriss anklickbar, falls eine andere Seite die tatsächliche Hauptfassade ist. Hinweis: massgebend sind laut Art. 18 Abs. 2 die Seiten des GEBÄUDES (flächenkleinstes Rechteck), gemessen nach § 22 ABV rechtwinklig zur Fassade — die Näherung über die Parzellenkanten ist eine Vereinfachung auf der sicheren Seite.`);
     } else if (r.hasDirectional && (!r.facadeEdges || !r.facadeEdges.edges.length)) {
       flags.push(`${esc(rules.gemeinde)} kennt einen grossen Grenzabstand an der Hauptfassade, aber die Parzelle hat keine auswertbare Fassadenkante (alle Kanten unter 3 m). Es wurde einheitlich mit dem kleinen Grenzabstand gerechnet — der reale Fussabdruck ist auf der Südseite kleiner. Manuell prüfen.`);
+    }
+    // The differential offset failed geometrically. Reported, never absorbed:
+    // the alternative (carrying on with the uncut band) would have quietly
+    // handed back a footprint that is too large on exactly the side where the
+    // law is strictest.
+    if (r.grenzabstandDegraded) {
+      const d = r.grenzabstandDegraded;
+      flags.push(`Der seitenweise Grenzabstand liess sich auf ${d.failedEdges} von ${d.edgeCount} Hauptfassade${d.edgeCount > 1 ? 'n' : ''} geometrisch nicht bilden (unregelmässige Parzellengeometrie). Ersatzweise wurde der GROSSE Grenzabstand von ${fmt(d.appliedM)} m ringsum angewandt — das ist konservativ: der wirkliche bebaubare Bereich ist eher grösser als der hier gezeigte. Nicht als Ergebnis verwenden, ohne die Situation von Hand zu prüfen.`);
     }
     if (multi && !isSingleShape) {
       flags.push('Die gewählten Parzellen berühren sich nicht durchgehend. Sie werden trotzdem zusammen gerechnet, bilden aber baurechtlich kein zusammenhängendes Grundstück — Zahlen entsprechend vorsichtig verwenden.');
@@ -1463,19 +1669,22 @@
     const mapW = 700, mapH = 700;
     const bbox = T.buildMapBbox(centerE, centerN, halfSpan * 1.6, mapW, mapH);
     zoningMapEl.innerHTML =
-      `<h2>Zonenplan-Ausschnitt (${multi ? 'gewählte Parzellen' : 'Parzelle'} rot markiert)</h2>` +
-      `<div style="position:relative;width:${mapW}px;max-width:100%;aspect-ratio:${mapW}/${mapH};">` +
+      buildZoneSteckbrief({ anchor, selection, rules, rulesData, reconciled, multi, regimeTag }) +
+      `<h2>Zonenplan-Ausschnitt — Zone ${esc(anchor.zone)}${anchor.zoneLabel ? ` (${esc(anchor.zoneLabel)})` : ''}</h2>` +
+      `<div class="caption-line">${multi ? 'Gewählte Parzellen' : 'Parzelle'} rot markiert.</div>` +
+      `<div class="zoning-holder" style="position:relative;width:${mapW}px;max-width:100%;aspect-ratio:${mapW}/${mapH};">` +
       `<img src="${T.buildCadastreMapUrl(bbox, mapW, mapH)}" ` +
       `style="position:absolute;inset:0;width:100%;height:100%;mix-blend-mode:multiply;z-index:1;" alt="Parzellengrenzen">` +
       T.buildParcelOverlaySvg(allRings, bbox, mapW, mapH) +
       `</div>`;
     // Zone polygons arrive asynchronously; drop them in underneath once here.
     T.fetchZonePolygons(bbox).then((zoneFeatures) => {
-      const holder = zoningMapEl.querySelector('div');
+      const holder = zoningMapEl.querySelector('.zoning-holder');
       if (!holder || !zoneFeatures.length) return;
       holder.insertAdjacentHTML('afterbegin',
         T.buildZonePlanSvg(zoneFeatures, bbox, mapW, mapH).replace('<svg ', '<svg style="position:absolute;inset:0;width:100%;height:100%;" '));
     }).catch(() => { /* zone colours are decorative here; the numbers stand alone */ });
+    wireProvButtons(zoningMapEl);
 
     const envelopeVolumeM3 = r.massingModel ? r.massingModel.volumeM3 : reconciled.usableFootprintAreaM2 * rules.heightM;
     const cost = T.estimateCost(envelopeVolumeM3);
@@ -1565,7 +1774,17 @@
       setStatus('Ermittle Zone…');
       const zone = await T.lookupZone(parcel.easting, parcel.northing);
       const rules = await T.getZoneRules(zone, gemeindeSelect.value || null);
-      const firstParcel = { ...parcel, zone: zone.zone, zoneSource: zone.zoneSource, rules };
+      // zoneLabel travels with the parcel like it does for map-clicked ones
+      // (parcel-selector.js) — without it the Ausgangsparzelle showed a bare
+      // code ("W2/25") everywhere, never the zone's actual name.
+      const firstParcel = {
+        ...parcel,
+        zone: zone.zone,
+        zoneLabel: zone.zoneLabel,
+        zoneDescription: zone.zoneDescription,
+        zoneSource: zone.zoneSource,
+        rules,
+      };
 
       mapSectionEl.style.display = 'flex';
       T.parcelMap = T.initParcelMap('map', firstParcel, refresh, gemeindeSelect.value || null);

@@ -189,7 +189,8 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
         const zone = await T.lookupZone(rep.easting, rep.northing);
         const rules = await T.getZoneRules(zone, gemeindeOverride);
         addToSelection(
-          { ...identified, zone: zone.zone, zoneLabel: zone.zoneLabel, zoneSource: zone.zoneSource, rules },
+          { ...identified, zone: zone.zone, zoneLabel: zone.zoneLabel,
+            zoneDescription: zone.zoneDescription, zoneSource: zone.zoneSource, rules },
           { easting, northing }
         );
       } catch (err) {
