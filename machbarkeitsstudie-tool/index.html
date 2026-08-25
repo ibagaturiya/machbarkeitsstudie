@@ -59,6 +59,22 @@
     --map-filter: invert(0.92) hue-rotate(180deg) brightness(0.9) contrast(0.8) saturate(0.9);
   }
 
+  /* ---- Parkierung -------------------------------------------------------
+     Eigener Block statt weiterer Zeilen in der Zahlentabelle: hier steht ein
+     Eingabefeld (Wohnungszahl = Entwurfsentscheidung) und eine Aussage, die
+     die Tabelle nicht macht -- ab wann die Garage und nicht die
+     Ausnuetzungsziffer das Volumen begrenzt. */
+  #parkierung:empty { display: none; }
+  #parkierung { margin: 1.1rem 0 0.6rem; }
+  .sub-head { font-size: 0.9rem; margin: 0 0 0.4rem; display: flex; align-items: baseline; gap: 0.4rem; }
+  .sub-note { font-weight: 400; font-size: 0.78rem; color: var(--text-muted); }
+  /* Werkzeug-Annahmen tragen ueberall dieselbe, zurueckhaltende Auszeichnung:
+     sie duerfen nie wie ein zitierter Rechtswert aussehen. */
+  .assumption { font-size: 0.76rem; color: var(--text-faint); font-style: italic; }
+  .flag.flag-binding { background: var(--flag-bg); border-color: var(--flag-badge); color: var(--flag-badge); font-weight: 600; }
+  #parkierung input[type=number] { padding: 0.15rem 0.3rem; font-size: 0.85rem;
+     background: var(--bg-pane); color: var(--text); border: 1px solid var(--border); border-radius: 3px; }
+
   /* ---- Ablauf & Normkette ---------------------------------------------
      Ein einklappbares Panel am Fuss der linken Spalte: waehrend der Rechnung
      das Live-Protokoll, danach die Normkette mit der Rangordnung der
@@ -601,6 +617,7 @@
         <div class="binding" id="binding-summary"></div>
         <div id="storey-select"></div>
         <table class="numbers" id="numbers-table"></table>
+        <div id="parkierung"></div>
         <div class="version-banner" id="version-banner"></div>
         <div id="flags"></div>
       </div>
@@ -747,6 +764,7 @@
 <script src="js/print.js?v=dev"></script>
 <script src="js/parcel-selector.js?v=dev"></script>
 <script src="js/evidence.js?v=dev"></script>
+<script src="js/parkierung.js?v=dev"></script>
 <script src="js/normkette.js?v=dev"></script>
 <script src="js/app.js?v=dev"></script>
 </body>

@@ -36,6 +36,15 @@ Opening `index.html` directly (`file://`) does **not** work: browsers block
    shape, one combined area, one outer Grundabstand ring, normal zone rules.
 4. Review on screen, then "PDF exportieren" for an A3 print.
 
+**Parkierung** sits under the numbers table: the mandatory parking spaces
+(Art. 26 BZO Zumikon, delegated by § 242 PBG) grow with the floor area and
+have to go under the building — so past a certain size the garage, not the
+Ausnützungsziffer, is what caps the volume. The tool says when that happens
+and how many basement levels it would take; it never silently subtracts
+anything. Area per space is a tool assumption and labelled as one. For Zürich
+the rule is *not on file* (it lives in the city's Parkplatzverordnung, not the
+BZO), so it reports "nicht prüfbar" rather than guessing (`js/parkierung.js`).
+
 **Ablauf & Normkette** (collapsible panel, bottom of the left column) is the
 audit trail for a single run: the live log while the analysis is fetching and
 computing, then every step of the derivation with its legal level (Bund →

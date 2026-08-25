@@ -23,7 +23,7 @@ globalThis.fetch = async (url) => {
   }
 };
 
-for (const f of ['js/normkette.js', 'js/checklist.js', 'js/envelope.js', 'js/rules.js']) {
+for (const f of ['js/parkierung.js', 'js/normkette.js', 'js/checklist.js', 'js/envelope.js', 'js/rules.js']) {
   // Plain scripts attaching to window.MachbarkeitTool — evaluate in order.
   // eslint-disable-next-line no-eval
   (0, eval)(await readFile(join(root, f), 'utf8'));
@@ -41,6 +41,66 @@ function check(name, actual, expected, tol = 0.01) {
   } else {
     console.log(`ok   ${name}`);
   }
+}
+
+// ---------------------------------------------------------------------------
+// 00) Parkierung — js/parkierung.js
+//     Die Platzzahl ist Rechtswert (Art. 26 BZO Zumikon), die Flaeche je
+//     Platz eine Werkzeug-Annahme. Geprueft wird beides getrennt, dazu die
+//     eigentliche Aussage des Moduls: ab wann die Garage und nicht die
+//     Ausnuetzungsziffer das Volumen begrenzt.
+{
+  const zumikon = await T.getZoneRules({ zone: 'W2/25', gemeinde: 'Zumikon', kantonaleWerte: {} });
+
+  // 600 m² GNF, 6 Wohnungen: Bewohner max(ceil(600/100), 6) = 6,
+  // Besucher ceil(6/4) = 2, total 8.
+  const a = T.computeParkierung({ rules: zumikon, gnfM2: 600, fussabdruckM2: 300, parzelleM2: 1000, wohnungen: 6 });
+  check('Bewohnerplaetze 6 (Art. 26: je 100 m² GNF oder je Wohnung)', a.bewohnerP, 6);
+  check('Besucherplaetze 2 (je 4 Wohnungen)', a.besucherP, 2);
+  check('Pflichtplaetze total 8', a.totalP, 8);
+  check('Wohnungszahl als Eingabe gilt, nicht hergeleitet', a.wohnungenHergeleitet, false);
+
+  // Die "oder"-Lesart muss die STRENGERE nehmen: 12 kleine Wohnungen auf
+  // 600 m² verlangen 12 Plaetze, nicht 6.
+  const klein = T.computeParkierung({ rules: zumikon, gnfM2: 600, fussabdruckM2: 300, parzelleM2: 1000, wohnungen: 12 });
+  check('viele kleine Wohnungen erhoehen die Platzzahl', klein.bewohnerP, 12);
+
+  // Ohne Angabe wird die Wohnungszahl hergeleitet — und als Annahme markiert.
+  const auto = T.computeParkierung({ rules: zumikon, gnfM2: 600, fussabdruckM2: 300, parzelleM2: 1000 });
+  check('ohne Angabe hergeleitet', auto.wohnungenHergeleitet, true);
+  check('Herleitung wird als Annahme ausgewiesen',
+    auto.hinweise.some((h) => h.includes('Annahme')), true);
+
+  // Der Kern von Issue #2: 300 m² Baukoerper fassen bei 28 m²/Platz
+  // 10 Plaetze je Untergeschoss, das traegt 1000 m² GNF. Bei 600 m² GNF
+  // bindet die Garage also nicht — bei 1600 m² schon.
+  check('300 m² UG fassen 10 Plaetze', a.plaetzeJeUgGeschoss, 10);
+  check('ein UG traegt 1000 m² Geschossflaeche', a.gnfAusEinemUgM2, 1000);
+  check('bei 600 m² GNF bindet die Parkierung nicht', a.bindet, false);
+  const eng = T.computeParkierung({ rules: zumikon, gnfM2: 1600, fussabdruckM2: 300, parzelleM2: 1000, wohnungen: 16 });
+  check('bei 1600 m² GNF bindet die Parkierung', eng.bindet, true);
+  check('zwei Untergeschosse noetig', eng.ugGeschosseNoetig, 2);
+  check('der bindende Fall wird auch als Hinweis gesagt',
+    eng.hinweise.some((h) => h.startsWith('Bindend:')), true);
+
+  // Zuerich: die Vorschrift EXISTIERT, steht aber nicht im hinterlegten PDF.
+  // Das ist NICHT dasselbe wie null ("gibt es hier nicht") und darf nie als
+  // "keine Pflicht" durchgehen.
+  const zuerich = await T.getZoneRules({ zone: 'W2bI', gemeinde: 'Zürich', kantonaleWerte: {} });
+  const zh = T.computeParkierung({ rules: zuerich, gnfM2: 600, fussabdruckM2: 300, parzelleM2: 1000 });
+  check('Zuerich: nicht erfasst statt geraten', zh.erfasst, false);
+  check('Zuerich: Grund wird genannt', typeof zh.grund === 'string' && zh.grund.length > 40, true);
+  check('Zuerich: keine erfundene Platzzahl', zh.totalP, undefined);
+
+  // Eine halb erfasste Regel bricht ab, statt einen Default zu erfinden.
+  let threw = false;
+  try {
+    T.computeParkierung({
+      rules: { gemeinde: 'X', meta: { parkierung: { wohnen_bewohner_je_m2_gnf: 100 } } },
+      gnfM2: 600, fussabdruckM2: 300, parzelleM2: 1000,
+    });
+  } catch (e) { threw = true; }
+  check('unvollstaendige Parkierungsdaten brechen ab', threw, true);
 }
 
 // ---------------------------------------------------------------------------
@@ -245,7 +305,7 @@ function check(name, actual, expected, tol = 0.01) {
   const zumikon = await T.getZoneRules({ zone: 'W2/25', gemeinde: 'Zumikon', kantonaleWerte: {} });
   const zuerich = await T.getZoneRules({ zone: 'W2bI', gemeinde: 'Zürich', kantonaleWerte: {} });
   for (const [rules, keys] of [
-    [zumikon, ['ausnuetzungsziffer_max_pct', 'grosser_grenzabstand_suedseiten', 'attika_profil_ueberhoehung_m', 'firsthoehe_zuschlag_m', 'strassenabstand_ohne_baulinien_m', 'dach_attika_ug_freibetrag']],
+    [zumikon, ['parkierung', 'ausnuetzungsziffer_max_pct', 'grosser_grenzabstand_suedseiten', 'attika_profil_ueberhoehung_m', 'firsthoehe_zuschlag_m', 'strassenabstand_ohne_baulinien_m', 'dach_attika_ug_freibetrag']],
     [zuerich, ['ausnuetzungsziffer_max_pct', 'ueberbauungsziffer_hauptgebaeude_max_pct', 'mehrlaengenzuschlag', 'gebaeudehoehe_max_m_bzo2016', 'negative_vorwirkung']],
   ]) {
     for (const k of keys) {

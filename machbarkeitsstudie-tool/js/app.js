@@ -22,6 +22,7 @@
   const zoneHeadlineEl = document.getElementById('zone-headline');
   const bindingSummaryEl = document.getElementById('binding-summary');
   const numbersTableEl = document.getElementById('numbers-table');
+  const parkierungEl = document.getElementById('parkierung');
   const flagsEl = document.getElementById('flags');
   const checklistEl = document.getElementById('checklist');
   const viewerEl = document.getElementById('viewer');
@@ -39,6 +40,7 @@
   let lastFlags = [];
   // Storey count is a design choice, not a computed result -- remembered
   // across re-renders so switching it does not re-run the whole analysis.
+  let wohnungenChoice = null;
   let storeyChoice = null;
   // Same for which parcel edge is the Hauptfassade (grosser Grenzabstand):
   // null means "use the automatic south-facing suggestion". Reset per
@@ -844,8 +846,10 @@
     }
     const anrechenbareFlaecheM2 = Math.max(0, parcelAreaM2 - flaechenAbzuege.waldM2);
 
-    // A new shape invalidates any facade the user had picked by hand.
+    // A new shape invalidates any facade the user had picked by hand -- and
+    // the Wohnungszahl, die zur alten Geschossflaeche gehoerte.
     southFacadeIndex = null;
+    wohnungenChoice = null;
     const facadeEdges = T.pickSouthFacade(merged, rules.grosser_grenzabstand_suedseiten);
 
     const derived = deriveFootprint({
@@ -1374,7 +1378,65 @@
       `<h3 class="steckbrief-h">Grundmasse dieser Zone</h3><table class="numbers">${massRows}</table>`;
   }
 
+  // Parkierung (Issue #2): die Pflichtplaetze wachsen mit der Geschossflaeche
+  // und muessen nach Art. 26 Abs. 3 BZO in der Regel unter den Baukoerper --
+  // ab einer bestimmten Groesse bindet nicht mehr die Ausnuetzungsziffer,
+  // sondern die Garage. Der Block sagt das, zieht aber nichts ab: ob die
+  // Garage zweigeschossig wird oder das Haus kleiner, ist Entwurf.
+  function renderParkierung(r) {
+    const pk = r.parkierung;
+    if (!pk) { parkierungEl.innerHTML = ''; return; }
+    if (!pk.erfasst) {
+      parkierungEl.innerHTML =
+        `<h3 class="sub-head">Parkierung</h3>` +
+        `<div class="flag">⚠ Nicht prüfbar. ${esc(pk.grund)} § 242 PBG überlässt die Zahl der Abstellplätze der BZO — ohne diese Quelle wird hier nichts gerechnet und nichts geschätzt.</div>`;
+      return;
+    }
+    const A = pk.annahmen;
+    const prov = provFor(r.rules, 'parkierung');
+    const rows = [
+      ['Pflichtplätze total', `<strong>${pk.totalP}</strong> (${pk.bewohnerP} Bewohner + ${pk.besucherP} Besucher)`],
+      ['Bezugsgrösse', `${fmt(pk.gnfM2)} m² nutzbare Geschossfläche`],
+      ['Tiefgarage, Flächenbedarf', `${fmt(pk.tiefgarageBedarfM2)} m² <span class="assumption">(Annahme ${A.flaecheJePlatzTiefgarageM2} m²/Platz, Bandbreite ${A.flaecheJePlatzTiefgarageBandM2[0]}–${A.flaecheJePlatzTiefgarageBandM2[1]})</span>`],
+      ['Plätze je Untergeschoss', `${pk.plaetzeJeUgGeschoss} unter ${fmt(pk.fussabdruckM2)} m² Baukörper`],
+      ['Geschossfläche, die ein UG trägt', `${fmt(pk.gnfAusEinemUgM2)} m²`],
+    ];
+    parkierungEl.innerHTML =
+      `<h3 class="sub-head">Parkierung${prov ? withProv('', prov) : ''} ${pk.artikel ? `<span class="sub-note">${esc(pk.artikel)}</span>` : ''}</h3>` +
+      `<div class="choice-label">Wohnungen — Entwurfsentscheidung. Die Besucherplätze hängen daran (1 je ${r.rules.meta.parkierung.wohnen_besucher_je_wohnungen} Wohnungen).` +
+      ` <input type="number" min="1" step="1" id="wohnungen-input" value="${pk.wohnungen}" style="width:5.5em">` +
+      (pk.wohnungenHergeleitet ? ` <span class="assumption">hergeleitet</span>` : '') + `</div>` +
+      `<table class="numbers">${rows.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('')}</table>` +
+      (pk.bindet ? `<div class="flag flag-binding">⚠ Die Parkierung bindet, nicht die Ausnützungsziffer.</div>` : '') +
+      pk.hinweise.map((h) => `<div class="flag">⚠ ${esc(h)}</div>`).join('');
+    wireProvButtons(parkierungEl);
+    const wi = document.getElementById('wohnungen-input');
+    if (wi) {
+      wi.addEventListener('change', () => {
+        const n = Math.max(1, Math.round(Number(wi.value) || 1));
+        wohnungenChoice = n;
+        rerenderWithChoices();
+      });
+    }
+  }
+
   function render(r) {
+    // Parkierung haengt an der GEBAUTEN Geschossflaeche, also am Ergebnis der
+    // Kette, nicht an ihren Zwischenschritten -- deshalb hier und nicht in
+    // deriveFootprint(). Vor setResult(), weil die Normkette sie ausweist.
+    try {
+      r.parkierung = T.computeParkierung({
+        rules: r.rules,
+        gnfM2: r.massingModel ? r.massingModel.nutzflaecheTotalM2 : 0,
+        fussabdruckM2: r.massingModel ? r.massingModel.floorplateM2 : 0,
+        parzelleM2: r.anrechenbareFlaecheM2,
+        wohnungen: wohnungenChoice,
+      });
+    } catch (e) {
+      // Eine unbrauchbare Parkierungsdatei darf die Analyse nicht toeten,
+      // aber auch nicht als "keine Pflicht" durchgehen.
+      r.parkierung = { erfasst: false, grund: `Parkierung nicht berechenbar: ${e.message}` };
+    }
     ablaufPanel.setResult(r);
     const { selection, anchor, rules, rulesData, merged, isSingleShape,
             setbackFootprint, reconciled, terrainHeight, restrictions, checklist } = r;
@@ -1535,6 +1597,7 @@
     ];
     numbersTableEl.innerHTML = rows.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('');
     wireProvButtons(numbersTableEl);
+    renderParkierung(r);
 
     const flags = [];
     // Upstream sources that failed — these change what the numbers mean, so
@@ -1643,6 +1706,18 @@
       if (restrictions[key].concerned) {
         flags.push(`${label}: gemäss amtlichem ÖREB-Kataster betroffen. Automatische Fussabdruck-Reduktion wurde NICHT vorgenommen — manuelle Prüfung der Geometrie erforderlich.`);
       }
+    }
+    // Parkierung in die Hinweisliste heben, nicht nur in ihren eigenen Block:
+    // lastFlags ist es, was der PDF-Export als Blatt "Hinweise" ausgibt, und
+    // eine Studie, die eine bindende Einschraenkung nur am Bildschirm zeigt,
+    // ist auf Papier falsch.
+    const pkFlag = r.parkierung;
+    if (pkFlag && !pkFlag.erfasst) {
+      flags.push(`Parkierung nicht prüfbar: ${pkFlag.grund} § 242 PBG überlässt die Zahl der Abstellplätze der BZO — hier wurde nichts gerechnet und nichts geschätzt.`);
+    } else if (pkFlag && pkFlag.bindet) {
+      flags.push(`Parkierung bindet: ${pkFlag.totalP} Pflichtplätze (${pkFlag.artikel}). Unter dem Baukörper (${fmt(pkFlag.fussabdruckM2, 0)} m²) fasst ein Untergeschoss rund ${pkFlag.plaetzeJeUgGeschoss} Plätze und trägt damit ${fmt(pkFlag.gnfAusEinemUgM2, 0)} m² Geschossfläche — gerechnet sind ${fmt(pkFlag.gnfM2, 0)} m². Nötig sind ${pkFlag.ugGeschosseNoetig} Untergeschosse, eine über den Baukörper hinausreichende Tiefgarage oder weniger Geschossfläche. Fläche je Platz ist eine Werkzeug-Annahme.`);
+    } else if (pkFlag && !pkFlag.oberirdischPasst) {
+      flags.push(`Parkierung: die ${pkFlag.besucherP} Besucherplätze brauchen rund ${fmt(pkFlag.oberirdischBedarfM2, 0)} m² oberirdisch, frei sind ${fmt(pkFlag.freiflaecheM2, 0)} m².`);
     }
     flagsEl.innerHTML = flags.map((f) => `<div class="flag">⚠ ${f}</div>`).join('');
     lastResult = r;
@@ -1782,6 +1857,7 @@
       lastResult = null;
       lastFlags = [];
       storeyChoice = null;
+      wohnungenChoice = null;
       southFacadeIndex = null;
       setStatus('Keine Parzelle gewählt — auf der Karte eine anklicken.');
       return;

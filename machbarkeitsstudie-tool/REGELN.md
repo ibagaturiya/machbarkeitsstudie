@@ -285,6 +285,40 @@ verschiebbar.
 kein Rechtswert** — als solche gekennzeichnet. Bildschirm und PDF verwenden
 dasselbe (gebaute) Volumen.
 
+### 3.18 Parkierung — die letzte Schicht, die zubeisst (NEU)
+Grundlage: **§ 242 PBG** überlässt die Zahl der Abstellplätze der BZO;
+**Art. 26 BZO Zumikon** legt sie fest — Wohnen: 1 P je 100 m² GNF *oder* je
+Wohnung (Bewohner), 1 P je 4 Wohnungen (Besucher). Das Werkzeug nimmt bei
+«oder» das **Maximum** beider Lesarten; das ist die einzige, die nie zu wenig
+verlangt.
+
+* **Wohnungszahl** ist eine Entwurfsentscheidung wie die Geschosszahl,
+  eingebbar. Ohne Eingabe wird sie mit der BZO-eigenen Bezugsgrösse
+  (100 m² GNF je Wohnung) hergeleitet und **als Annahme markiert**.
+* **«GNF»** definiert Art. 26 nicht. Gerechnet wird mit der nutzbaren
+  Geschossfläche total — die grössere Bezugsgrösse, also die höhere
+  Platzzahl. Als Auslegung ausgewiesen.
+* **Art. 27 (70 % in ÖV-Güteklasse C) wird NICHT angewandt:** der Artikel
+  verweist auf «Art. 33», und den Güteklassen-Plan legt die Baubehörde
+  gesondert fest — er liegt nicht vor. Ohne Reduktion zu rechnen ist die
+  strengere Variante; der Hinweis steht am Bildschirm.
+* **Warum das Volumen begrenzt wird:** Art. 26 Abs. 3 verlangt die
+  Bewohnerplätze in der Regel unterirdisch, überdeckt oder im Gebäude. Unter
+  einen Baukörper von *F* m² passt bei *a* m² je Platz nur ⌊F/a⌋ Plätze je
+  Untergeschoss, und die tragen ⌊F/a⌋ × 100 m² GNF. Liegt die gerechnete
+  Geschossfläche darüber, **bindet die Garage, nicht die Ausnützungsziffer** —
+  ausgewiesen mit der Zahl der nötigen Untergeschosse.
+* **Nichts wird abgezogen.** Ob die Garage zweigeschossig wird, über den
+  Baukörper hinausreicht oder das Haus kleiner wird, ist Entwurf, nicht
+  Rechnung.
+* **Zürich: nicht erfasst.** Die Pflichtparkplätze stehen weder in der BZO
+  2016 noch im E-BZO-Entwurf (beide nennen nur Zweiradabstellplätze bei
+  Arealüberbauungen); massgebend sind § 242 ff. PBG mit der städtischen
+  Parkplatzverordnung, die nicht vorliegt. Ausgewiesen als **nicht prüfbar** —
+  ausdrücklich nicht als `null` («gibt es hier nicht»).
+
+Code: `js/parkierung.js`, Belege in `data/bzo-*.json`. Golden-Test Abschnitt 00.
+
 ### 3.17 Checkliste
 * **Tier A — gerechnet:** Waldabstand, Baulinien, Gewässerraum-Gate.
 * **Tier B — nur erkannt:** Sonderbauvorschriften/Gestaltungsplan,
@@ -320,6 +354,9 @@ Seit der Behebung von Fehler A eingehalten; durch Golden-Test abgesichert
 | 12 m / ⅓ / 10–13 m | Mehrlängenzuschlag | **Art. 14 BZO 2016** | `data/bzo-zurich-wohnzonen.json` |
 | 2 m | Strassenabstand ohne Baulinien | **Art. 32 BZO Zumikon** | `data/bzo-zumikon.json` |
 | 7×7 | Terrainraster | Annahme | `app.js` |
+| 28 m²/Platz | Fläche je Platz Tiefgarage | Annahme (Bandbreite 25–35) | `parkierung.js` |
+| 25 m²/Platz | Fläche je Platz oberirdisch | Annahme (Bandbreite 20–30) | `parkierung.js` |
+| 100 m² GNF | hergeleitete Wohnungsgrösse, wenn keine eingegeben | Annahme (= die Bezugsgrösse aus Art. 26) | `parkierung.js` |
 | CHF 900/m³ | Kostenkennwert BKP 2 | Annahme (Bandbreite 800–1000) | `output.js` |
 | 2 × Grundabstand | Gebäudeabstand | **§ 271 PBG** | `app.js` |
 | 261 | BFS-Nr. Stadt Zürich (Checklisten-Gate) | Fakt | `checklist.js` |
@@ -344,7 +381,10 @@ Annahmen werden im Quellen-Abschnitt des Tools ausdrücklich als
   übrige Dienstbarkeiten** — nur Fussnote (manuelle Erfassung).
 * **Werkleitungskataster** der Gemeinde — nicht abgefragt; nur die Baulinie
   für Versorgungsleitungen wird gerechnet (3.7).
-* **Lärm** (LSV), **Energie**, **Parkierung**, **Brandschutz**, **Aussenraum**.
+* **Lärm** (LSV), **Energie**, **Brandschutz**, **Aussenraum**.
+* **Parkierung**: die Pflichtplatzzahl wird gerechnet und die Passung unter
+  den Baukörper geprüft (3.18) — die Garage selbst wird **nicht** geplant und
+  **nicht** vom Fussabdruck abgezogen.
 * **Bestandesbauten** — die Parzelle wird als leer gerechnet.
 * **Herabsetzung des Grenzabstands** (Art. 15 BZO 2016) — nicht modelliert
   (wäre günstiger für den Bauherrn, Weglassen ist konservativ).

@@ -1,5 +1,9 @@
 {
   "_meta": {
+    "parkierung": {
+      "erfasst": false,
+      "grund": "Die Stadt Zürich regelt die Pflichtparkplätze NICHT in der hier hinterlegten BZO 2016 und auch nicht im E-BZO-Entwurf — beide PDFs nennen nur die Zweiradabstellplätze bei Arealüberbauungen (Art. 8 Abs. 3 BZO 2016 / Art. 10 Abs. 2 E-BZO). Massgebend sind § 242 ff. PBG in Verbindung mit der städtischen Parkplatzverordnung samt Wegleitung; diese Quelle liegt dem Werkzeug nicht vor. Deshalb: nicht erfasst statt geraten — das Werkzeug weist die Parkierung für Zürich als nicht prüfbar aus."
+    },
     "version": "E-BZO Entwurf, Stand 6. Januar 2026 + BZO 2016 (in Kraft)",
     "article_grundmasse": "Art. 62 E-BZO / Art. 13 BZO 2016",
     "article_kronenbedeckung": "Art. 53, E-BZO",

@@ -1,5 +1,14 @@
 {
   "_meta": {
+    "parkierung": {
+      "art": "Art. 26, BZO Zumikon",
+      "wohnen_bewohner_je_m2_gnf": 100,
+      "wohnen_bewohner_je_wohnung": 1,
+      "wohnen_besucher_je_wohnungen": 4,
+      "unterbringung": "Die nicht für Besucher oder Kundschaft vorgesehenen Abstellplätze für Personenwagen sind in der Regel unterirdisch, oberirdisch überdeckt oder im Gebäude integriert anzulegen.",
+      "_oev_reduktion_note": "Art. 27 BZO Zumikon reduziert die Minimalwerte für die Nutzweise Wohnen im Gebiet der ÖV-Güteklasse C auf 70%. NICHT angewandt: der Artikel verweist auf 'Art. 33', die Güteklassen legt die Baubehörde in einem eigenen Plan fest, und dieser Plan liegt dem Werkzeug nicht vor. Die Rechnung ohne Reduktion ist die strengere — die Reduktion ist als Hinweis ausgewiesen.",
+      "_gnf_note": "Die BZO definiert 'GNF' in Art. 26 nicht. Das Werkzeug rechnet mit der nutzbaren Geschossfläche total (Vollgeschosse + freie Dach-/Attika-/Untergeschosse) — die grössere Bezugsgrösse und damit die höhere Platzzahl. Als Auslegung gekennzeichnet, kein Rechtswert."
+    },
     "gemeinde": "Zumikon",
     "bfs_nr": 160,
     "version": "Bau- und Zonenordnung Gemeinde Zumikon, 17.09.2019",
@@ -85,7 +94,7 @@
       "bzo": { "file": "source/bzo-zumikon-2019.pdf", "title": "Bau- und Zonenordnung Gemeinde Zumikon (17.09.2019)" },
       "pbg": { "file": "source/pbg-700.1-current.pdf", "title": "Planungs- und Baugesetz Kanton Zürich (PBG, 700.1)" }
     },
-    "params": {
+    "params": {"parkierung": { "doc": "bzo", "page": 11, "article": "Art. 26 BZO Zumikon", "highlight": "Fahrzeugabstellplätze", "quote": "Es ist mindestens je ein Fahrzeugabstellplatz (P) erforderlich für: Wohnen — P für Bewohner oder Beschäftigte: pro 100 m2 GNF oder pro Wohnung; P für Besucher und Kunden: pro 4 Wohnungen. Die nicht für Besucherinnen, Besucher oder Kundschaft vorgesehenen Abstellplätze für Personenwagen sind in der Regel unterirdisch, oberirdisch überdeckt oder im Gebäude integriert anzulegen." }, 
       "ausnuetzungsziffer_max_pct": { "doc": "bzo", "page": 8, "article": "Art. 17 BZO Zumikon", "highlight": "Ausnützungsziffer", "quote": "Grundmasse Artikel 17: Ausnützungsziffer max. — W2/25: 25%, W2/35: 35%, W2/40: 40%, W2/60: 60%" },
       "vollgeschosse_max": { "doc": "bzo", "page": 8, "article": "Art. 17 BZO Zumikon", "highlight": "Vollgeschosse", "quote": "Vollgeschosse max. 2 (alle Wohnzonen)" },
       "anrechenbares_untergeschoss_max": { "doc": "bzo", "page": 8, "article": "Art. 17 BZO Zumikon", "highlight": "Anrechenbare Unterge", "quote": "Anrechenbare Untergeschosse bei erreichter Vollgeschosszahl max. 1" },

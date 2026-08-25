@@ -290,6 +290,29 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       });
     }
 
+    // — Parkierung. Steht bewusst NACH der Ausnützung und den Geschossen: die
+    //   Pflichtplatzzahl haengt an der gebauten Geschossflaeche, nicht
+    //   umgekehrt. Genau deshalb kann sie das Volumen zurueckbinden — die
+    //   letzte Schicht, die zubeisst, wenn alle anderen schon passen.
+    const pk = (r && r.parkierung) || null;
+    if (pk) {
+      push({
+        ebene: 'gemeinde', titel: 'Parkierung',
+        grundlage: pk.erfasst
+          ? `${pk.artikel || 'BZO'} · Zahl der Abstellplätze nach § 242 PBG durch die BZO`
+          : '§ 242 PBG — die Zahl legt die BZO fest; für diese Gemeinde nicht erfasst',
+        status: pk.erfasst ? (pk.bindet || !pk.oberirdischPasst ? 'review' : 'ok') : 'review',
+        wert: pk.erfasst
+          ? `${pk.totalP} Pflichtplätze (${pk.bewohnerP} + ${pk.besucherP})`
+          : 'nicht prüfbar',
+        detail: pk.erfasst
+          ? (pk.bindet
+              ? `Ein Untergeschoss unter dem Baukörper trägt rund ${Math.round(pk.gnfAusEinemUgM2)} m² Geschossfläche, gerechnet sind ${Math.round(pk.gnfM2)} m² — ab hier begrenzt die Garage das Volumen, nicht die Ausnützungsziffer. Die Fläche je Platz ist eine Werkzeug-Annahme.`
+              : `Untergebracht nach ${pk.unterbringung ? 'BZO: ' + pk.unterbringung : 'kommunaler Vorschrift'}. Die Fläche je Platz ist eine Werkzeug-Annahme, die Platzzahl ein Rechtswert.`)
+          : pk.grund,
+      });
+    }
+
     // — Privatrecht. Bewusst als eigener, ungerechneter Rang: es steht nicht
     //   im Stufenbau des öffentlichen Rechts, begrenzt das Bauvorhaben aber
     //   genauso wirksam. Hier hängt auch die Antwort auf «Werkleitung
