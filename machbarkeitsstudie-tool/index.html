@@ -461,6 +461,21 @@
   #print-toolbar .toolbar-note { font-size: 0.78rem; color: #cfcabf; }
   @media print { #print-toolbar { display: none !important; } }
 
+  /* Die Vollbild-Vorschau ist eine Bildschirm-Konstruktion und muss beim
+     Drucken vollstaendig zurueckgenommen werden. `position: fixed` plus
+     `overflow: auto` macht aus dem A3-Dokument einen Ausschnitt in
+     Viewport-Groesse: gedruckt kam dann nur heraus, was gerade sichtbar war
+     — bei gescrollter Vorschau also eine einzelne, oft voellig leere Seite
+     (der graue Zwischenraum zwischen zwei Blaettern). Nachgestellt mit
+     headless Chromium: ohne diese Regel 1 Seite statt 3.
+     Muss NACH den `.preview`-Regeln oben stehen — gleiche Spezifitaet
+     (#print-doc.preview), also entscheidet die Reihenfolge. */
+  @media print {
+    #print-doc.preview { position: static; inset: auto; z-index: auto;
+                         overflow: visible; background: none; padding: 0; }
+    #print-doc.preview .sheet { margin: 0; box-shadow: none; }
+  }
+
   /* Evidence ("Beleg") buttons + regime tags on values */
   .prov-btn { border: 1px solid var(--border); background: var(--bg-raised); color: var(--accent);
               border-radius: 3px; font-size: 0.72rem; line-height: 1; padding: 0.1rem 0.3rem;

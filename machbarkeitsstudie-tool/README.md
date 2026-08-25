@@ -55,6 +55,14 @@ by layer. It orders the finished result object; it never recomputes anything
 
 ## PDF export
 
+The full-screen preview is a screen construction (`#print-doc.preview` is
+`position: fixed` with `overflow: auto`) and is explicitly reset inside
+`@media print`. Without that reset the browser prints only the slice that
+happens to be visible — one page instead of the whole document, and a blank
+one whenever the preview is scrolled to the grey gap between two sheets.
+Verified with headless Chromium (`page.pdf()`): 1 page before, all sheets
+after.
+
 **"PDF exportieren"** composes an A3 landscape presentation — **one argument
 per page**, each page carrying its plans *and its own sources line* (article +
 page in the legal PDF) — and opens it as a full-screen preview:
