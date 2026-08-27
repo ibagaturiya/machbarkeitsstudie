@@ -16,45 +16,18 @@
   @page { size: A3 landscape; margin: 0; }
 }
 
-/* Full-screen presentation preview of the export document: the user
-   reviews the pages, then either goes back ("Zurück") or saves the PDF
-   ("PDF speichern" -> window.print()). Fixed overlay so the app behind it
-   never scrolls along. */
-/* z-index above 1000: Leaflet's map controls (zoom, scale bar,
-   attribution) sit at z-index up to 1000 in the page's stacking context,
-   and at 900 the preview rendered BEHIND them — the app map's scale bar
-   and attribution floated over the PDF sheets. */
-#print-doc.preview { display: block; position: fixed; inset: 0; z-index: 1100;
-                     overflow: auto; background: #666; padding: 64px 0 20px; }
-#print-toolbar { display: none; position: fixed; top: 0; left: 0; right: 0; z-index: 1101;
-                 background: #2b2b2e; color: #fff; padding: 10px 16px;
-                 display: none; align-items: center; gap: 0.6rem;
-                 box-shadow: 0 1px 6px rgba(0,0,0,.4); }
-#print-toolbar.open { display: flex; }
-#print-toolbar .spacer { flex: 1; }
-#print-toolbar button { font-size: 0.9rem; padding: 0.4rem 0.9rem; cursor: pointer;
-                        border-radius: 4px; border: 1px solid #555; background: #3a3a3e; color: #fff; }
-#print-toolbar button:hover { background: #4a4a4f; }
-#print-toolbar #print-open-btn { background: var(--accent, #b08b4f); border-color: var(--accent, #b08b4f); font-weight: 600; }
-#print-toolbar #print-open-btn[disabled] { opacity: .7; cursor: progress; }
-#print-toolbar button.secondary { background: transparent; color: #cfcabf; }
-#print-toolbar .toolbar-note { font-size: 0.78rem; color: #cfcabf; }
-@media print { #print-toolbar { display: none !important; } }
+/* Waehrend des Exports muss das Dokument ein Layout haben — sonst misst
+   getBoundingClientRect() null und es gibt nichts zu rastern. Es darf dabei
+   aber nicht zu sehen sein: der Export ist ein Knopfdruck, keine Vorschau.
+   Also aus dem Bild geschoben statt display:none. */
+#print-doc.exporting { display: block; position: fixed; left: -20000px; top: 0;
+                       width: 420mm; z-index: -1; pointer-events: none; }
 
-/* Die Vollbild-Vorschau ist eine Bildschirm-Konstruktion und muss beim
-   Drucken vollstaendig zurueckgenommen werden. `position: fixed` plus
-   `overflow: auto` macht aus dem A3-Dokument einen Ausschnitt in
-   Viewport-Groesse: gedruckt kam dann nur heraus, was gerade sichtbar war
-   — bei gescrollter Vorschau also eine einzelne, oft voellig leere Seite
-   (der graue Zwischenraum zwischen zwei Blaettern). Nachgestellt mit
-   headless Chromium: ohne diese Regel 1 Seite statt 3.
-   Muss NACH den `.preview`-Regeln oben stehen — gleiche Spezifitaet
-   (#print-doc.preview), also entscheidet die Reihenfolge. */
-@media print {
-  #print-doc.preview { position: static; inset: auto; z-index: auto;
-                       overflow: visible; background: none; padding: 0; }
-  #print-doc.preview .sheet { margin: 0; box-shadow: none; }
-}
+/* Die Klasse "preview" traegt jetzt nur noch der Wrapper, den js/ui/pdf.js
+   um das einzelne Blatt baut, bevor es ins <foreignObject> serialisiert
+   wird — die Blattregeln haengen an `#print-doc .sheet`, und ohne sie
+   waere der Klon unformatiert. Kein Bildschirmzustand mehr. */
+#print-doc.preview { display: block; background: #fff; }
 
 /* Evidence ("Beleg") buttons + regime tags on values */
 .prov-btn { border: 1px solid var(--border); background: var(--bg-raised); color: var(--accent);
@@ -96,7 +69,6 @@
   font-family: -apple-system, "Helvetica Neue", Arial, sans-serif;
   -webkit-print-color-adjust: exact; print-color-adjust: exact;
 }
-#print-doc.preview .sheet { margin: 0 auto 20px; box-shadow: 0 2px 12px rgba(0,0,0,.4); }
 #print-doc .sheet:last-child { page-break-after: auto; break-after: auto; }
 
 #print-doc .sheet-sources { flex: none; font-size: 8pt; color: #666; line-height: 1.45;

@@ -23,11 +23,16 @@
 //
 // Zwei Fallstricke, die hier gelöst sind:
 //   1. <foreignObject> lädt keine externen Bilder. Die WMS-Kartenkacheln
-//      müssen vorher als data:-URI eingebettet werden (wms.geo.admin.ch
-//      liefert `access-control-allow-origin: *`, geprüft 2026-08-27).
-//   2. Ein Canvas mit fremdem Bild wäre "tainted" und toDataURL würde
-//      werfen. Nach dem Einbetten sind alle Bilder gleicher Herkunft, damit
-//      entfällt das Problem — deshalb ist Schritt 1 keine Kosmetik.
+//      müssen vorher als data:-URI eingebettet werden.
+//   2. Eingebettet wird aus dem BEREITS GELADENEN <img> im Dokument, über
+//      ein Canvas — nicht über ein zweites fetch() derselben URL. Der erste
+//      Versuch tat genau das und lieferte in Safari zehn Blätter mit leeren
+//      Karten: das <img> war ohne CORS-Freigabe in den Cache gegangen, und
+//      das nachfolgende fetch(mode:'cors') fiel auf ebendiesen Eintrag und
+//      scheiterte. Was auf dem Bildschirm steht, ist bereits dekodiert im
+//      Speicher — es noch einmal über das Netz zu holen, kann nur schlechter
+//      ausgehen. Voraussetzung ist crossorigin="anonymous" am <img>
+//      (js/ui/print.js), sonst ist das Canvas "tainted".
 window.MachbarkeitTool = window.MachbarkeitTool || {};
 
 (function () {
@@ -74,10 +79,10 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       // nicht verlorengehen — dann eben als Download, und der Aufrufer sagt
       // es in der Statuszeile. Lieber ein anderer Weg als gar keiner.
       triggerDownload(blob, `${filename}.pdf`);
-      return { blocked: true, pages: blob.__pages, bytes: blob.size };
+      return { blocked: true, pages: blob.__pages, problems: blob.__problems, bytes: blob.size };
     }
     tab.location.replace(lastObjectUrl);
-    return { blocked: false, pages: blob.__pages, bytes: blob.size };
+    return { blocked: false, pages: blob.__pages, problems: blob.__problems, bytes: blob.size };
   }
 
   // Das leere Wartefenster. Wird synchron im Klick-Handler aufgerufen.
@@ -107,9 +112,10 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
 
     const css = collectCss();
     const pages = [];
+    const problems = [];
     for (let i = 0; i < sheets.length; i++) {
       if (onProgress) onProgress(i, sheets.length);
-      pages.push(await rasteriseSheet(sheets[i], css));
+      pages.push(await rasteriseSheet(sheets[i], css, problems));
       // Dem Browser zwischen den Blättern Luft lassen, sonst friert die
       // Vorschau während des Exports sichtbar ein.
       await new Promise((r) => setTimeout(r, 0));
@@ -118,6 +124,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
 
     const blob = buildPdfBlob(pages, A3_LANDSCAPE_PT.w, A3_LANDSCAPE_PT.h, filename);
     blob.__pages = pages.length;
+    blob.__problems = problems;
     return blob;
   }
 
@@ -134,34 +141,50 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     }).join('\n');
   }
 
-  async function inlineImages(root) {
-    const imgs = [...root.querySelectorAll('img')].filter((i) => i.src && !i.src.startsWith('data:'));
-    await Promise.all(imgs.map(async (img) => {
+  // Bettet jedes externe Bild als data:-URI in den Klon ein — aus dem
+  // Original im Dokument, das der Browser längst geladen hat. `source` und
+  // `clone` sind derselbe Baum, also stehen die <img> in derselben Reihenfolge.
+  //
+  // Scheitert ein Bild, wird es NICHT stillschweigend weggelassen: der Grund
+  // wandert in `problems` und der Aufrufer sagt es in der Statuszeile. Ein
+  // leerer Kartenrahmen, den niemand erwähnt, ist genau die Art Fehler, die
+  // erst beim Empfänger auffällt (REGELN §2: eine fehlgeschlagene Quelle darf
+  // nie wie ein sauberes Ergebnis aussehen).
+  function embedImages(source, clone, sheetLabel, problems) {
+    const originals = [...source.querySelectorAll('img')];
+    const clones = [...clone.querySelectorAll('img')];
+    clones.forEach((img, i) => {
+      const src = img.getAttribute('src') || '';
+      if (!src || src.startsWith('data:')) return;
+      const original = originals[i];
       try {
-        const res = await fetch(img.src, { mode: 'cors' });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const blob = await res.blob();
-        img.src = await new Promise((resolve, reject) => {
-          const fr = new FileReader();
-          fr.onload = () => resolve(fr.result);
-          fr.onerror = () => reject(new Error('FileReader'));
-          fr.readAsDataURL(blob);
-        });
-      } catch {
-        // Eine einzelne Kachel, die nicht kommt, darf den Export nicht
-        // kosten: das Bild verschwindet, das Blatt bleibt. Sichtbar als
-        // leerer Kartenrahmen — nicht als stillschweigend fehlende Seite.
+        if (!original || !original.complete || !original.naturalWidth) {
+          throw new Error('Bild war nicht geladen');
+        }
+        const c = document.createElement('canvas');
+        c.width = original.naturalWidth;
+        c.height = original.naturalHeight;
+        // PNG, nicht JPEG: die Katasterebene wird mit mix-blend-mode
+        // multiply über die Zonenfarben gelegt: JPEG-Artefakte um die
+        // schwarzen Linien würden dabei als graue Schleier sichtbar.
+        c.getContext('2d').drawImage(original, 0, 0);
+        img.setAttribute('src', c.toDataURL('image/png'));
+      } catch (e) {
         img.removeAttribute('src');
+        problems.push(`${sheetLabel}: ${img.getAttribute('alt') || 'Bild'} fehlt (${e.message})`);
       }
-    }));
+    });
   }
 
-  function rasteriseSheet(sheetEl, css) {
+  function rasteriseSheet(sheetEl, css, problems) {
     const rect = sheetEl.getBoundingClientRect();
     const w = Math.round(rect.width), h = Math.round(rect.height);
+    if (!w || !h) throw new Error('Das Blatt hat keine Ausmasse — #print-doc ist nicht dargestellt.');
 
     const clone = sheetEl.cloneNode(true);
-    return inlineImages(clone).then(() => {
+    const label = (sheetEl.querySelector('h2') || {}).textContent || 'Blatt';
+    embedImages(sheetEl, clone, label, problems);
+    return Promise.resolve().then(() => {
       // Der Klon braucht denselben Kontext wie im Dokument: die Blattregeln
       // hängen an `#print-doc .sheet`, und `#print-doc` ist am Bildschirm
       // display:none. Die Vorschau-Klasse macht es sichtbar; Position und

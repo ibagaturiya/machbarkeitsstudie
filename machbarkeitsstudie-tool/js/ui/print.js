@@ -184,6 +184,11 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       ${sub ? `<div class="kpi-sub">${esc(sub)}</div>` : ''}</div>`;
   }
 
+  // crossorigin="anonymous" auf den WMS-Kacheln ist nicht optional: der
+  // PDF-Export (js/ui/pdf.js) zeichnet diese Bilder in ein Canvas, und ohne
+  // CORS-Freigabe waere das Canvas "tainted" und nicht auslesbar. Der Dienst
+  // liefert access-control-allow-origin: * (geprueft 2026-08-27).
+  //
   // w/h are the pixel dimensions the map is composed at; the bbox is derived
   // from them so raster and vector layers stay registered to each other.
   // zoneFeatures is pre-fetched by the caller (one request, reused per sheet).
@@ -192,7 +197,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     const zoning = layers.includes('zoning') && zoneFeatures
       ? T.buildZonePlanSvg(zoneFeatures, bbox, w, h) : '';
     const cadastre = layers.includes('cadastre')
-      ? `<img class="layer ${layers.includes('zoning') ? 'multiply' : ''}" src="${T.buildCadastreMapUrl(bbox, w, h)}" alt="Parzellengrenzen">` : '';
+      ? `<img class="layer ${layers.includes('zoning') ? 'multiply' : ''}" crossorigin="anonymous" src="${T.buildCadastreMapUrl(bbox, w, h)}" alt="Parzellengrenzen">` : '';
     const overlay = T.buildParcelOverlaySvg(rings, bbox, w, h);
     return `<div class="mapwrap" style="aspect-ratio:${w}/${h}">${zoning}${cadastre}${overlay}</div>`;
   }
@@ -498,7 +503,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     const rmBbox = T.buildMapBbox(centerE, centerN, halfSpan * 1.45, rmW, rmH);
     const restrictionMap = showWaldMap
       ? `<div class="mapwrap" style="aspect-ratio:${rmW}/${rmH}">
-           <img class="layer multiply" src="${T.buildCadastreMapUrl(rmBbox, rmW, rmH)}" alt="Parzellengrenzen">
+           <img class="layer multiply" crossorigin="anonymous" src="${T.buildCadastreMapUrl(rmBbox, rmW, rmH)}" alt="Parzellengrenzen">
            ${restrictionMapSvg(wald, rings, rmBbox, rmW, rmH)}
          </div>
          ${legend([
@@ -685,15 +690,27 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     }
   }
 
+  // Der Export darf nicht an einer einzelnen Kachel haengen — aber er darf
+  // auch nicht zu frueh weitergehen. Mit 8 s Frist kam genau das heraus:
+  // bei kaltem Cache brauchen die WMS-Kacheln (900x1300, 1200x1150 px)
+  // laenger, waitForImages gab auf, und der Export rasterte Blaetter mit
+  // leeren Kartenrahmen. Im Safari-Export vom 27.8.2026 fehlte deshalb auf
+  // ALLEN drei Kartenblaettern die Katasterebene.
+  //
+  // 30 s ist grosszuegig, weil hier ein Dokument entsteht und nicht eine
+  // Bildschirmansicht: ein paar Sekunden mehr sind billiger als eine
+  // ausgelieferte Studie mit weissen Karten. Laeuft die Frist doch ab,
+  // meldet js/ui/pdf.js das Bild als fehlend — still bleibt es nie.
+  const IMAGE_TIMEOUT_MS = 30000;
+
   function waitForImages(root) {
     const imgs = [...root.querySelectorAll('img')];
     return Promise.all(imgs.map((img) => (img.complete && img.naturalWidth
       ? Promise.resolve()
       : new Promise((resolve) => {
           img.addEventListener('load', resolve, { once: true });
-          // Never block the export on a single map tile that fails.
           img.addEventListener('error', resolve, { once: true });
-          setTimeout(resolve, 8000);
+          setTimeout(resolve, IMAGE_TIMEOUT_MS);
         }))));
   }
 

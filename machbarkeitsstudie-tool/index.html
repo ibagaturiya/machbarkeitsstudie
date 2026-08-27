@@ -48,9 +48,13 @@
     </select>
   </div>
   <button type="submit">Analysieren</button>
+  <!-- Der Export steht neben "Analysieren", weil er die zweite Handlung am
+       selben Gegenstand ist: erst rechnen, dann ausgeben. Unten im
+       Ergebnispanel war er zwar naeher am Resultat, aber erst nach dem
+       Scrollen zu sehen. -->
+  <button type="button" id="preview-pdf-btn" class="secondary">PDF exportieren</button>
 </form>
 <div id="status"></div>
-<button type="button" id="theme-toggle" title="Hell-/Dunkelmodus" aria-label="Hell-/Dunkelmodus umschalten"></button>
 </header>
 
 <main id="dash">
@@ -171,26 +175,15 @@
         <footer id="footnotes"></footer>
       </div>
     </div>
-    <div class="pane-actions">
-      <button type="button" id="preview-pdf-btn">PDF exportieren</button>
-    </div>
   </section>
 </main>
 
-<div id="print-toolbar">
-  <button type="button" id="print-back-btn">‹ Zurück</button>
-  <span class="toolbar-note">Vorschau des Export-Dokuments — pro Seite ein Argument mit Plänen und Quellen</span>
-  <span class="spacer"></span>
-  <!-- Normalfall: die fertige PDF oeffnet sich in einem eigenen Tab im
-       PDF-Viewer des Browsers — mit dessen eigener Leiste samt
-       Download-Pfeil, Suche und Seitenzahl. Kein Druckdialog.
-       "Drucken" bleibt daneben stehen, weil der Druckweg vektoriellen
-       (markierbaren) Text erzeugt statt eines Seitenbilds. -->
-  <button type="button" id="print-print-btn" class="secondary">Drucken</button>
-  <button type="button" id="print-open-btn">PDF öffnen</button>
-</div>
+<!-- Das Exportdokument wird nie angezeigt: es wird ausserhalb des Bildes
+     aufgebaut (Klasse "exporting"), gerastert und als PDF im Viewer-Tab
+     geoeffnet. -->
 <div id="print-doc"></div>
 
+<button type="button" id="theme-toggle" title="Hell-/Dunkelmodus" aria-label="Hell-/Dunkelmodus umschalten"></button>
 <div id="version-stamp">version __STAMP__ - ivan bagaturiya <a href="https://bagaturiya.com" target="_blank" rel="noopener">bagaturiya.com</a></div>
 <script>
   // Local run: the placeholder was not replaced by the deploy workflow, so

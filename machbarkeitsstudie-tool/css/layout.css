@@ -14,7 +14,7 @@ body { max-width: none; margin: 0; padding: 0; display: flex; flex-direction: co
    squeeze the input down to a sliver, exactly when the user needs it to
    type a different address. */
 #topbar { flex: none; padding: 0.6rem 1rem 0.5rem; border-bottom: 1px solid var(--border);
-          display: grid; grid-template-columns: auto minmax(300px, 1fr) auto auto; gap: 0.75rem;
+          display: grid; grid-template-columns: auto minmax(300px, 1fr) auto; gap: 0.75rem;
           align-items: center; background: var(--bg-pane); }
 #topbar h1 { font-size: 1rem; margin: 0; white-space: nowrap; }
 #topbar form { margin: 0; }
@@ -88,6 +88,14 @@ body { max-width: none; margin: 0; padding: 0; display: flex; flex-direction: co
    script fills in the browser's clock in the same shape. The block itself
    stays click-through so it never swallows clicks on the page beneath —
    only the link takes pointer events back. */
+/* Unten rechts, direkt ueber dem Versionsstempel. Der Umschalter schwebt
+   ueber dem Geometriebereich, also braucht er einen eigenen Grund und einen
+   Rahmen — sonst verschwindet das Symbol im 3D-Bild dahinter. */
+#theme-toggle { position: fixed; right: 8px; bottom: 20px; z-index: 41;
+                background: var(--bg-pane); border: 1px solid var(--border); }
+#theme-toggle:hover { background: var(--bg-sunken); }
+@media print { #theme-toggle { display: none; } }
+
 #version-stamp { position: fixed; bottom: 2px; right: 8px; z-index: 40;
                  font-size: 10px; color: var(--text-muted); opacity: .8;
                  pointer-events: none; }
@@ -97,8 +105,10 @@ body { max-width: none; margin: 0; padding: 0; display: flex; flex-direction: co
 #viewer { height: 100%; margin: 0; background: var(--bg-sunken); }
 #floorplan { max-width: none; margin: 0; border-top: 1px solid var(--border); padding-top: 0.5rem; }
 .zoning-map { display: block; border: none; }
-.pane-actions { flex: none; padding-top: 0.5rem; border-top: 1px solid var(--border-soft); margin-top: 0.5rem; }
-#preview-pdf-btn { margin-bottom: 0; font-size: 0.85rem; padding: 0.35rem 0.7rem; }
+#preview-pdf-btn { margin-bottom: 0; }
+/* Solange nichts analysiert ist, gibt es nichts zu exportieren. Der Knopf
+   bleibt sichtbar (sonst springt die Kopfzeile), aber inaktiv. */
+#preview-pdf-btn[disabled] { opacity: .45; cursor: default; filter: none; }
 #results { display: none; }
 table.numbers td { font-size: 0.83rem; padding: 0.18rem 0.6rem 0.18rem 0; }
 .binding { padding: 0.6rem 0.7rem; font-size: 0.88rem; margin-bottom: 0.6rem; }

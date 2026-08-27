@@ -153,9 +153,12 @@ page in the legal PDF) — and opens it as a full-screen preview:
    the rest of the phase still owes.
 10. **Quellen und Vorbehalte** — sources and limits, with the full wording
 
-Inside the preview sit two buttons:
+**"PDF exportieren"** sits in the header next to **"Analysieren"** and does the
+whole thing in one press — compose, rasterise, open. There is no preview step:
+the document is built off-screen (class `exporting`, so it has a layout without
+being visible) and the finished PDF opens in its own tab.
 
-- **"PDF öffnen"** writes a real PDF file and opens it in **its own tab, in
+It writes a real PDF file and opens it in **its own tab, in
   the browser's PDF viewer** — whose own toolbar carries the download arrow,
   search and page numbers. No print dialog, no "Save as PDF" detour. Pages are
   exact A3 landscape (420 × 297 mm), one rasterised sheet each at ~190 dpi;
@@ -177,10 +180,10 @@ Inside the preview sit two buttons:
   filename. The document title is in the PDF's `/Title`, but what the viewer's
   own download arrow suggests as a filename is up to the browser. Serving the
   file under a real name would need a service worker.
-- **"Drucken"** is the print path: `window.print()` on the composed document.
-  Slower to operate, but the text stays **vector** — use it when the quoted
-  provisions have to remain selectable and searchable. Set margins to **None**
-  and enable background graphics; the sheets carry their own margins.
+There is no longer a "Drucken" button, and with it went the only path to
+**vector** (selectable) text — every page in the exported PDF is an image. The
+browser's own PDF viewer can still print. `@media print` in `print.css` is kept
+so Cmd+P on the app still yields the A3 sheets.
 
 The PDF shows the **same building as the screen** (the massing model with the
 chosen storeys — not the abstract legal hull, which used to overstate volume

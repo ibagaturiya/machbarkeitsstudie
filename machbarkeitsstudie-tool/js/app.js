@@ -97,38 +97,13 @@
     });
   });
 
-  // Export flow: "PDF exportieren" composes the presentation document (one
-  // argument per page, each with its plans and its sources) and opens it as
-  // a full-screen preview. There, "PDF öffnen" writes a real PDF file and
-  // opens it in its own tab, in the browser's PDF viewer — whose own toolbar
-  // carries the download arrow, search and page numbers (js/ui/pdf.js). No
-  // print dialog. "Drucken" is kept beside it: the print path produces vector
-  // text instead of a page image, which is what you want if the quoted
-  // provisions have to stay selectable.
-  const printToolbarEl = document.getElementById('print-toolbar');
-  const printBackBtn = document.getElementById('print-back-btn');
-  const printOpenBtn = document.getElementById('print-open-btn');
-  const printPrintBtn = document.getElementById('print-print-btn');
-
-  function closePrintPreview() {
-    printDocEl.classList.remove('preview');
-    printToolbarEl.classList.remove('open');
-  }
-
-  previewPdfBtn.addEventListener('click', async () => {
-    previewPdfBtn.disabled = true;
-    try {
-      if (await composePrintDoc()) {
-        printDocEl.classList.add('preview');
-        printToolbarEl.classList.add('open');
-        printDocEl.scrollTop = 0;
-      }
-    } finally {
-      previewPdfBtn.disabled = false;
-    }
-  });
-  printBackBtn.addEventListener('click', closePrintPreview);
-  printPrintBtn.addEventListener('click', () => window.print());
+  // Export: ein Knopf, eine Handlung. "PDF exportieren" baut das Dokument
+  // (pro Seite ein Argument mit Plänen und Quellen), rastert es und öffnet
+  // die fertige PDF in einem eigenen Tab im PDF-Viewer des Browsers —
+  // dessen eigene Leiste trägt Download-Pfeil, Suche und Seitenzahlen
+  // (js/ui/pdf.js). Kein Druckdialog, keine Zwischenvorschau: das Dokument
+  // wird ausserhalb des Bildes aufgebaut (Klasse "exporting") und ist nie
+  // als Bildschirmzustand zu sehen.
 
   // Der Dateiname trägt Adresse (oder Parzellennummern) und Datum, damit im
   // Download-Ordner nicht zehn "Machbarkeit.pdf" nebeneinander liegen.
@@ -142,20 +117,30 @@
     return T.safeFilename(['Machbarkeit', subject, stamp]);
   }
 
-  printOpenBtn.addEventListener('click', async () => {
-    const label = printOpenBtn.textContent;
+  // Startzustand: ohne Analyse gibt es nichts zu exportieren.
+  previewPdfBtn.disabled = true;
+  previewPdfBtn.addEventListener('click', async () => {
+    const label = previewPdfBtn.textContent;
     const filename = pdfFilename();
     // SYNCHRON, noch im Klick: nach dem Rastern gilt window.open() nicht mehr
     // als Folge einer Nutzeraktion und Safari blockiert es als Popup.
     const tab = T.openPendingTab(filename);
-    printOpenBtn.disabled = true;
+    previewPdfBtn.disabled = true;
     try {
+      previewPdfBtn.textContent = 'Dokument wird gebaut …';
+      if (!(await composePrintDoc())) throw new Error('Keine Analyse vorhanden.');
+      // Layout ja, Sichtbarkeit nein — siehe css/print.css.
+      printDocEl.classList.add('exporting');
       const res = await T.openSheetsAsPdf(tab, printDocEl, filename, (i, n) => {
-        printOpenBtn.textContent = i < n ? `Blatt ${i + 1} von ${n} …` : 'PDF wird geschrieben …';
+        previewPdfBtn.textContent = i < n ? `Blatt ${i + 1} von ${n} …` : 'PDF wird geschrieben …';
       });
       if (res.blocked) {
         setStatus('Der Browser hat den neuen Tab blockiert — die PDF wurde stattdessen '
           + 'heruntergeladen. Popups für diese Seite erlauben, dann öffnet sie sich im Viewer.', true);
+      } else if (res.problems && res.problems.length) {
+        // Ein leerer Kartenrahmen, den niemand erwähnt, fällt erst beim
+        // Empfänger auf. Also hier sagen, nicht dort.
+        setStatus(`PDF erstellt, aber unvollständig — ${res.problems.join('; ')}.`, true);
       }
     } catch (e) {
       // Ein fehlgeschlagener Export darf nicht als leerer Klick enden: der
@@ -163,8 +148,9 @@
       setStatus(`Fehler beim PDF-Export: ${e.message}`, true);
       console.error(e);
     } finally {
-      printOpenBtn.textContent = label;
-      printOpenBtn.disabled = false;
+      printDocEl.classList.remove('exporting');
+      previewPdfBtn.textContent = label;
+      previewPdfBtn.disabled = false;
     }
   });
 
@@ -1868,7 +1854,7 @@
 
     refreshGrundbuchFootnote();
     resultsEl.style.display = 'block';
-    previewPdfBtn.style.display = 'inline-block';
+    previewPdfBtn.disabled = false;
   }
 
   function renderSelectionList(selection) {
@@ -1895,8 +1881,7 @@
       runToken++; // and any run still in flight is now stale
       ablaufPanel.reset();
       resultsEl.style.display = 'none';
-      previewPdfBtn.style.display = 'none';
-      closePrintPreview();
+      previewPdfBtn.disabled = true;
       lastResult = null;
       lastFlags = [];
       storeyChoice = null;
@@ -1922,8 +1907,7 @@
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     resultsEl.style.display = 'none';
-    previewPdfBtn.style.display = 'none';
-    closePrintPreview();
+    previewPdfBtn.disabled = true;
     mapSectionEl.style.display = 'none';
     closeOptions();
     const typed = addressInput.value.trim();
