@@ -3,7 +3,16 @@
 <head>
 <meta charset="UTF-8">
 <title>Machbarkeitsstudie — Kanton Zürich</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<!-- Stylesheets. Order IS the cascade: vendor first, then the design
+     tokens, then the components, then the layout shell that deliberately
+     overrides component geometry, then print. Extracted from the 571-line
+     <style> block that used to sit here. -->
+<link rel="stylesheet" href="vendor/leaflet-1.9.4/leaflet.css">
+<link rel="stylesheet" href="css/tokens.css">
+<link rel="stylesheet" href="css/components.css">
+<link rel="stylesheet" href="css/layout.css">
+<link rel="stylesheet" href="css/print.css">
+
 <script>
   // Applied before first paint so there is no light-mode flash on a dark-mode
   // reload. Kept inline and tiny on purpose -- everything else about the
@@ -15,582 +24,12 @@
     document.documentElement.dataset.theme = theme;
   })();
 </script>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
-<script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
-<style>
-  /* ---- theme tokens ---------------------------------------------------
-     Accent is a transparent orange throughout: solid for borders/icons,
-     --accent-soft for fills. Dark theme overrides every token below;
-     nothing outside this block should hardcode a UI colour. The print
-     document (#print-doc, further down) is deliberately NOT themed -- it
-     is a document meant to be read on paper, always light. */
-  :root {
-    --bg: #f7f6f3; --bg-pane: #ffffff; --bg-raised: #fafafa; --bg-sunken: #f0efec;
-    --text: #1a1a1a; --text-muted: #666666; --text-faint: #999999;
-    --border: #dddddd; --border-soft: #ececec;
-    --accent: #e8792e; --accent-soft: rgba(232, 121, 46, 0.14); --accent-text: #ffffff;
-    --pass-bg: #f1f8f1; --pass-badge: #2e7d32;
-    --flag-bg: #fff0f0; --flag-badge: #c62828;
-    --review-bg: #fff8e1; --review-badge: #f9a825;
-    --warn-bg: #fff3cd; --warn-border: #ffe08a; --warn-text: #6a5330;
-    --shadow: rgba(0,0,0,0.08);
-    --map-filter: none;
-  }
-  :root[data-theme="dark"] {
-    --bg: #17171a; --bg-pane: #1e1e22; --bg-raised: #232327; --bg-sunken: #131315;
-    --text: #ececec; --text-muted: #a5a3a0; --text-faint: #77746f;
-    --border: #38373d; --border-soft: #2a2a2e;
-    --accent: #ff9d52; --accent-soft: rgba(255, 157, 82, 0.16); --accent-text: #171717;
-    --pass-bg: #16261a; --pass-badge: #4caf50;
-    --flag-bg: #2c1717; --flag-badge: #ef5350;
-    --review-bg: #2b2312; --review-badge: #ffca28;
-    --warn-bg: #2b2313; --warn-border: #5a4a1f; --warn-text: #e8cf8a;
-    --shadow: rgba(0,0,0,0.4);
-    /* Inverts the raster cadastral tiles into a dark, low-glare basemap
-       instead of a bright white rectangle sitting in a dark page. */
-    /* invert(0.92), not 1: a full invert makes tiny antialiasing differences
-       between two independently-rasterised adjacent WMTS tiles (each tile is
-       rendered server-side on its own, so a line crossing a tile boundary can
-       legitimately differ by a pixel or two of antialiasing between the two
-       tiles) swing all the way to near-black vs near-white, which reads as a
-       seam along the tile edge. A partial invert plus a touch of blur damps
-       that swing instead of amplifying it. */
-    --map-filter: invert(0.92) hue-rotate(180deg) brightness(0.9) contrast(0.8) saturate(0.9);
-  }
 
-  /* ---- Parkierung -------------------------------------------------------
-     Eigener Block statt weiterer Zeilen in der Zahlentabelle: hier steht ein
-     Eingabefeld (Wohnungszahl = Entwurfsentscheidung) und eine Aussage, die
-     die Tabelle nicht macht -- ab wann die Garage und nicht die
-     Ausnuetzungsziffer das Volumen begrenzt. */
-  #parkierung:empty { display: none; }
-  #parkierung { margin: 1.1rem 0 0.6rem; }
-  .sub-head { font-size: 0.9rem; margin: 0 0 0.4rem; display: flex; align-items: baseline; gap: 0.4rem; }
-  .sub-note { font-weight: 400; font-size: 0.78rem; color: var(--text-muted); }
-  /* Werkzeug-Annahmen tragen ueberall dieselbe, zurueckhaltende Auszeichnung:
-     sie duerfen nie wie ein zitierter Rechtswert aussehen. */
-  .assumption { font-size: 0.76rem; color: var(--text-faint); font-style: italic; }
-  .flag.flag-binding { background: var(--flag-bg); border-color: var(--flag-badge); color: var(--flag-badge); font-weight: 600; }
-  #parkierung input[type=number] { padding: 0.15rem 0.3rem; font-size: 0.85rem;
-     background: var(--bg-pane); color: var(--text); border: 1px solid var(--border); border-radius: 3px; }
-
-  /* ---- Ablauf & Normkette ---------------------------------------------
-     Ein einklappbares Panel am Fuss der linken Spalte: waehrend der Rechnung
-     das Live-Protokoll, danach die Normkette mit der Rangordnung der
-     angewandten Vorschriften und der Schicht-Animation daneben.
-     <details> bleibt bewusst display:block -- .pane ist display:flex, und
-     ein flex-Container als <details> hat in mehreren Engines den
-     zugeklappten Zustand aufgebrochen. */
-  #pane-ablauf { display: block; flex: 0 0 auto; overflow: hidden;
-                 border-top: 1px solid var(--border); background: var(--bg-pane);
-                 padding: 0.4rem 0.8rem 0.5rem; }
-  #pane-ablauf > summary { cursor: pointer; list-style: none; display: flex;
-                 justify-content: space-between; align-items: baseline; gap: 0.5rem;
-                 font-size: 0.72rem; text-transform: uppercase; letter-spacing: .09em;
-                 color: var(--accent); padding: 0.2rem 0; }
-  #pane-ablauf > summary::-webkit-details-marker { display: none; }
-  #pane-ablauf > summary::before { content: '\25B8'; margin-right: 0.35rem; transition: transform .15s; }
-  #pane-ablauf[open] > summary::before { transform: rotate(90deg); display: inline-block; }
-  .ablauf-body { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 0.8rem;
-                 max-height: 44vh; overflow-y: auto; padding: 0.4rem 0 0.2rem; }
-  @media (max-width: 1100px) { .ablauf-body { grid-template-columns: 1fr; } }
-  .nk-stage { border: 1px solid var(--border); border-radius: 4px; background: var(--bg-raised); }
-  .nk-stage svg { display: block; border-radius: 4px; }
-  .nk-caption { font-size: 0.78rem; color: var(--text-muted); margin: 0.3rem 0; min-height: 1.1em; }
-  #nk-play { font-size: 0.78rem; padding: 0.25rem 0.6rem; }
-  .nk-legend { margin-top: 0.5rem; display: flex; flex-wrap: wrap; gap: 0.25rem; }
-  .nk-ebene, .nk-rang { font-size: 0.66rem; text-transform: uppercase; letter-spacing: .05em;
-                 padding: 0.08rem 0.32rem; border-radius: 3px; white-space: nowrap;
-                 color: var(--nk-col); border: 1px solid var(--nk-col); background: transparent; }
-  .nk-live { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.72rem;
-             color: var(--text-muted); background: var(--bg-sunken); border: 1px solid var(--border-soft);
-             border-radius: 4px; padding: 0.3rem 0.45rem; max-height: 7.5em; overflow-y: auto;
-             margin-bottom: 0.5rem; }
-  .nk-live:empty { display: none; }
-  .nk-live-line { white-space: pre-wrap; }
-  .nk-list { list-style: none; margin: 0; padding: 0; }
-  .nk-step { display: flex; gap: 0.45rem; align-items: baseline; padding: 0.3rem 0.35rem;
-             border-bottom: 1px solid var(--border-soft); border-radius: 3px; }
-  .nk-step[data-stage]:not([data-stage="-1"]) { cursor: pointer; }
-  .nk-step[data-stage]:not([data-stage="-1"]):hover { background: var(--bg-sunken); }
-  .nk-step.is-current { background: var(--accent-soft); outline: 1px solid var(--accent); }
-  .nk-rang { flex: none; }
-  .nk-body { min-width: 0; display: flex; flex-wrap: wrap; gap: 0.2rem 0.5rem; align-items: baseline; }
-  .nk-titel { font-size: 0.84rem; font-weight: 600; }
-  .nk-wert { font-size: 0.8rem; color: var(--text); }
-  .nk-verlust { font-size: 0.78rem; color: var(--flag-badge); font-variant-numeric: tabular-nums; }
-  .nk-grundlage { flex-basis: 100%; font-size: 0.74rem; color: var(--text-faint); }
-  .nk-detail { flex-basis: 100%; font-size: 0.76rem; color: var(--text-muted); }
-  /* Ein Ausfall wird nie gruen dargestellt (REGELN.md 2/3.17) -- 'review'
-     traegt hier dieselbe Farbe wie in der Checkliste. */
-  .nk-step.nk-review { background: var(--review-bg); }
-  .nk-step.nk-review .nk-wert { color: var(--review-badge); }
-  .nk-step.nk-skip { opacity: .62; }
-  .nk-step.nk-info .nk-wert { color: var(--text-faint); font-style: italic; }
-
-  body { font-family: -apple-system, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem;
-         background: var(--bg); color: var(--text); }
-  h1 { font-size: 1.4rem; }
-  h2 { font-size: 1.1rem; }
-  form { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
-  input[type=text] { flex: 1; padding: 0.5rem; font-size: 1rem; background: var(--bg-pane); color: var(--text); border: 1px solid var(--border); border-radius: 4px; }
-  select { padding: 0.5rem; font-size: 1rem; background: var(--bg-pane); color: var(--text); border: 1px solid var(--border); border-radius: 4px; }
-  button { padding: 0.5rem 1rem; font-size: 1rem; cursor: pointer; background: var(--accent); color: var(--accent-text); border: none; border-radius: 4px; }
-  button:hover { filter: brightness(1.08); }
-  /* Icon only, and deliberately quiet: a mode switch is a preference, not
-     one of the tool's actions, so it shouldn't carry the same weight as
-     "Analysieren". Sized to the text next to it, not to a button. */
-  #theme-toggle { background: none; border: none; padding: 4px; width: 26px; height: 26px;
-                  display: inline-flex; align-items: center; justify-content: center;
-                  color: var(--text-faint); border-radius: 6px; opacity: .75; }
-  #theme-toggle svg { width: 15px; height: 15px; display: block; }
-  #theme-toggle:hover { opacity: 1; color: var(--text); background: var(--bg-sunken); filter: none; }
-  /* ---- search combobox ------------------------------------------------
-     One box for both ways in: a street address or a parcel number. The
-     suggestion list is a real dropdown rather than the browser's <datalist>
-     so each row can carry its secondary line (postcode/commune, EGRID) and
-     so a pick can keep the coordinates it came with instead of re-running
-     the search on the text. */
-  .combo { position: relative; flex: 1; min-width: 0; }
-  .combo input[type=text] { width: 100%; box-sizing: border-box; }
-  .combo-list { position: absolute; z-index: 1200; top: calc(100% + 4px); left: 0; right: 0;
-                margin: 0; padding: 4px; list-style: none; max-height: 320px; overflow-y: auto;
-                background: var(--bg-pane); border: 1px solid var(--border); border-radius: 8px;
-                box-shadow: 0 10px 28px rgba(0,0,0,.22); }
-  .combo-list[hidden] { display: none; }
-  .combo-opt { display: flex; align-items: baseline; gap: 0.5rem; padding: 0.4rem 0.55rem;
-               border-radius: 5px; cursor: pointer; font-size: 0.9rem; line-height: 1.25; }
-  .combo-opt[aria-selected="true"], .combo-opt:hover { background: var(--accent-soft); }
-  .combo-opt .opt-kind { flex: none; font-size: 0.62rem; text-transform: uppercase; letter-spacing: .07em;
-                         color: var(--accent); border: 1px solid var(--border); border-radius: 3px;
-                         padding: 1px 4px; }
-  .combo-opt .opt-main { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .combo-opt .opt-sub { flex: none; color: var(--text-faint); font-size: 0.78rem; }
-  .combo-empty { padding: 0.45rem 0.55rem; color: var(--text-faint); font-size: 0.85rem; }
-
-  /* ---- Gemeinde picker ------------------------------------------------
-     Styled as a quiet secondary control with its own chevron: the native
-     select's platform arrow made it read like a third primary action next
-     to "Analysieren". */
-  .select-wrap { position: relative; display: inline-flex; align-items: center; }
-  .select-wrap::after { content: ""; position: absolute; right: 0.7rem; width: 7px; height: 7px;
-                        border-right: 1.6px solid var(--text-muted); border-bottom: 1.6px solid var(--text-muted);
-                        transform: translateY(-2px) rotate(45deg); pointer-events: none; }
-  .select-wrap select { appearance: none; -webkit-appearance: none;
-                        padding: 0.5rem 2rem 0.5rem 0.75rem; font-size: 0.9rem; font-family: inherit;
-                        color: var(--text-muted); background: var(--bg-sunken);
-                        border: 1px solid var(--border); border-radius: 7px; cursor: pointer;
-                        transition: border-color .15s, color .15s; }
-  .select-wrap select:hover { color: var(--text); border-color: var(--text-faint); }
-  .select-wrap select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-
-  #status { color: var(--text-muted); margin-bottom: 1rem; }
-  #status.error { color: var(--flag-badge); white-space: pre-wrap; }
-
-  #map-section { display: none; }
-  #pane-map #map-section[style*='flex'] { display: flex !important; }
-  #map { width: 100%; height: 420px; border: 1px solid var(--border); margin-bottom: 0.5rem; background: var(--bg-sunken); }
-  /* Root cause of the tearing along tile boundaries: Leaflet positions each
-     256px tile <img> with its own `transform: translate3d(Xpx, Ypx, 0)` for
-     GPU-accelerated panning -- which is exactly the kind of transform that
-     gets each tile promoted to its OWN compositor layer in Chromium. A
-     `filter` on the parent (.leaflet-tile-pane) is spec'd to apply to the
-     flattened result of the whole subtree, but in practice the per-tile
-     layers can still be individually snapped to the device pixel grid before
-     that flattening -- and because the map pans in fractional CSS pixels
-     (only the ZOOM level is snapped to integers here, not panning), adjacent
-     tiles' layers get snapped to slightly different sub-pixel offsets. A
-     linear filter like brightness/contrast tolerates that; invert() does
-     not, because it amplifies small per-pixel differences at the edge
-     between two independently-antialiased/rounded layers into a visible
-     seam -- which is why the tearing tracks the tile GRID specifically
-     (every tile boundary, both axes) rather than looking like random noise.
-     `will-change: filter` + `isolation: isolate` force Chromium to rasterize
-     the ENTIRE tile pane to one offscreen buffer first and apply the filter
-     to that single buffer, instead of filtering (and pixel-snapping) each
-     tile layer independently -- this is the actual fix; the tile oversize
-     below is a secondary, unrelated mitigation for genuine sub-pixel gaps
-     between tiles (not a filter artifact) and is kept as a second line of
-     defence. */
-  #map .leaflet-tile-pane {
-    filter: var(--map-filter);
-    will-change: filter;
-    isolation: isolate;
-    transform: translateZ(0);
-  }
-  /* Secondary mitigation, independent of the above: Leaflet's per-tile
-     transform offset is not always a whole pixel, which can leave a
-     hairline GAP (not a filter seam) between two tiles showing the same
-     continuous raster. Oversizing each tile by half a pixel makes adjacent
-     tiles overlap slightly instead of gapping. */
-  #map .leaflet-tile { width: 256.5px !important; height: 256.5px !important; }
-  /* Selection styling (leaflet-drawn polygons) uses inline SVG colours from
-     JS, not CSS, so it is unaffected by the tile invert filter above. */
-  .leaflet-control-scale-line { background: var(--bg-pane); color: var(--text); border-color: var(--text-muted) !important; }
-  .leaflet-bar a { background: var(--bg-pane); color: var(--text); border-color: var(--border) !important; }
-  .map-hint { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem; }
-  #selection-list { list-style: none; padding: 0; margin: 0 0 1.5rem; }
-  #selection-list li { padding: 0.3rem 0.5rem; border-bottom: 1px solid var(--border-soft); font-size: 0.9rem; }
-  #selection-list li.anchor { font-weight: bold; }
-  #selection-list li.empty { color: var(--text-faint); font-style: italic; border-bottom: none; }
-
-  #results { display: none; }
-  .version-banner { background: var(--warn-bg); border: 1px solid var(--warn-border); color: var(--warn-text); padding: 0.75rem 1rem; border-radius: 6px; margin-bottom: 1rem; font-size: 0.9rem; }
-  .binding { background: var(--pass-bg); border: 1px solid var(--pass-badge); border-radius: 6px; padding: 1rem; margin-bottom: 1rem; }
-  .binding.zero { background: var(--flag-bg); border-color: var(--flag-badge); }
-
-  /* Which zone the parcel is in decides every number below it, so it leads
-     the result panel rather than sitting as one row among thirty. */
-  .zone-headline { background: var(--accent-soft); border: 1px solid var(--accent);
-    border-radius: 6px; padding: 0.7rem 0.9rem; margin-bottom: 0.8rem; }
-  .zone-headline .zone-code { font-size: 1.5rem; font-weight: 700; line-height: 1.1;
-    display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
-  .zone-headline .zone-label { font-size: 0.95rem; margin-top: 0.15rem; }
-  .zone-headline .zone-meta { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.3rem; }
-  /* Sits next to the zone code: the derivation and the Grundmasse live in the
-     Zonenplan tab, this is the way there. */
-  .zone-proof-btn { font-size: 0.68rem; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase;
-    border: 1px solid var(--accent); background: transparent; color: var(--accent);
-    border-radius: 3px; padding: 0.15rem 0.4rem; cursor: pointer; }
-  .zone-proof-btn:hover { background: var(--accent-soft); }
-  .steckbrief-h { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.04em;
-    color: var(--text-muted); margin: 1.1rem 0 0.35rem; }
-  table.numbers { border-collapse: collapse; margin-bottom: 1rem; }
-  table.numbers td { padding: 0.25rem 0.75rem 0.25rem 0; }
-  table.numbers td:first-child { color: var(--text-muted); }
-  #viewer { width: 100%; height: 450px; border: 1px solid var(--border); margin-bottom: 1rem; }
-  #floorplan { width: 100%; max-width: 760px; border: 1px solid var(--border); margin-bottom: 0.4rem; background: #fff; position: relative; }
-  .plan-zoom { position: absolute; top: 8px; right: 8px; display: flex; flex-direction: column; gap: 3px; z-index: 2; }
-  .plan-zoom button { width: 26px; height: 26px; padding: 0; font-size: 15px; line-height: 1;
-    cursor: pointer; border: 1px solid var(--border); border-radius: 4px;
-    background: var(--panel-bg, #fff); color: var(--text, #222); opacity: .85; }
-  .plan-zoom button:hover { opacity: 1; }
-  .caption-line { font-size: 0.85rem; color: var(--text-muted); margin: 0 0 1.2rem; }
-  #viewer-hint { margin-bottom: 0.35rem; }
-  .flag { background: var(--warn-bg); border: 1px solid var(--warn-border); color: var(--warn-text); border-radius: 4px; padding: 0.5rem 0.75rem; margin-bottom: 0.5rem; font-size: 0.9rem; }
-  footer { font-size: 0.8rem; color: var(--text-muted); margin-top: 2rem; border-top: 1px solid var(--border-soft); padding-top: 1rem; }
-
-  .checklist-tier { margin-bottom: 1rem; }
-  .checklist-tier h3 { font-size: 0.95rem; margin-bottom: 0.4rem; }
-  .checklist-item { display: flex; gap: 0.5rem; padding: 0.4rem 0.6rem; border-radius: 4px; margin-bottom: 0.3rem; font-size: 0.9rem; align-items: baseline; }
-  .checklist-item .badge { flex-shrink: 0; font-weight: bold; font-size: 0.75rem; padding: 0.1rem 0.4rem; border-radius: 3px; color: #fff; }
-  .checklist-item.pass { background: var(--pass-bg); }
-  .checklist-item.pass .badge { background: var(--pass-badge); }
-  .checklist-item.flag { background: var(--flag-bg); }
-  .checklist-item.flag .badge { background: var(--flag-badge); }
-  .checklist-item.review { background: var(--review-bg); }
-  .checklist-item.review .badge { background: var(--review-badge); }
-  .tier-a { border-left: 3px solid var(--text-faint); padding-left: 0.75rem; }
-  .tier-b { border-left: 3px solid var(--accent); padding-left: 0.75rem; }
-
-  .grundbuch-form { background: var(--bg-raised); border: 1px solid var(--border); border-radius: 6px; padding: 1rem; margin-bottom: 1rem; }
-  .grundbuch-form h3 { font-size: 0.95rem; margin-top: 0; margin-bottom: 0.75rem; }
-  .grundbuch-form p.hint { font-size: 0.8rem; color: var(--text-muted); margin-top: -0.5rem; margin-bottom: 0.75rem; }
-  .grundbuch-form .field-group { margin-bottom: 0.75rem; }
-  .grundbuch-form label { display: block; font-size: 0.9rem; margin-bottom: 0.25rem; }
-  .grundbuch-form .sub-fields { display: none; margin-top: 0.4rem; padding-left: 1.25rem; }
-  .grundbuch-form .sub-fields.visible { display: block; }
-  .grundbuch-form input[type=text], .grundbuch-form textarea { width: 100%; padding: 0.4rem; font-size: 0.9rem; box-sizing: border-box; font-family: inherit; background: var(--bg-pane); color: var(--text); border: 1px solid var(--border); }
-  .grundbuch-form textarea { min-height: 3rem; resize: vertical; }
-
-  .zoning-map { position: relative; display: inline-block; margin-bottom: 1rem; border: 1px solid var(--border); background: #fff; }
-  .sources-section { margin-bottom: 1rem; font-size: 0.9rem; }
-  .sources-section .source-row { padding: 0.4rem 0; border-bottom: 1px solid var(--border-soft); }
-  .sources-section .source-row .article { color: var(--text-muted); font-size: 0.8rem; }
-  .cost-estimate { background: var(--bg-raised); border: 1px solid var(--border); border-radius: 6px; padding: 1rem; margin-bottom: 1rem; }
-  .cost-estimate .total { font-size: 1.3rem; font-weight: bold; color: var(--accent); }
-  .cost-estimate .note { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem; }
-  #preview-pdf-btn { display: none; margin-bottom: 1rem; margin-right: 0.5rem; }
-
-
-  /* ---- one-page dashboard ------------------------------------------- */
-  html, body { height: 100%; }
-  body { max-width: none; margin: 0; padding: 0; display: flex; flex-direction: column;
-         overflow: hidden; font-size: 14px; background: var(--bg); color: var(--text);
-         transition: background-color .15s, color .15s; }
-  /* The search column gets a floor: a long status message ("Zone Lk ist fuer
-     ... nicht hinterlegt", listing every zone on file) would otherwise
-     squeeze the input down to a sliver, exactly when the user needs it to
-     type a different address. */
-  #topbar { flex: none; padding: 0.6rem 1rem 0.5rem; border-bottom: 1px solid var(--border);
-            display: grid; grid-template-columns: auto minmax(300px, 1fr) auto auto; gap: 0.75rem;
-            align-items: center; background: var(--bg-pane); }
-  #topbar h1 { font-size: 1rem; margin: 0; white-space: nowrap; }
-  #topbar form { margin: 0; }
-  #topbar #status { margin: 0; font-size: 0.85rem; text-align: right; max-width: 46ch; }
-
-  /* Left half: Parzellen stacked above Ergebnis. Right half, full height:
-     the geometry pane -- the model is what needs the room. */
-  #dash { flex: 1 1 auto; min-height: 0; display: grid;
-          grid-template-columns: 50% 50%; gap: 0; background: var(--bg); }
-  #left-col { min-width: 0; min-height: 0; display: flex; flex-direction: column;
-              border-right: 1px solid var(--border); }
-  #left-col .pane { border-right: none; border-bottom: 1px solid var(--border); }
-  #left-col .pane:last-child { border-bottom: none; }
-  #pane-map { flex: 1 1 45%; }
-  #pane-numbers { flex: 1 1 55%; }
-  .pane { min-width: 0; min-height: 0; display: flex; flex-direction: column;
-          padding: 0.6rem 0.8rem; overflow: hidden; background: var(--bg-pane); }
-  .pane-title { font-size: 0.72rem; text-transform: uppercase; letter-spacing: .09em;
-                color: var(--accent); margin: 0 0 0.5rem; display: flex; justify-content: space-between; }
-  .pane-hint { text-transform: none; letter-spacing: 0; color: var(--text-faint); font-weight: 400; }
-  /* Only the pane contents scroll, never the page. */
-  #pane-numbers #results, #pane-geo .tab-body { overflow-y: auto; min-height: 0; flex: 1 1 auto; }
-  #pane-map #map-section { display: flex; flex-direction: column; min-height: 0; flex: 1 1 auto; }
-  #map { flex: 1 1 auto; min-height: 0; width: 100%; height: auto; margin: 0; }
-  #selection-list { flex: none; max-height: 22%; overflow-y: auto; margin: 0.5rem 0 0; }
-
-  .tabs { flex: none; display: flex; gap: 0.25rem; border-bottom: 1px solid var(--border); margin-bottom: 0.5rem; }
-  .tab { background: none; border: none; border-bottom: 2px solid transparent; padding: 0.35rem 0.55rem;
-         font-size: 0.8rem; color: var(--text-muted); cursor: pointer; }
-  .tab.active { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
-  .tab-pane { display: none; }
-  .tab-pane.active { display: block; }
-  /* The geometry pane now spans the full dashboard height (right half), so
-     let the 3D view use all of it -- the other tabs (plan, zoning map,
-     checklist, sources) keep normal block flow and scroll within tab-body. */
-  #viewer-wrap.active { display: flex; flex-direction: column; height: 100%; min-height: 0; }
-  #viewer-wrap #viewer-box { flex: 1 1 58%; min-height: 0; position: relative; }
-  #viewer-wrap #viewer-box #viewer { height: 100%; }
-  /* resize:vertical gives the plan a drag handle (bottom-right corner) so it
-     can be made taller than its default 34% share when there's a lot to look
-     at -- flex-basis governs the initial size, the explicit height the user
-     drags to takes over after that. overflow:auto is required by the CSS
-     resize property to work at all. */
-  #viewer-wrap #floorplan-box { flex: 1 1 34%; min-height: 160px; width: 100%; position: relative;
-                                 resize: vertical; overflow: auto; }
-  #viewer-wrap #floorplan { height: 100%; min-height: 160px; }
-  #viewer-wrap #floorplan svg { width: 100%; height: 100%; }
-
-  /* "?" help icons with hover/focus popups */
-  .info-tip { position: absolute; top: 8px; right: 8px; z-index: 15;
-              width: 22px; height: 22px; border-radius: 50%; cursor: help;
-              display: flex; align-items: center; justify-content: center;
-              background: var(--bg-raised); border: 1px solid var(--border);
-              color: var(--text-muted); font-size: 13px; font-weight: 600; user-select: none; }
-  .info-tip:hover, .info-tip:focus { border-color: var(--accent); color: var(--accent); }
-  .info-tip .tip-pop { display: none; position: absolute; top: 26px; right: 0;
-              width: 360px; max-width: 72vw; padding: 0.55rem 0.7rem;
-              background: var(--bg-pane); color: var(--text); border: 1px solid var(--border);
-              border-radius: 6px; box-shadow: 0 4px 18px rgba(0,0,0,.28);
-              font-size: 0.78rem; font-weight: 400; line-height: 1.45; text-align: left; cursor: auto; }
-  .info-tip:hover .tip-pop, .info-tip:focus .tip-pop, .info-tip:focus-within .tip-pop { display: block; }
-  /* Plan: the zoom buttons already occupy the top-right corner — help goes top-left. */
-  #floorplan-box .info-tip { right: auto; left: 8px; top: 14px; }
-  #floorplan-box .tip-pop { right: auto; left: 0; }
-  /* No content (e.g. nothing analysed yet) -> no icon. */
-  .info-tip:has(.tip-pop:empty) { display: none; }
-
-  /* Deploy stamp, bottom of the page — confirms which pushed version is
-     actually being served. __STAMP__ is replaced by the Pages workflow with
-     the deploy time (yyyy.mm.dd..hh.mm.ss, Europe/Zurich); locally the inline
-     script fills in the browser's clock in the same shape. The block itself
-     stays click-through so it never swallows clicks on the page beneath —
-     only the link takes pointer events back. */
-  #version-stamp { position: fixed; bottom: 2px; right: 8px; z-index: 40;
-                   font-size: 10px; color: var(--text-muted); opacity: .8;
-                   pointer-events: none; }
-  #version-stamp a { color: inherit; pointer-events: auto; }
-  #version-stamp a:hover { color: var(--accent); }
-  @media print { #version-stamp { display: none; } }
-  #viewer { height: 100%; margin: 0; background: var(--bg-sunken); }
-  #floorplan { max-width: none; margin: 0; border-top: 1px solid var(--border); padding-top: 0.5rem; }
-  .zoning-map { display: block; border: none; }
-  .pane-actions { flex: none; padding-top: 0.5rem; border-top: 1px solid var(--border-soft); margin-top: 0.5rem; }
-  #preview-pdf-btn { margin-bottom: 0; font-size: 0.85rem; padding: 0.35rem 0.7rem; }
-  #results { display: none; }
-  table.numbers td { font-size: 0.83rem; padding: 0.18rem 0.6rem 0.18rem 0; }
-  .binding { padding: 0.6rem 0.7rem; font-size: 0.88rem; margin-bottom: 0.6rem; }
-  .zone-headline { padding: 0.5rem 0.65rem; margin-bottom: 0.6rem; }
-  .zone-headline .zone-code { font-size: 1.25rem; }
-  .zone-headline .zone-label { font-size: 0.85rem; }
-  .zone-headline .zone-meta { font-size: 0.74rem; }
-  .version-banner { font-size: 0.75rem; padding: 0.45rem 0.6rem; }
-  .flag { font-size: 0.78rem; padding: 0.4rem 0.55rem; }
-  .checklist-item { font-size: 0.8rem; }
-  #storey-select { display: none; margin-bottom: 0.7rem; }
-  .choice-label { font-size: 0.74rem; color: var(--text-muted); line-height: 1.35; margin-bottom: 0.35rem; }
-  .choice-row { display: flex; gap: 0.4rem; }
-  .choice { flex: 1; display: flex; flex-direction: column; gap: 0.1rem; align-items: flex-start;
-            text-align: left; padding: 0.4rem 0.5rem; border: 1px solid var(--border); background: var(--bg-pane);
-            border-radius: 4px; cursor: pointer; font-size: 0.72rem; color: var(--text-muted); line-height: 1.25; }
-  .choice b { font-size: 0.82rem; color: var(--text); }
-  .choice:hover { border-color: var(--accent); }
-  .choice.active { border-color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
-  /* Chosen, but the Attika didn't survive the 45°-Profil: the card stays
-     selectable and keeps its label, while saying what was actually built. */
-  .choice.unavailable b { text-decoration: line-through; text-decoration-thickness: 1px; opacity: 0.75; }
-  .choice-warn { color: var(--warn-text); font-size: 0.68rem; margin-top: 0.15rem; }
-  .grundbuch-form { padding: 0.7rem; }
-  .cost-estimate { padding: 0.7rem; }
-  footer { margin-top: 1rem; font-size: 0.72rem; }
-
-  /* ---- A3 print document (built by print.js) --------------------------- */
-  #print-doc { display: none; }
-
-  @media print {
-    /* Print the composed A3 document only; the app UI is not a document. */
-    body > *:not(#print-doc) { display: none !important; }
-    #print-doc { display: block !important; }
-    html, body { height: auto; overflow: visible; }
-    body { max-width: none; margin: 0; padding: 0; display: block; }
-    @page { size: A3 landscape; margin: 0; }
-  }
-
-  /* Full-screen presentation preview of the export document: the user
-     reviews the pages, then either goes back ("Zurück") or saves the PDF
-     ("PDF speichern" -> window.print()). Fixed overlay so the app behind it
-     never scrolls along. */
-  /* z-index above 1000: Leaflet's map controls (zoom, scale bar,
-     attribution) sit at z-index up to 1000 in the page's stacking context,
-     and at 900 the preview rendered BEHIND them — the app map's scale bar
-     and attribution floated over the PDF sheets. */
-  #print-doc.preview { display: block; position: fixed; inset: 0; z-index: 1100;
-                       overflow: auto; background: #666; padding: 64px 0 20px; }
-  #print-toolbar { display: none; position: fixed; top: 0; left: 0; right: 0; z-index: 1101;
-                   background: #2b2b2e; color: #fff; padding: 10px 16px;
-                   display: none; align-items: center; gap: 0.6rem;
-                   box-shadow: 0 1px 6px rgba(0,0,0,.4); }
-  #print-toolbar.open { display: flex; }
-  #print-toolbar .spacer { flex: 1; }
-  #print-toolbar button { font-size: 0.9rem; padding: 0.4rem 0.9rem; cursor: pointer;
-                          border-radius: 4px; border: 1px solid #555; background: #3a3a3e; color: #fff; }
-  #print-toolbar button:hover { background: #4a4a4f; }
-  #print-toolbar #print-save-btn { background: var(--accent, #b08b4f); border-color: var(--accent, #b08b4f); font-weight: 600; }
-  #print-toolbar .toolbar-note { font-size: 0.78rem; color: #cfcabf; }
-  @media print { #print-toolbar { display: none !important; } }
-
-  /* Die Vollbild-Vorschau ist eine Bildschirm-Konstruktion und muss beim
-     Drucken vollstaendig zurueckgenommen werden. `position: fixed` plus
-     `overflow: auto` macht aus dem A3-Dokument einen Ausschnitt in
-     Viewport-Groesse: gedruckt kam dann nur heraus, was gerade sichtbar war
-     — bei gescrollter Vorschau also eine einzelne, oft voellig leere Seite
-     (der graue Zwischenraum zwischen zwei Blaettern). Nachgestellt mit
-     headless Chromium: ohne diese Regel 1 Seite statt 3.
-     Muss NACH den `.preview`-Regeln oben stehen — gleiche Spezifitaet
-     (#print-doc.preview), also entscheidet die Reihenfolge. */
-  @media print {
-    #print-doc.preview { position: static; inset: auto; z-index: auto;
-                         overflow: visible; background: none; padding: 0; }
-    #print-doc.preview .sheet { margin: 0; box-shadow: none; }
-  }
-
-  /* Evidence ("Beleg") buttons + regime tags on values */
-  .prov-btn { border: 1px solid var(--border); background: var(--bg-raised); color: var(--accent);
-              border-radius: 3px; font-size: 0.72rem; line-height: 1; padding: 0.1rem 0.3rem;
-              cursor: pointer; vertical-align: baseline; }
-  .prov-btn:hover { border-color: var(--accent); background: var(--accent-soft); }
-  .regime-tag { display: inline-block; font-size: 0.62rem; letter-spacing: .04em; padding: 0.05rem 0.3rem;
-                border: 1px solid var(--accent); color: var(--accent); border-radius: 3px;
-                vertical-align: baseline; text-transform: uppercase; }
-
-  /* Evidence viewer modal */
-  #evidence-overlay { display: none; position: fixed; inset: 0; z-index: 1200;
-                      background: rgba(0,0,0,.55); }
-  #evidence-overlay.open { display: block; }
-  #evidence-panel { position: absolute; inset: 4% 8%; background: var(--bg-pane, #fff);
-                    color: var(--text, #1a1a1a); border-radius: 8px; display: flex;
-                    flex-direction: column; overflow: hidden; box-shadow: 0 8px 40px rgba(0,0,0,.5); }
-  #evidence-head { flex: none; display: flex; align-items: center; justify-content: space-between;
-                   gap: 1rem; padding: 0.7rem 1rem; border-bottom: 1px solid var(--border); }
-  #evidence-title { font-size: 0.92rem; }
-  #evidence-actions { display: flex; align-items: center; gap: 0.45rem; }
-  #evidence-actions button, #evidence-actions a { font-size: 0.82rem; padding: 0.3rem 0.6rem;
-                   border: 1px solid var(--border); background: var(--bg-raised); color: var(--text);
-                   border-radius: 4px; cursor: pointer; text-decoration: none; }
-  #evidence-actions button:hover, #evidence-actions a:hover { border-color: var(--accent); }
-  #evidence-pageinfo { font-size: 0.78rem; color: var(--text-muted); white-space: nowrap; }
-  #evidence-note { flex: none; font-size: 0.78rem; color: var(--text-muted);
-                   padding: 0.4rem 1rem; border-bottom: 1px solid var(--border-soft); }
-  #evidence-canvas-wrap { flex: 1; overflow: auto; background: #8a8a8e; text-align: center; padding: 12px; }
-  #evidence-canvas { background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,.4); }
-  #evidence-quote { flex: none; font-size: 0.82rem; font-style: italic; padding: 0.6rem 1rem;
-                    border-top: 1px solid var(--border); max-height: 7rem; overflow: auto; }
-
-  #print-doc .sheet {
-    width: 420mm; height: 297mm; box-sizing: border-box;
-    padding: 16mm 18mm 12mm; background: #fff; color: #1a1a1a;
-    display: flex; flex-direction: column; overflow: hidden;
-    page-break-after: always; break-after: page;
-    font-family: -apple-system, "Helvetica Neue", Arial, sans-serif;
-    -webkit-print-color-adjust: exact; print-color-adjust: exact;
-  }
-  #print-doc.preview .sheet { margin: 0 auto 20px; box-shadow: 0 2px 12px rgba(0,0,0,.4); }
-  #print-doc .sheet:last-child { page-break-after: auto; break-after: auto; }
-
-  #print-doc .sheet-sources { flex: none; font-size: 8pt; color: #666; line-height: 1.45;
-                              border-top: 1px solid #ddd; padding-top: 2mm; margin-top: 3mm; }
-  #print-doc .sheet-head { border-bottom: 2px solid #1a1a1a; padding-bottom: 4mm; margin-bottom: 7mm; flex: none; }
-  #print-doc .kicker { font-size: 9pt; letter-spacing: .12em; text-transform: uppercase; color: #7a6a55; margin-bottom: 2mm; }
-  #print-doc .sheet-head h2 { font-size: 24pt; margin: 0; font-weight: 600; letter-spacing: -.01em; }
-  /* overflow hidden: a sheet is a fixed 420x297mm page — content that does
-     not fit must be clipped, never painted over the sources line and footer
-     below it (the garbled-text overlap on content-heavy sheets). Long
-     content gets its own continuation sheet instead (print.js). */
-  #print-doc .sheet-body { flex: 1 1 auto; min-height: 0; font-size: 11.5pt; line-height: 1.5; overflow: hidden; }
-  #print-doc .quote-list { columns: 2; column-gap: 10mm; font-size: 9pt; line-height: 1.45; }
-  #print-doc .quote-item { break-inside: avoid; margin-bottom: 4mm; }
-  #print-doc .quote-item .q-head { font-weight: 600; }
-  #print-doc .quote-item .q-ref { color: #7a6a55; font-size: 8pt; }
-  #print-doc .quote-item .q-text { font-style: italic; color: #333; }
-  #print-doc .flags-cols { columns: 2; column-gap: 10mm; }
-  #print-doc .flags-cols .flagline { break-inside: avoid; font-size: 9pt; }
-  #print-doc .sheet-foot {
-    flex: none; border-top: 1px solid #d5d5d5; padding-top: 3mm; margin-top: 6mm;
-    font-size: 8pt; color: #777; display: flex; justify-content: space-between;
-  }
-
-  #print-doc .cols { display: grid; gap: 12mm; align-items: start; }
-  #print-doc .c-6040 { grid-template-columns: 58% 1fr; }
-  #print-doc .c-4555 { grid-template-columns: 44% 1fr; }
-  #print-doc .c-5050 { grid-template-columns: 1fr 1fr; }
-  #print-doc .c-5545 { grid-template-columns: 55% 1fr; }
-  #print-doc .legend { display: flex; flex-wrap: wrap; gap: 2mm 6mm; margin-top: 3mm; font-size: 9pt; color: #444; }
-  #print-doc .lg { display: flex; align-items: center; gap: 2mm; }
-  #print-doc .lg-sw { width: 6mm; height: 3.2mm; display: inline-block; flex: none; }
-
-  #print-doc .hero { background: #f4f1ec; border-left: 5px solid #b08b4f; padding: 6mm 7mm; margin-bottom: 7mm; }
-  #print-doc .hero-label { font-size: 9pt; text-transform: uppercase; letter-spacing: .1em; color: #7a6a55; }
-  #print-doc .hero-value { font-size: 21pt; font-weight: 600; margin: 2mm 0 1mm; line-height: 1.15; }
-  #print-doc .hero-sub { font-size: 11pt; color: #55493a; }
-
-  #print-doc .kpis { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4mm; margin-bottom: 7mm; }
-  #print-doc .kpi { border: 1px solid #ddd; padding: 4mm 5mm; }
-  #print-doc .kpi-label { font-size: 8.5pt; color: #777; text-transform: uppercase; letter-spacing: .06em; }
-  #print-doc .kpi-value { font-size: 15pt; font-weight: 600; margin-top: 1.5mm; }
-  #print-doc .kpi-sub { font-size: 8.5pt; color: #888; margin-top: 1mm; }
-
-  #print-doc table { width: 100%; border-collapse: collapse; }
-  #print-doc .facts td { padding: 2.5mm 0; border-bottom: 1px solid #ececec; vertical-align: top; font-size: 11pt; }
-  #print-doc .facts td:first-child { color: #777; width: 45%; }
-  #print-doc .facts.big td { font-size: 11pt; padding: 3mm 0; }
-
-  #print-doc .derive td { padding: 3.2mm 0; border-bottom: 1px solid #ececec; font-size: 11.5pt; }
-  #print-doc .derive td:last-child { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-  #print-doc .derive tr.minus td { color: #8a3b3b; }
-  #print-doc .derive tr.result td { font-weight: 700; border-top: 1.5px solid #1a1a1a; border-bottom: none; font-size: 11.5pt; }
-
-  #print-doc .note-box { background: #faf8f4; border: 1px solid #e6ded0; padding: 5mm; margin-top: 5mm; font-size: 10.5pt; line-height: 1.55; }
-  #print-doc .note-box.small { font-size: 9.5pt; }
-
-  #print-doc .mapwrap { position: relative; width: 100%; aspect-ratio: 1/1; border: 1px solid #ccc; overflow: hidden; }
-  #print-doc .mapwrap .layer { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-  #print-doc .mapwrap .layer.multiply { mix-blend-mode: multiply; }
-  #print-doc .mapwrap svg { position: absolute; inset: 0; width: 100%; height: 100%; }
-  #print-doc .caption { font-size: 9pt; color: #777; margin-top: 2.5mm; line-height: 1.4; }
-  #print-doc .render { width: 100%; border: 1px solid #ccc; background: #f5f5f5; }
-  #print-doc .empty { padding: 20mm; text-align: center; color: #a33; border: 1px solid #ccc; }
-
-  #print-doc h3 { font-size: 11pt; margin: 0 0 4mm; text-transform: uppercase; letter-spacing: .07em; color: #7a6a55; }
-  #print-doc .ci { display: flex; gap: 3mm; padding: 3mm 4mm; margin-bottom: 2.4mm; font-size: 9.7pt; line-height: 1.45; border-radius: 2px; }
-  #print-doc .ci-badge { flex: none; font-size: 7.5pt; font-weight: 700; padding: .8mm 2mm; height: fit-content; border-radius: 2px; color: #fff; letter-spacing: .05em; }
-  #print-doc .ci-pass { background: #f1f8f1; } #print-doc .ci-pass .ci-badge { background: #2e7d32; }
-  #print-doc .ci-flag { background: #fdf0f0; } #print-doc .ci-flag .ci-badge { background: #c62828; }
-  #print-doc .ci-review { background: #fdf8e8; } #print-doc .ci-review .ci-badge { background: #c98a11; }
-  #print-doc .flags { margin-top: 4mm; border-top: 1px solid #e0e0e0; padding-top: 4mm; }
-  #print-doc .flagline { font-size: 8.5pt; color: #6a5330; background: #fdf8e8; border-left: 3px solid #d9a441; padding: 1.8mm 4mm; margin-bottom: 1.4mm; line-height: 1.32; }
-</style>
+<!-- Third-party, pinned and served from this repo -- see vendor/README.md
+     for versions, checksums and the Three.js upgrade cliff. -->
+<script src="vendor/leaflet-1.9.4/leaflet.js"></script>
+<script src="vendor/turf-6.5.0/turf.min.js"></script>
+<script src="vendor/three-0.160.0/three.min.js"></script>
 </head>
 <body>
 <header id="topbar">
@@ -761,26 +200,40 @@
   })();
 </script>
 
-<script src="js/format.js?v=dev"></script>
-<script src="js/coordinates.js?v=dev"></script>
-<script src="js/geocode.js?v=dev"></script>
-<script src="js/zone-lookup.js?v=dev"></script>
-<script src="js/rules.js?v=dev"></script>
-<script src="js/parcel-geometry.js?v=dev"></script>
-<script src="js/oereb.js?v=dev"></script>
-<script src="js/waldabstand.js?v=dev"></script>
-<script src="js/grenzabstand.js?v=dev"></script>
-<script src="js/massing.js?v=dev"></script>
-<script src="js/envelope.js?v=dev"></script>
-<script src="js/checklist.js?v=dev"></script>
-<script src="js/viewer.js?v=dev"></script>
-<script src="js/floorplan.js?v=dev"></script>
-<script src="js/output.js?v=dev"></script>
-<script src="js/print.js?v=dev"></script>
-<script src="js/parcel-selector.js?v=dev"></script>
-<script src="js/evidence.js?v=dev"></script>
-<script src="js/parkierung.js?v=dev"></script>
-<script src="js/normkette.js?v=dev"></script>
+<!-- Application scripts. The sequence below is exactly the one that ran
+     before js/ was grouped into core/ sources/ ui/ -- these are plain
+     scripts sharing window.MachbarkeitTool, so load order is load-bearing
+     and only the paths changed.
+
+       js/core/     deterministic: given the same inputs and data/*.json,
+                    the same numbers. Nothing here touches the network or
+                    the DOM. This is what tests/run-tests.mjs guards.
+       js/sources/  external registries (geo.admin.ch, maps.zh.ch,
+                    ogd.stadt-zuerich.ch, OEREB). These can fail, lag or
+                    change under us -- and a failed source must surface as
+                    a flag, never as a green PASS (REGELN.md 2).
+       js/ui/       DOM, canvas, SVG, Leaflet, the A3 print document.
+       js/app.js    the orchestrator, loaded last. -->
+<script src="js/core/format.js?v=dev"></script>
+<script src="js/core/coordinates.js?v=dev"></script>
+<script src="js/sources/geocode.js?v=dev"></script>
+<script src="js/sources/zone-lookup.js?v=dev"></script>
+<script src="js/core/rules.js?v=dev"></script>
+<script src="js/sources/parcel-geometry.js?v=dev"></script>
+<script src="js/sources/oereb.js?v=dev"></script>
+<script src="js/sources/waldabstand.js?v=dev"></script>
+<script src="js/core/grenzabstand.js?v=dev"></script>
+<script src="js/core/massing.js?v=dev"></script>
+<script src="js/core/envelope.js?v=dev"></script>
+<script src="js/sources/checklist.js?v=dev"></script>
+<script src="js/ui/viewer.js?v=dev"></script>
+<script src="js/ui/floorplan.js?v=dev"></script>
+<script src="js/ui/output.js?v=dev"></script>
+<script src="js/ui/print.js?v=dev"></script>
+<script src="js/ui/parcel-selector.js?v=dev"></script>
+<script src="js/ui/evidence.js?v=dev"></script>
+<script src="js/core/parkierung.js?v=dev"></script>
+<script src="js/core/normkette.js?v=dev"></script>
 <script src="js/app.js?v=dev"></script>
 </body>
 </html>

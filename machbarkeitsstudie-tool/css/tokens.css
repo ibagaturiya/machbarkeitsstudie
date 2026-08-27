@@ -1,0 +1,46 @@
+/* tokens.css — the colour and spacing vocabulary. Loaded first; nothing
+   else in css/ may hardcode a UI colour. Dark theme overrides every token
+   defined here. Extracted verbatim from the <style> block that used to
+   live in index.html; load order (tokens → components → layout → print)
+   reproduces the original cascade exactly. */
+
+/* ---- theme tokens ---------------------------------------------------
+   Accent is a transparent orange throughout: solid for borders/icons,
+   --accent-soft for fills. Dark theme overrides every token below;
+   nothing outside this block should hardcode a UI colour. The print
+   document (#print-doc, further down) is deliberately NOT themed -- it
+   is a document meant to be read on paper, always light. */
+:root {
+  --bg: #f7f6f3; --bg-pane: #ffffff; --bg-raised: #fafafa; --bg-sunken: #f0efec;
+  --text: #1a1a1a; --text-muted: #666666; --text-faint: #999999;
+  --border: #dddddd; --border-soft: #ececec;
+  --accent: #e8792e; --accent-soft: rgba(232, 121, 46, 0.14); --accent-text: #ffffff;
+  --pass-bg: #f1f8f1; --pass-badge: #2e7d32;
+  --flag-bg: #fff0f0; --flag-badge: #c62828;
+  --review-bg: #fff8e1; --review-badge: #f9a825;
+  --warn-bg: #fff3cd; --warn-border: #ffe08a; --warn-text: #6a5330;
+  --shadow: rgba(0,0,0,0.08);
+  --map-filter: none;
+}
+:root[data-theme="dark"] {
+  --bg: #17171a; --bg-pane: #1e1e22; --bg-raised: #232327; --bg-sunken: #131315;
+  --text: #ececec; --text-muted: #a5a3a0; --text-faint: #77746f;
+  --border: #38373d; --border-soft: #2a2a2e;
+  --accent: #ff9d52; --accent-soft: rgba(255, 157, 82, 0.16); --accent-text: #171717;
+  --pass-bg: #16261a; --pass-badge: #4caf50;
+  --flag-bg: #2c1717; --flag-badge: #ef5350;
+  --review-bg: #2b2312; --review-badge: #ffca28;
+  --warn-bg: #2b2313; --warn-border: #5a4a1f; --warn-text: #e8cf8a;
+  --shadow: rgba(0,0,0,0.4);
+  /* Inverts the raster cadastral tiles into a dark, low-glare basemap
+     instead of a bright white rectangle sitting in a dark page. */
+  /* invert(0.92), not 1: a full invert makes tiny antialiasing differences
+     between two independently-rasterised adjacent WMTS tiles (each tile is
+     rendered server-side on its own, so a line crossing a tile boundary can
+     legitimately differ by a pixel or two of antialiasing between the two
+     tiles) swing all the way to near-black vs near-white, which reads as a
+     seam along the tile edge. A partial invert plus a touch of blur damps
+     that swing instead of amplifying it. */
+  --map-filter: invert(0.92) hue-rotate(180deg) brightness(0.9) contrast(0.8) saturate(0.9);
+}
+

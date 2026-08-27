@@ -5,7 +5,7 @@ wird. Pro Regel: was gerechnet wird, woher der Wert kommt, wo es im Code steht.
 
 Zweck des Dokuments ist die **fachliche Prüfung**. Jeder Rechtswert trägt im
 Tool einen **§-Knopf**, der das Quell-PDF auf der zitierten Seite mit markierter
-Textstelle öffnet (`js/evidence.js`); die Belege stehen als `_provenance` in den
+Textstelle öffnet (`js/ui/evidence.js`); die Belege stehen als `_provenance` in den
 Datendateien.
 
 Stand: 24.08.2026 (nach der Genauigkeits-Überarbeitung; Commits im Git-Log).
@@ -42,7 +42,7 @@ geführt ist. Die *tatsächliche Werkleitung* und das *Leitungsbaurecht* stehen
 im Werkleitungskataster der Gemeinde und im Grundbuch — beides liegt dem
 Werkzeug nicht vor und erscheint als `review`, nie als bestanden.
 
-Code: `js/normkette.js` (`NORM_EBENEN`, `buildNormkette`). Das Modul rechnet
+Code: `js/core/normkette.js` (`NORM_EBENEN`, `buildNormkette`). Das Modul rechnet
 nichts nach; es ordnet ausschliesslich das fertige Ergebnisobjekt von
 `analyse()`. Golden-Test: Abschnitt 0 in `tests/run-tests.mjs`.
 
@@ -317,7 +317,7 @@ verlangt.
   Parkplatzverordnung, die nicht vorliegt. Ausgewiesen als **nicht prüfbar** —
   ausdrücklich nicht als `null` («gibt es hier nicht»).
 
-Code: `js/parkierung.js`, Belege in `data/bzo-*.json`. Golden-Test Abschnitt 00.
+Code: `js/core/parkierung.js`, Belege in `data/bzo-*.json`. Golden-Test Abschnitt 00.
 
 ### 3.17 Checkliste
 * **Tier A — gerechnet:** Waldabstand, Baulinien, Gewässerraum-Gate.

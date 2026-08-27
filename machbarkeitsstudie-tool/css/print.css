@@ -1,0 +1,170 @@
+/* print.css — the A3 print document assembled by js/ui/print.js. Screen
+   rules keep #print-doc hidden; the @media print block is the only place
+   allowed to use absolute paper units (mm, pt) and fixed hex colours,
+   because print has no theme. */
+
+
+/* ---- A3 print document (built by print.js) --------------------------- */
+#print-doc { display: none; }
+
+@media print {
+  /* Print the composed A3 document only; the app UI is not a document. */
+  body > *:not(#print-doc) { display: none !important; }
+  #print-doc { display: block !important; }
+  html, body { height: auto; overflow: visible; }
+  body { max-width: none; margin: 0; padding: 0; display: block; }
+  @page { size: A3 landscape; margin: 0; }
+}
+
+/* Full-screen presentation preview of the export document: the user
+   reviews the pages, then either goes back ("Zurück") or saves the PDF
+   ("PDF speichern" -> window.print()). Fixed overlay so the app behind it
+   never scrolls along. */
+/* z-index above 1000: Leaflet's map controls (zoom, scale bar,
+   attribution) sit at z-index up to 1000 in the page's stacking context,
+   and at 900 the preview rendered BEHIND them — the app map's scale bar
+   and attribution floated over the PDF sheets. */
+#print-doc.preview { display: block; position: fixed; inset: 0; z-index: 1100;
+                     overflow: auto; background: #666; padding: 64px 0 20px; }
+#print-toolbar { display: none; position: fixed; top: 0; left: 0; right: 0; z-index: 1101;
+                 background: #2b2b2e; color: #fff; padding: 10px 16px;
+                 display: none; align-items: center; gap: 0.6rem;
+                 box-shadow: 0 1px 6px rgba(0,0,0,.4); }
+#print-toolbar.open { display: flex; }
+#print-toolbar .spacer { flex: 1; }
+#print-toolbar button { font-size: 0.9rem; padding: 0.4rem 0.9rem; cursor: pointer;
+                        border-radius: 4px; border: 1px solid #555; background: #3a3a3e; color: #fff; }
+#print-toolbar button:hover { background: #4a4a4f; }
+#print-toolbar #print-save-btn { background: var(--accent, #b08b4f); border-color: var(--accent, #b08b4f); font-weight: 600; }
+#print-toolbar .toolbar-note { font-size: 0.78rem; color: #cfcabf; }
+@media print { #print-toolbar { display: none !important; } }
+
+/* Die Vollbild-Vorschau ist eine Bildschirm-Konstruktion und muss beim
+   Drucken vollstaendig zurueckgenommen werden. `position: fixed` plus
+   `overflow: auto` macht aus dem A3-Dokument einen Ausschnitt in
+   Viewport-Groesse: gedruckt kam dann nur heraus, was gerade sichtbar war
+   — bei gescrollter Vorschau also eine einzelne, oft voellig leere Seite
+   (der graue Zwischenraum zwischen zwei Blaettern). Nachgestellt mit
+   headless Chromium: ohne diese Regel 1 Seite statt 3.
+   Muss NACH den `.preview`-Regeln oben stehen — gleiche Spezifitaet
+   (#print-doc.preview), also entscheidet die Reihenfolge. */
+@media print {
+  #print-doc.preview { position: static; inset: auto; z-index: auto;
+                       overflow: visible; background: none; padding: 0; }
+  #print-doc.preview .sheet { margin: 0; box-shadow: none; }
+}
+
+/* Evidence ("Beleg") buttons + regime tags on values */
+.prov-btn { border: 1px solid var(--border); background: var(--bg-raised); color: var(--accent);
+            border-radius: 3px; font-size: 0.72rem; line-height: 1; padding: 0.1rem 0.3rem;
+            cursor: pointer; vertical-align: baseline; }
+.prov-btn:hover { border-color: var(--accent); background: var(--accent-soft); }
+.regime-tag { display: inline-block; font-size: 0.62rem; letter-spacing: .04em; padding: 0.05rem 0.3rem;
+              border: 1px solid var(--accent); color: var(--accent); border-radius: 3px;
+              vertical-align: baseline; text-transform: uppercase; }
+
+/* Evidence viewer modal */
+#evidence-overlay { display: none; position: fixed; inset: 0; z-index: 1200;
+                    background: rgba(0,0,0,.55); }
+#evidence-overlay.open { display: block; }
+#evidence-panel { position: absolute; inset: 4% 8%; background: var(--bg-pane, #fff);
+                  color: var(--text, #1a1a1a); border-radius: 8px; display: flex;
+                  flex-direction: column; overflow: hidden; box-shadow: 0 8px 40px rgba(0,0,0,.5); }
+#evidence-head { flex: none; display: flex; align-items: center; justify-content: space-between;
+                 gap: 1rem; padding: 0.7rem 1rem; border-bottom: 1px solid var(--border); }
+#evidence-title { font-size: 0.92rem; }
+#evidence-actions { display: flex; align-items: center; gap: 0.45rem; }
+#evidence-actions button, #evidence-actions a { font-size: 0.82rem; padding: 0.3rem 0.6rem;
+                 border: 1px solid var(--border); background: var(--bg-raised); color: var(--text);
+                 border-radius: 4px; cursor: pointer; text-decoration: none; }
+#evidence-actions button:hover, #evidence-actions a:hover { border-color: var(--accent); }
+#evidence-pageinfo { font-size: 0.78rem; color: var(--text-muted); white-space: nowrap; }
+#evidence-note { flex: none; font-size: 0.78rem; color: var(--text-muted);
+                 padding: 0.4rem 1rem; border-bottom: 1px solid var(--border-soft); }
+#evidence-canvas-wrap { flex: 1; overflow: auto; background: #8a8a8e; text-align: center; padding: 12px; }
+#evidence-canvas { background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,.4); }
+#evidence-quote { flex: none; font-size: 0.82rem; font-style: italic; padding: 0.6rem 1rem;
+                  border-top: 1px solid var(--border); max-height: 7rem; overflow: auto; }
+
+#print-doc .sheet {
+  width: 420mm; height: 297mm; box-sizing: border-box;
+  padding: 16mm 18mm 12mm; background: #fff; color: #1a1a1a;
+  display: flex; flex-direction: column; overflow: hidden;
+  page-break-after: always; break-after: page;
+  font-family: -apple-system, "Helvetica Neue", Arial, sans-serif;
+  -webkit-print-color-adjust: exact; print-color-adjust: exact;
+}
+#print-doc.preview .sheet { margin: 0 auto 20px; box-shadow: 0 2px 12px rgba(0,0,0,.4); }
+#print-doc .sheet:last-child { page-break-after: auto; break-after: auto; }
+
+#print-doc .sheet-sources { flex: none; font-size: 8pt; color: #666; line-height: 1.45;
+                            border-top: 1px solid #ddd; padding-top: 2mm; margin-top: 3mm; }
+#print-doc .sheet-head { border-bottom: 2px solid #1a1a1a; padding-bottom: 4mm; margin-bottom: 7mm; flex: none; }
+#print-doc .kicker { font-size: 9pt; letter-spacing: .12em; text-transform: uppercase; color: #7a6a55; margin-bottom: 2mm; }
+#print-doc .sheet-head h2 { font-size: 24pt; margin: 0; font-weight: 600; letter-spacing: -.01em; }
+/* overflow hidden: a sheet is a fixed 420x297mm page — content that does
+   not fit must be clipped, never painted over the sources line and footer
+   below it (the garbled-text overlap on content-heavy sheets). Long
+   content gets its own continuation sheet instead (print.js). */
+#print-doc .sheet-body { flex: 1 1 auto; min-height: 0; font-size: 11.5pt; line-height: 1.5; overflow: hidden; }
+#print-doc .quote-list { columns: 2; column-gap: 10mm; font-size: 9pt; line-height: 1.45; }
+#print-doc .quote-item { break-inside: avoid; margin-bottom: 4mm; }
+#print-doc .quote-item .q-head { font-weight: 600; }
+#print-doc .quote-item .q-ref { color: #7a6a55; font-size: 8pt; }
+#print-doc .quote-item .q-text { font-style: italic; color: #333; }
+#print-doc .flags-cols { columns: 2; column-gap: 10mm; }
+#print-doc .flags-cols .flagline { break-inside: avoid; font-size: 9pt; }
+#print-doc .sheet-foot {
+  flex: none; border-top: 1px solid #d5d5d5; padding-top: 3mm; margin-top: 6mm;
+  font-size: 8pt; color: #777; display: flex; justify-content: space-between;
+}
+
+#print-doc .cols { display: grid; gap: 12mm; align-items: start; }
+#print-doc .c-6040 { grid-template-columns: 58% 1fr; }
+#print-doc .c-4555 { grid-template-columns: 44% 1fr; }
+#print-doc .c-5050 { grid-template-columns: 1fr 1fr; }
+#print-doc .c-5545 { grid-template-columns: 55% 1fr; }
+#print-doc .legend { display: flex; flex-wrap: wrap; gap: 2mm 6mm; margin-top: 3mm; font-size: 9pt; color: #444; }
+#print-doc .lg { display: flex; align-items: center; gap: 2mm; }
+#print-doc .lg-sw { width: 6mm; height: 3.2mm; display: inline-block; flex: none; }
+
+#print-doc .hero { background: #f4f1ec; border-left: 5px solid #b08b4f; padding: 6mm 7mm; margin-bottom: 7mm; }
+#print-doc .hero-label { font-size: 9pt; text-transform: uppercase; letter-spacing: .1em; color: #7a6a55; }
+#print-doc .hero-value { font-size: 21pt; font-weight: 600; margin: 2mm 0 1mm; line-height: 1.15; }
+#print-doc .hero-sub { font-size: 11pt; color: #55493a; }
+
+#print-doc .kpis { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4mm; margin-bottom: 7mm; }
+#print-doc .kpi { border: 1px solid #ddd; padding: 4mm 5mm; }
+#print-doc .kpi-label { font-size: 8.5pt; color: #777; text-transform: uppercase; letter-spacing: .06em; }
+#print-doc .kpi-value { font-size: 15pt; font-weight: 600; margin-top: 1.5mm; }
+#print-doc .kpi-sub { font-size: 8.5pt; color: #888; margin-top: 1mm; }
+
+#print-doc table { width: 100%; border-collapse: collapse; }
+#print-doc .facts td { padding: 2.5mm 0; border-bottom: 1px solid #ececec; vertical-align: top; font-size: 11pt; }
+#print-doc .facts td:first-child { color: #777; width: 45%; }
+#print-doc .facts.big td { font-size: 11pt; padding: 3mm 0; }
+
+#print-doc .derive td { padding: 3.2mm 0; border-bottom: 1px solid #ececec; font-size: 11.5pt; }
+#print-doc .derive td:last-child { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+#print-doc .derive tr.minus td { color: #8a3b3b; }
+#print-doc .derive tr.result td { font-weight: 700; border-top: 1.5px solid #1a1a1a; border-bottom: none; font-size: 11.5pt; }
+
+#print-doc .note-box { background: #faf8f4; border: 1px solid #e6ded0; padding: 5mm; margin-top: 5mm; font-size: 10.5pt; line-height: 1.55; }
+#print-doc .note-box.small { font-size: 9.5pt; }
+
+#print-doc .mapwrap { position: relative; width: 100%; aspect-ratio: 1/1; border: 1px solid #ccc; overflow: hidden; }
+#print-doc .mapwrap .layer { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+#print-doc .mapwrap .layer.multiply { mix-blend-mode: multiply; }
+#print-doc .mapwrap svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+#print-doc .caption { font-size: 9pt; color: #777; margin-top: 2.5mm; line-height: 1.4; }
+#print-doc .render { width: 100%; border: 1px solid #ccc; background: #f5f5f5; }
+#print-doc .empty { padding: 20mm; text-align: center; color: #a33; border: 1px solid #ccc; }
+
+#print-doc h3 { font-size: 11pt; margin: 0 0 4mm; text-transform: uppercase; letter-spacing: .07em; color: #7a6a55; }
+#print-doc .ci { display: flex; gap: 3mm; padding: 3mm 4mm; margin-bottom: 2.4mm; font-size: 9.7pt; line-height: 1.45; border-radius: 2px; }
+#print-doc .ci-badge { flex: none; font-size: 7.5pt; font-weight: 700; padding: .8mm 2mm; height: fit-content; border-radius: 2px; color: #fff; letter-spacing: .05em; }
+#print-doc .ci-pass { background: #f1f8f1; } #print-doc .ci-pass .ci-badge { background: #2e7d32; }
+#print-doc .ci-flag { background: #fdf0f0; } #print-doc .ci-flag .ci-badge { background: #c62828; }
+#print-doc .ci-review { background: #fdf8e8; } #print-doc .ci-review .ci-badge { background: #c98a11; }
+#print-doc .flags { margin-top: 4mm; border-top: 1px solid #e0e0e0; padding-top: 4mm; }
+#print-doc .flagline { font-size: 8.5pt; color: #6a5330; background: #fdf8e8; border-left: 3px solid #d9a441; padding: 1.8mm 4mm; margin-bottom: 1.4mm; line-height: 1.32; }

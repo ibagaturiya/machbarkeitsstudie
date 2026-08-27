@@ -5,6 +5,60 @@ open questions flagged. Wohnzonen only. Zone data covers the whole canton;
 the commune-specific rules on file are Zürich and Zumikon (see "Adding
 another commune").
 
+## Layout
+
+The folder `machbarkeitsstudie-tool/` **is** the published site root — there is
+no build step, so what you see here is byte-for-byte what the browser gets.
+
+```
+machbarkeitsstudie-tool/
+├── index.html          ← the main HTML. The only page. ~240 lines of markup.
+├── css/                ← all styling. Load order IS the cascade:
+│   ├── tokens.css        colour + spacing vocabulary; nothing else
+│   │                     anywhere may hardcode a UI colour
+│   ├── components.css    Parkierung, Normkette, combobox, Gemeinde picker,
+│   │                     result panels, Quellen, cost estimate
+│   ├── layout.css        the one-page dashboard shell and breakpoints —
+│   │                     deliberately overrides component geometry
+│   └── print.css         the A3 document; the only place allowed mm/pt and
+│                         fixed hex colours, because print has no theme
+├── vendor/             ← Leaflet, Turf, Three — pinned and served from here,
+│                         not from a CDN. Versions, checksums and the Three.js
+│                         upgrade cliff are in vendor/README.md
+├── js/
+│   ├── core/           ← DETERMINISTIC. Same inputs + same data/*.json ⇒ same
+│   │                     numbers. No network, no DOM. This is the layer
+│   │                     tests/run-tests.mjs guards, and the layer CLAUDE.md
+│   │                     §4 is written about.
+│   │                     format · coordinates · rules · envelope ·
+│   │                     grenzabstand · massing · parkierung · normkette
+│   ├── sources/        ← EXTERNAL REGISTRIES. geo.admin.ch, maps.zh.ch,
+│   │                     ogd.stadt-zuerich.ch, ÖREB. These can fail, lag or
+│   │                     change under us — so a failure here surfaces as a
+│   │                     flag or a `review`, never as a green PASS
+│   │                     (REGELN.md §2).
+│   │                     geocode · zone-lookup · oereb · parcel-geometry ·
+│   │                     waldabstand · checklist
+│   ├── ui/             ← DOM, canvas, SVG, Leaflet, the print document.
+│   │                     viewer · floorplan · parcel-selector · print ·
+│   │                     evidence · output
+│   └── app.js          ← the orchestrator; loaded last
+├── data/               ← legal values as JSON, each with `_provenance`
+├── source/             ← the statute PDFs the provenance entries cite
+├── tests/              ← run-tests.mjs (golden) + check-wiring.mjs
+└── serve.py            ← the dev server
+```
+
+**Why this split and not "one folder per feature".** The line between `core/`
+and `sources/` is the line between what a test can prove and what only the
+internet can answer. Everything a Machbarkeitsstudie has to reproduce twice
+lives in `core/`; everything that can be down at 4pm on a Friday lives in
+`sources/`. Grouping by feature would put those two on the same shelf.
+
+Scripts in `index.html` are plain `<script>` tags sharing
+`window.MachbarkeitTool`, so **load order is load-bearing** — it is unchanged
+from before the folders existed, and only the paths moved.
+
 ## Running it
 
 **Hosted:** <https://ibagaturiya.github.io/machbarkeitsstudie/> — deployed
@@ -27,6 +81,19 @@ in the browser, and stale files fail silently and confusingly.
 Opening `index.html` directly (`file://`) does **not** work: browsers block
 `fetch()` from `file://`, which the data files are loaded with.
 
+**Verify before you push.** One command covers both halves — the wiring
+(does `index.html` load the files that are actually on disk?) and the legal
+arithmetic:
+
+```
+node tests/run-tests.mjs
+```
+
+Then start `serve.py` and look at the running app. Leaflet, Turf and Three are
+served from `vendor/`, so the page shell, the styling and the 3D view all work
+with the network off; only the registry lookups in `js/sources/` need it — and
+they are meant to fail visibly (see `tests/check-wiring.mjs`).
+
 ## How it works
 
 1. Type an address → the parcel is resolved and analysed immediately.
@@ -43,7 +110,7 @@ Ausnützungsziffer, is what caps the volume. The tool says when that happens
 and how many basement levels it would take; it never silently subtracts
 anything. Area per space is a tool assumption and labelled as one. For Zürich
 the rule is *not on file* (it lives in the city's Parkplatzverordnung, not the
-BZO), so it reports "nicht prüfbar" rather than guessing (`js/parkierung.js`).
+BZO), so it reports "nicht prüfbar" rather than guessing (`js/core/parkierung.js`).
 
 **Ablauf & Normkette** (collapsible panel, bottom of the left column) is the
 audit trail for a single run: the live log while the analysis is fetching and
@@ -51,7 +118,7 @@ computing, then every step of the derivation with its legal level (Bund →
 Kanton → Gemeinde → Privatrecht), its Rechtsgrundlage and the area it costs.
 Press "Abspielen" — or click a step — to watch the buildable area shrink layer
 by layer. It orders the finished result object; it never recomputes anything
-(`js/normkette.js`).
+(`js/core/normkette.js`).
 
 ## PDF export
 
@@ -114,6 +181,20 @@ hand-derived from the cited article (Zumikon W2/25 incl. § 255 Abs. 3 free
 storeys, Zürich W2bI incl. Überbauungsziffer and stricter-of, forest deduction,
 the "more land never less" invariant, null semantics, provenance completeness).
 Run them before every commit.
+
+**Step 0 is a wiring check** (`tests/check-wiring.mjs`, also runnable on its
+own). Without a bundler nothing resolves a path until the browser does, so a
+moved or renamed module fails at runtime as a silently missing script — and
+the first symptom is usually a wrong number, not an error. The check asserts
+three things:
+
+1. every local `<script src>`/`<link href>` in `index.html` exists on disk;
+2. every file in `js/` and `css/` is actually loaded — no orphans, no dead code;
+3. no asset is fetched from a remote host, which is the offline guarantee
+   `vendor/` exists to provide.
+
+It runs first on purpose: if the browser never loads the module a test just
+exercised, a green suite is a lie.
 
 ## Waldabstand
 
@@ -201,7 +282,7 @@ small file:
 1. Get the commune's BZO (the ÖREB extract for any parcel there links it).
 2. Copy `data/bzo-zumikon.json` as a template, keyed by the canton's zone
    abbreviation (`typ_gde_abkuerzung`, e.g. `W2/25`).
-3. Register it in `GEMEINDE_FILES` at the top of `js/rules.js`.
+3. Register it in `GEMEINDE_FILES` at the top of `js/core/rules.js`.
 
 Use `null` (not `0`) for a rule the commune doesn't have — Zumikon has no
 Grünflächenziffer, and `null` makes the tool skip that constraint instead of

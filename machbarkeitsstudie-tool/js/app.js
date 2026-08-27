@@ -10,7 +10,7 @@
 // README.md for what that deliberately leaves on the table.
 (function () {
   const T = window.MachbarkeitTool;
-  // Shared with print.js and evidence.js — see js/format.js.
+  // Shared with print.js and evidence.js — see js/core/format.js.
   const esc = T.esc, fmt = T.fmt;
 
   const form = document.getElementById('address-form');
@@ -255,7 +255,7 @@
     if (!optionsEl.hidden && text.length >= 2) runSearch(text);
   });
 
-  // Ablauf & Normkette (js/normkette.js). Das Panel haelt seinen Abspiel-
+  // Ablauf & Normkette (js/core/normkette.js). Das Panel haelt seinen Abspiel-
   // zustand selbst; app.js meldet ihm nur den Fortschritt und am Ende das
   // fertige Ergebnisobjekt.
   const ablaufPanel = T.mountAblaufPanel({

@@ -11,9 +11,9 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
 (function () {
   const T = window.MachbarkeitTool;
 
-  const safeOp = T.safeOp; // js/coordinates.js
+  const safeOp = T.safeOp; // js/core/coordinates.js
 
-  const exteriorRingsOf = T.exteriorRingsOf; // js/coordinates.js
+  const exteriorRingsOf = T.exteriorRingsOf; // js/core/coordinates.js
 
   // Every boundary edge of the parcel, at least MIN_EDGE_M long (shorter is a
   // corner notch, not a facade), with its outward-facing compass bearing.

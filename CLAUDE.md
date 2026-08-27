@@ -24,8 +24,8 @@ entries are added at the **top** of the file, module, or block they belong to â€
 appended at the bottom. The most recent thing is the first thing read.
 
 - **Check before you add.** Search for an existing helper or rule first
-  (`grep -rn "functionName" js/`). Shared geometry lives in `js/coordinates.js`, the
-  massing arithmetic in `js/envelope.js`, legal values in `data/*.json`. Duplicating a
+  (`grep -rn "functionName" js/`). Shared geometry lives in `js/core/coordinates.js`, the
+  massing arithmetic in `js/core/envelope.js`, legal values in `data/*.json`. Duplicating a
   helper into a second file is how the Attika setback drifts out of sync between the
   initial computation and the drag recompute â€” that is a real defect class here, not a
   style preference.

@@ -5,11 +5,19 @@
 // Every expected value below is hand-derived from the cited article, so a
 // failing test means the code (or the data) no longer matches the law as
 // last verified — not merely that "something changed".
+import { spawnSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+
+// Step 0 — wiring. Runs before any arithmetic: if index.html no longer loads
+// the modules that are on disk, every number below is computed by code the
+// browser never sees, and a green suite would be a lie. See
+// tests/check-wiring.mjs.
+const wiring = spawnSync(process.execPath, [join(root, 'tests/check-wiring.mjs')], { stdio: 'inherit' });
+if (wiring.status !== 0) process.exit(wiring.status ?? 1);
 
 globalThis.window = globalThis;
 // fetch stub: serve /data/*.json from disk.
@@ -23,7 +31,7 @@ globalThis.fetch = async (url) => {
   }
 };
 
-for (const f of ['js/parkierung.js', 'js/normkette.js', 'js/checklist.js', 'js/envelope.js', 'js/rules.js']) {
+for (const f of ['js/core/parkierung.js', 'js/core/normkette.js', 'js/sources/checklist.js', 'js/core/envelope.js', 'js/core/rules.js']) {
   // Plain scripts attaching to window.MachbarkeitTool — evaluate in order.
   // eslint-disable-next-line no-eval
   (0, eval)(await readFile(join(root, f), 'utf8'));
@@ -44,7 +52,7 @@ function check(name, actual, expected, tol = 0.01) {
 }
 
 // ---------------------------------------------------------------------------
-// 00) Parkierung — js/parkierung.js
+// 00) Parkierung — js/core/parkierung.js
 //     Die Platzzahl ist Rechtswert (Art. 26 BZO Zumikon), die Flaeche je
 //     Platz eine Werkzeug-Annahme. Geprueft wird beides getrennt, dazu die
 //     eigentliche Aussage des Moduls: ab wann die Garage und nicht die

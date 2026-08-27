@@ -13,7 +13,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
 
 (function () {
   const T = window.MachbarkeitTool;
-  // Shared with app.js — see js/format.js. The local copy of esc used to
+  // Shared with app.js — see js/core/format.js. The local copy of esc used to
   // leave the single quote unescaped; this one does not.
   const esc = T.esc, fmt = T.fmt, fmtInt = T.fmtInt;
 

@@ -13,7 +13,7 @@
 window.MachbarkeitTool = window.MachbarkeitTool || {};
 
 (function () {
-  const esc = window.MachbarkeitTool.esc; // js/format.js
+  const esc = window.MachbarkeitTool.esc; // js/core/format.js
   const PDFJS_VERSION = '3.11.174';
   const PDFJS_URL = `https://unpkg.com/pdfjs-dist@${PDFJS_VERSION}/build/pdf.min.js`;
   const PDFJS_WORKER_URL = `https://unpkg.com/pdfjs-dist@${PDFJS_VERSION}/build/pdf.worker.min.js`;

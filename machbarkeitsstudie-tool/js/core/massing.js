@@ -22,7 +22,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   const MIN_BLOCK_LENGTH_M = 4;  // below this a "building" is meaningless
   const MAX_DEPTH = 3;           // fat shapes may need splitting twice
 
-  const safeOp = T.safeOp; // js/coordinates.js
+  const safeOp = T.safeOp; // js/core/coordinates.js
 
   function areaOf(feature) {
     return feature ? T.planarAreaAnyLV95(feature) : 0;
