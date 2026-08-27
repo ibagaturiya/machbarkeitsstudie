@@ -33,6 +33,7 @@
   const gemeindeSelect = document.getElementById('gemeinde-select');
 
   const previewPdfBtn = document.getElementById('preview-pdf-btn');
+  const logBtn = document.getElementById('log-btn');
   const printDocEl = document.getElementById('print-doc');
   // Kept so the print document can be composed from the last analysis
   // without re-running it.
@@ -105,6 +106,57 @@
   // wird ausserhalb des Bildes aufgebaut (Klasse "exporting") und ist nie
   // als Bildschirmzustand zu sehen.
 
+  // Berechnungslog in einem eigenen Fenster: die Normkette, Schritt für
+  // Schritt, mit Rechtsgrundlage und der Fläche, die jeder Schritt kostet —
+  // dazu die Hinweise. Am Bildschirm steht dasselbe im eingeklappten Panel
+  // "Ablauf & Normkette"; als eigenes Fenster lässt es sich neben die Karte
+  // legen und beim Prüfen offen halten.
+  logBtn.addEventListener('click', () => {
+    if (!lastResult) return;
+    const win = window.open('', 'berechnungslog', 'width=920,height=1000');
+    if (!win) { setStatus('Der Browser hat das Log-Fenster blockiert — Popups für diese Seite erlauben.', true); return; }
+    const kette = T.buildNormkette(lastResult, { withGeometry: false });
+    const rows = kette.schritte.map((s) => {
+      const ebene = T.NORM_EBENEN[s.ebene];
+      const verlust = s.verlustM2 != null && s.verlustM2 > 0.5 ? `−${fmt(s.verlustM2, 1)} m²` : '';
+      const rest = s.flaecheM2 != null ? `${fmt(s.flaecheM2, 1)} m²` : '';
+      return `<tr class="st-${esc(s.status)}"><td class="nr">${s.nr}</td>` +
+        `<td><span class="ebene">${esc(ebene.kurz)}</span></td>` +
+        `<td><b>${esc(s.titel)}</b>${s.wert ? ` — ${esc(s.wert)}` : ''}` +
+        `<div class="grundlage">${esc(s.grundlage || '')}</div>` +
+        (s.detail ? `<div class="detail">${esc(s.detail)}</div>` : '') + `</td>` +
+        `<td class="num minus">${esc(verlust)}</td><td class="num">${esc(rest)}</td></tr>`;
+    }).join('');
+    const a = lastResult.anchor;
+    win.document.write(
+      `<!doctype html><html lang="de"><head><meta charset="utf-8">` +
+      `<title>Berechnungslog — ${esc(a.address || '')}</title><style>` +
+      `body{margin:0;padding:22px 26px;font:13px/1.5 -apple-system,"Helvetica Neue",Arial,sans-serif;` +
+      `background:#16161a;color:#e6e3dc}` +
+      `h1{font-size:16px;margin:0 0 2px}p.sub{margin:0 0 18px;color:#9a948a;font-size:12px}` +
+      `table{width:100%;border-collapse:collapse}` +
+      `td{padding:7px 8px;border-bottom:1px solid #2c2c32;vertical-align:top}` +
+      `td.nr{color:#6f6a62;width:2em}td.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;width:7em}` +
+      `td.minus{color:#d98b8b}` +
+      `.ebene{display:inline-block;font-size:10px;letter-spacing:.06em;text-transform:uppercase;` +
+      `border:1px solid #4a4a52;border-radius:3px;padding:1px 5px;color:#b0aaa0}` +
+      `.grundlage{color:#9a948a;font-size:11.5px;margin-top:2px}` +
+      `.detail{color:#7f7a72;font-size:11.5px;margin-top:2px}` +
+      `tr.st-warn td{background:#2a2418}tr.st-fail td{background:#2d1c1c}` +
+      `h2{font-size:13px;margin:26px 0 8px;color:#b0aaa0}` +
+      `.flag{background:#2a2418;border-left:3px solid #b08b4f;padding:7px 10px;margin-bottom:6px;font-size:12px}` +
+      `</style></head><body>` +
+      `<h1>Berechnungslog — ${esc(a.address || lastResult.selection.map((p) => p.parcelNumber).join(' + '))}</h1>` +
+      `<p class="sub">${esc(lastResult.rules.gemeinde)} · Zone ${esc(a.zone)} · ` +
+      `${kette.schritte.length} Schritte · erstellt ${new Date().toLocaleString('de-CH')}</p>` +
+      `<table>${rows}</table>` +
+      (lastFlags.length ? `<h2>Hinweise (${lastFlags.length})</h2>` +
+        lastFlags.map((f) => `<div class="flag">${esc(f)}</div>`).join('') : '') +
+      `</body></html>`
+    );
+    win.document.close();
+  });
+
   // Der Dateiname trägt Adresse (oder Parzellennummern) und Datum, damit im
   // Download-Ordner nicht zehn "Machbarkeit.pdf" nebeneinander liegen.
   function pdfFilename() {
@@ -117,8 +169,10 @@
     return T.safeFilename(['Machbarkeit', subject, stamp]);
   }
 
-  // Startzustand: ohne Analyse gibt es nichts zu exportieren.
+  // Startzustand: ohne Analyse gibt es nichts zu exportieren und nichts zu
+  // protokollieren.
   previewPdfBtn.disabled = true;
+  logBtn.disabled = true;
   previewPdfBtn.addEventListener('click', async () => {
     const label = previewPdfBtn.textContent;
     const filename = pdfFilename();
@@ -128,9 +182,11 @@
     previewPdfBtn.disabled = true;
     try {
       previewPdfBtn.textContent = 'Dokument wird gebaut …';
-      if (!(await composePrintDoc())) throw new Error('Keine Analyse vorhanden.');
-      // Layout ja, Sichtbarkeit nein — siehe css/print.css.
+      // Layout ja, Sichtbarkeit nein (css/print.css). Muss VOR dem Bauen
+      // gesetzt sein: print.js misst die Blätter, um überlaufende Warnungen
+      // auf Fortsetzungsblätter umzubrechen — ohne Layout misst es null.
       printDocEl.classList.add('exporting');
+      if (!(await composePrintDoc())) throw new Error('Keine Analyse vorhanden.');
       const res = await T.openSheetsAsPdf(tab, printDocEl, filename, (i, n) => {
         previewPdfBtn.textContent = i < n ? `Blatt ${i + 1} von ${n} …` : 'PDF wird geschrieben …';
       });
@@ -1855,6 +1911,7 @@
     refreshGrundbuchFootnote();
     resultsEl.style.display = 'block';
     previewPdfBtn.disabled = false;
+    logBtn.disabled = false;
   }
 
   function renderSelectionList(selection) {
@@ -1882,6 +1939,7 @@
       ablaufPanel.reset();
       resultsEl.style.display = 'none';
       previewPdfBtn.disabled = true;
+      logBtn.disabled = true;
       lastResult = null;
       lastFlags = [];
       storeyChoice = null;

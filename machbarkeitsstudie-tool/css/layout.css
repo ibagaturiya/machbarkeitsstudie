@@ -108,7 +108,12 @@ body { max-width: none; margin: 0; padding: 0; display: flex; flex-direction: co
 #preview-pdf-btn { margin-bottom: 0; }
 /* Solange nichts analysiert ist, gibt es nichts zu exportieren. Der Knopf
    bleibt sichtbar (sonst springt die Kopfzeile), aber inaktiv. */
-#preview-pdf-btn[disabled] { opacity: .45; cursor: default; filter: none; }
+#preview-pdf-btn[disabled], #log-btn[disabled] { opacity: .45; cursor: default; filter: none; }
+/* Das Log ist eine Nebenhandlung, kein drittes Hauptangebot neben
+   "Analysieren" und "PDF exportieren" — also nur ein Rahmen. */
+#log-btn { background: none; border: 1px solid var(--border); color: var(--text-muted);
+           padding: 0.5rem 0.75rem; }
+#log-btn:hover { color: var(--text); border-color: var(--text-faint); filter: none; }
 #results { display: none; }
 table.numbers td { font-size: 0.83rem; padding: 0.18rem 0.6rem 0.18rem 0; }
 .binding { padding: 0.6rem 0.7rem; font-size: 0.88rem; margin-bottom: 0.6rem; }

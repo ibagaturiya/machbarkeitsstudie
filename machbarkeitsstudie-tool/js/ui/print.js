@@ -18,6 +18,76 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   const esc = T.esc, fmt = T.fmt, fmtInt = T.fmtInt;
 
 
+  // ---- Seitenumbruch ------------------------------------------------------
+  // Ein Blatt ist 420x297 mm und schneidet ab, was nicht hineinpasst
+  // (print.css: .sheet-body overflow hidden — sonst malt der Text über die
+  // Quellenzeile und den Fusszeilenbereich). Abschneiden ist bei Warnungen
+  // aber keine zulässige Antwort: eine Prüfung, die nur halb im Dokument
+  // steht, ist schlimmer als gar keine, weil sie so aussieht, als stünde sie
+  // vollständig da. Deshalb wandert alles, was nicht mehr passt, auf ein
+  // Fortsetzungsblatt statt in den Beschnitt.
+  //
+  // Jedes Blatt, das umbrochen werden darf, markiert seinen umbrechbaren
+  // Bereich mit [data-flow]. Läuft es über, wandern von hinten so lange
+  // Kinder auf ein neues Blatt, bis es passt; das neue Blatt trägt selbst
+  // wieder [data-flow] und wird in derselben Schleife erneut geprüft — damit
+  // sind auch drei und mehr Fortsetzungen abgedeckt.
+  function splitOverflowingSheets(host, foot) {
+    // Mehrspaltensatz (columns: 2) läuft nicht nach unten, sondern nach
+    // RECHTS aus dem Kasten: eine dritte Spalte entsteht ausserhalb. Beide
+    // Richtungen müssen also geprüft werden, sonst bleibt der Überlauf der
+    // Hinweis- und Quellenblätter unentdeckt.
+    const overflows = (el) =>
+      el.scrollHeight > el.clientHeight + 2 || el.scrollWidth > el.clientWidth + 2;
+
+    for (let i = 0; i < host.children.length; i++) {
+      const sheet = host.children[i];
+      const body = sheet.querySelector('.sheet-body');
+      const flow = sheet.querySelector('[data-flow]');
+      if (!body || !flow) continue;
+
+      const moved = [];
+      // Ein Kind muss stehen bleiben, sonst entstünde ein leeres Blatt und
+      // die Schleife liefe endlos.
+      while (overflows(body) && flow.children.length > 1) {
+        const last = flow.lastElementChild;
+        flow.removeChild(last);
+        moved.unshift(last);
+      }
+      if (!moved.length) continue;
+
+      const cont = continuationSheet(sheet, foot);
+      const contFlow = cont.querySelector('[data-flow]');
+      moved.forEach((el) => contFlow.appendChild(el));
+      host.insertBefore(cont, sheet.nextSibling);
+      // Die Schleife erreicht `cont` als Nächstes und bricht es nötigenfalls
+      // erneut um.
+    }
+  }
+
+  // Das Fortsetzungsblatt trägt denselben Titel mit dem Zusatz
+  // «(Fortsetzung)» — wer nur eine Seite in der Hand hält, muss erkennen,
+  // wozu sie gehört. Der Inhalt steht zweispaltig über die volle Breite:
+  // die Karte oder Tabelle daneben stand schon auf dem ersten Blatt.
+  function continuationSheet(sourceSheet, foot) {
+    const title = (sourceSheet.querySelector('h2') || {}).textContent || '';
+    const kicker = (sourceSheet.querySelector('.kicker') || {}).textContent || '';
+    const el = document.createElement('div');
+    el.innerHTML = sheet(
+      `${title} (Fortsetzung)`, kicker,
+      '<div class="flags-cols" data-flow></div>', foot, ''
+    );
+    return el.firstElementChild;
+  }
+
+  // "2 Vollgeschosse", "2 Vollgeschosse + 1 Attika" — ganze Geschosse, nie
+  // ein Bruch. Gleiche Formulierung wie am Bildschirm (js/app.js).
+  function storeyLabel(ordinary, attika) {
+    const base = `${ordinary} Vollgeschoss${ordinary === 1 ? '' : 'e'}`;
+    return attika > 0 ? `${base} + ${attika} Attika` : base;
+  }
+
+
   // ---- Abgrenzung -------------------------------------------------------
   // Was dieses Werkzeug NICHT beantwortet, ausgeschrieben. Die Phase
   // Machbarkeit (SIA 112, 2014, Teilphase 21) prueft rechtliche, technische,
@@ -283,11 +353,16 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
         }, 1600, 1450)
       : null;
 
+    // Ein Geschoss ist eine ganze Zahl. "0.73 von 2 Vollgeschossen" war der
+    // Quotient Geschossfläche/Fussabdruck und las sich wie "nicht einmal ein
+    // Geschoss möglich" — während in Wahrheit zwei Geschosse auf halbem
+    // Fussabdruck gebaut werden. Gezeigt wird deshalb der Baukörper, den das
+    // Werkzeug tatsächlich modelliert: ganze Geschosse mit ihrer Grundfläche.
     const headline = reconciled.usableFootprintAreaM2 <= 0
       ? 'Kein bebaubares Volumen'
-      : reconciled.fullFloorsAchievable
-        ? `${rules.vollgeschosse_max} Vollgeschosse voll ausschöpfbar`
-        : `${fmt(reconciled.achievableFloors, 2)} von ${rules.vollgeschosse_max} Vollgeschossen erreichbar`;
+      : massingModel
+        ? `${storeyLabel(massingModel.ordinaryStoreys, massingModel.attikaStoreys)} à ${fmt(massingModel.floorplateM2, 0)} m²`
+        : `${rules.vollgeschosse_max} Vollgeschosse`;
 
     const BINDING = {
       grundabstand: 'Grundabstand',
@@ -319,7 +394,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
           <div class="hero">
             <div class="hero-label">Realistisches Szenario</div>
             <div class="hero-value">${esc(headline)}</div>
-            <div class="hero-sub">Bindend: ${esc(binding)}</div>
+            <div class="hero-sub">${fmt(reconciled.maxGfaM2, 0)} m² Geschossfläche · bindend: ${esc(binding)}</div>
           </div>
           <div class="kpis">
             ${kpi(multi ? 'Fläche zusammengefasst' : 'Parzellenfläche', fmt(reconciled.parcelAreaM2) + ' m²')}
@@ -344,7 +419,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
             Grundlage ist unbebautes Land; Bestand und Abbruch sind nicht berücksichtigt.
           </div>
         </div>
-        <div>${mapBlock(rings, centerE, centerN, wideSpan, ['cadastre'], null, 900, 1300)}
+        <div>${mapBlock(rings, centerE, centerN, wideSpan, ['cadastre'], null, 900, 1120)}
           <div class="caption">Situationsplan — ${multi ? 'gewählte Parzellen' : 'Parzelle'} rot markiert. Amtliche Vermessung (swisstopo / Kantone).</div>
         </div>
       </div>`, foot,
@@ -377,8 +452,9 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     }
     derivation.push(['Nutzbarer Fussabdruck', fmt(reconciled.usableFootprintAreaM2) + ' m²', 'result']);
     derivation.push(['Max. anrechenbare Geschossfläche (AZ ' + rules.ausnuetzungsziffer_max_pct + '%)', fmt(reconciled.maxGfaM2) + ' m²', '']);
-    derivation.push(['Erreichbare Vollgeschosse',
-      reconciled.fullFloorsAchievable ? String(rules.vollgeschosse_max) : fmt(reconciled.achievableFloors, 2) + ' von ' + rules.vollgeschosse_max, 'result']);
+    derivation.push(['Bebaubar als', massingModel
+      ? `${storeyLabel(massingModel.ordinaryStoreys, massingModel.attikaStoreys)} à ${fmt(massingModel.floorplateM2, 0)} m²`
+      : `max. ${rules.vollgeschosse_max} Vollgeschosse`, 'result']);
     if (massingModel && (massingModel.attikaStoreys > 0 || massingModel.ugStoreys > 0)) {
       derivation.push(['Freibetrag Dach-/Attika-/UG (§ 255 Abs. 3 PBG)',
         `je Geschoss bis ${fmt(massingModel.perStoreyFreeM2)} m² frei`, '']);
@@ -442,7 +518,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
             <tr><td>Grundabstand</td><td>${rules.grundabstand_min_m} m ringsum</td></tr>
             ${waldRemoved ? `<tr><td>Abzug Waldabstand</td><td>− ${fmt(waldLossInFootprintM2)} m²</td></tr>` : ''}
             <tr><td>Max. Geschossfläche</td><td>${fmt(reconciled.maxGfaM2)} m²</td></tr>
-            <tr><td>Erreichbare Vollgeschosse</td><td>${reconciled.fullFloorsAchievable ? rules.vollgeschosse_max : fmt(reconciled.achievableFloors, 2) + ' von ' + rules.vollgeschosse_max}</td></tr>
+            <tr><td>Bebaubar als</td><td>${massingModel ? esc(storeyLabel(massingModel.ordinaryStoreys, massingModel.attikaStoreys)) + ' à ' + fmt(massingModel.floorplateM2, 0) + ' m²' : 'max. ' + rules.vollgeschosse_max + ' Vollgeschosse'}</td></tr>
           </table>
           ${legend([
             ['background:#d9a066;border:1px solid #8a4b08;', 'bebaubare Grundfläche'],
@@ -468,7 +544,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     // ---- Sheet 3: Zonenplan ------------------------------------------------
     const s3 = sheet('Zonenplan', 'Grundlage der Zonenzuordnung',
       `<div class="cols c-6040">
-        <div>${mapBlock(rings, centerE, centerN, halfSpan * 1.8, ['zoning', 'cadastre'], zoneFeatures, 1200, 1150)}
+        <div>${mapBlock(rings, centerE, centerN, halfSpan * 1.8, ['zoning', 'cadastre'], zoneFeatures, 1200, 980)}
           <div class="caption">Zonenplan-Ausschnitt mit Parzellengrenzen. ${multi ? 'Gewählte Parzellen' : 'Parzelle'} rot markiert.</div>
         </div>
         <div>
@@ -518,7 +594,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
 
     const s4 = sheet('Einschränkungen', 'Was geprüft wurde — und was nicht',
       `<div class="cols c-5545">
-        <div>
+        <div data-flow>
           <h3>Automatisch berechnet</h3>
           ${checklistHtml(checklist.tierA)}
           <h3 style="margin-top:6mm">Manuell zu prüfen</h3>
@@ -540,7 +616,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     // line. They get their own sheet, two columns.
     const s4b = flags.length
       ? sheet('Hinweise und Vorbehalte der Berechnung', 'Jede Vereinfachung, ausgeschrieben',
-          `<div class="flags-cols">${flags.map((f) => `<div class="flagline">${esc(f)}</div>`).join('')}</div>`,
+          `<div class="flags-cols" data-flow>${flags.map((f) => `<div class="flagline">${esc(f)}</div>`).join('')}</div>`,
           foot,
           '<b>Quellen:</b> je Hinweis im Text genannt (Artikel/Paragraph); Wortlaut der zitierten Bestimmungen auf dem Blatt «Quellen und Vorbehalte».')
       : '';
@@ -661,11 +737,14 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
         </div>
       </div>
       <h3>Zitierte Bestimmungen (Wortlaut)</h3>
-      <div class="quote-list">${quoteItems.join('')}</div>`, foot);
+      <div class="quote-list" data-flow>${quoteItems.join('')}</div>`, foot);
 
     const html = [s1, s2, s2b, s3, s4, s4b, sPk, s5, sAbg, s6].join('');
     const host = document.getElementById('print-doc');
     host.innerHTML = html;
+
+    // Erst umbrechen, dann numerieren — der Umbruch erzeugt neue Blätter.
+    splitOverflowingSheets(host, foot);
 
     // Number the sheets now that we know how many there are.
     const sheets = host.querySelectorAll('.sheet');
