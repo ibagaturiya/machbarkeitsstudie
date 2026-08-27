@@ -404,7 +404,16 @@ Annahmen werden im Quellen-Abschnitt des Tools ausdrücklich als
 * Jeder Rechtswert trägt einen **§-Knopf** → Quell-PDF, zitierte Seite,
   markierte Stelle. Werte aus der BZO 2016 tragen einen **«BZO 2016»-Tag**.
 * Der PDF-Export (Vollbild-Vorschau → «PDF speichern») führt **pro Blatt ein
-  Argument** mit Plänen und einer eigenen Quellenzeile.
+  Argument** mit Plänen und einer eigenen Quellenzeile. Er heisst
+  «Baurechtliche Machbarkeit», nicht «Machbarkeitsstudie»: gerechnet wird der
+  rechtliche Teil der Phase Machbarkeit (SIA 112, 2014, Teilphase 21). Das
+  Blatt **«Nicht Gegenstand dieser Auswertung»** führt die ungeprüften Themen
+  namentlich auf (Altlasten, Naturgefahren, Lärm, Baugrund, Erschliessung,
+  Standort) — eine weggelassene Prüfung darf sich nicht wie eine bestandene
+  lesen, gleiche Begründung wie 3.17.
+* Die **Parkierung** hat ein eigenes Blatt. Sie wurde schon gerechnet, stand
+  aber nur am Bildschirm; eine bindende Einschränkung, die es nicht aufs
+  Papier schafft, ist auf Papier eine falsche Zahl.
 * **Golden-Tests:** `node tests/run-tests.mjs` prüft die Rechenkette gegen
   handgerechnete Erwartungswerte (Zumikon W2/25, Zürich W2bI, Wald-Abzug,
   Monotonie, Null-Semantik, Belege). Muss vor jedem Commit grün sein.

@@ -140,8 +140,18 @@ page in the legal PDF) — and opens it as a full-screen preview:
 3. **Grundriss** — the buildable ground area, to scale
 4. **Zonenplan** — zoning excerpt with parcel boundaries, zone facts
 5. **Einschränkungen** — checklist, plus a map of the Waldabstand geometry
-6. **Kostenschätzung** — estimate with a CHF 800/900/1000 per m³ range
-7. **Quellen und Vorbehalte** — sources and limits
+6. **Hinweise** — every simplification, written out (only when there are flags)
+7. **Parkierung** — required spaces, their floor-area demand, and whether the
+   garage — not the Ausnützungsziffer — is what binds the volume. Rechtswert
+   (the number of spaces) and Werkzeug-Annahme (area per space) stated apart.
+8. **Kostenschätzung** — estimate with a CHF 800/900/1000 per m³ range
+9. **Nicht Gegenstand dieser Auswertung** — the scope boundary, named rather
+   than left out: Altlasten, Naturgefahren, Lärm, Baugrund, Erschliessung,
+   Standort; and Raumprogramm, Varianten, Nachhaltigkeit, Ertrag, Termine,
+   Bestand. This export covers the *legal* part of SIA 112 Teilphase 21 — the
+   first sheet says so ("Baurechtliche Machbarkeit"), and this sheet says what
+   the rest of the phase still owes.
+10. **Quellen und Vorbehalte** — sources and limits, with the full wording
 
 Only inside the preview, next to **"Zurück"**, sits **"PDF speichern"** — it
 hands the composed document to the print dialog. Set margins to **None** and

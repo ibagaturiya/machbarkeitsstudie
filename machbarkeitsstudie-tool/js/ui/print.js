@@ -18,6 +18,136 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   const esc = T.esc, fmt = T.fmt, fmtInt = T.fmtInt;
 
 
+  // ---- Abgrenzung -------------------------------------------------------
+  // Was dieses Werkzeug NICHT beantwortet, ausgeschrieben. Die Phase
+  // Machbarkeit (SIA 112, 2014, Teilphase 21) prueft rechtliche, technische,
+  // staedtebauliche, oekologische und wirtschaftliche Rahmenbedingungen;
+  // gerechnet wird hier nur der baurechtliche Teil. Ein Bericht, der die
+  // uebrigen Themen stillschweigend weglaesst, liest sich wie eine
+  // vollstaendige Machbarkeitsstudie und ist damit falsch — deshalb stehen
+  // sie als benannte Luecke im Dokument statt gar nicht.
+  function abgrenzungSheetBody() {
+    const notChecked = [
+      ['Altlasten', 'Ob der Standort im Altlastenkataster des Kantons verzeichnet ist, wurde nicht abgefragt. Ein Eintrag kann Aushub, Entsorgung und Termine erheblich verteuern.'],
+      ['Naturgefahren', 'Die Gefahrenkarte (Hochwasser, Rutschung, Sturz) wurde nicht ausgewertet. Sie kann Kotenlage, Untergeschoss und Konstruktion vorgeben.'],
+      ['Lärm', 'Lärmbelastungskataster und Empfindlichkeitsstufe wurden nicht abgefragt. Bei Wohnnutzung ist der Lärmschutz häufig grundrissbestimmend und kann die hier gerechnete Geschossfläche unbenutzbar machen.'],
+      ['Baugrund und Grundwasser', 'Kein geologisches Gutachten. Tragfähigkeit, Aushubklasse und Grundwasserspiegel sind offen — sie entscheiden mit, ob das oben gerechnete Untergeschoss überhaupt wirtschaftlich ist.'],
+      ['Erschliessung (technisch)', 'Wasser, Abwasser, Energie und der Werkleitungskataster wurden nicht geprüft; siehe dazu den Punkt «Werkleitungen» auf dem Blatt «Einschränkungen».'],
+      ['Standort und Umfeld', 'Keine Analyse zu Zentren, Arbeitsplätzen, Naherholung oder Nachbarschaft. Die Eignung der Nutzung am Ort ist damit nicht belegt.'],
+    ];
+    const notScope = [
+      ['Raumprogramm und Nutzungsvarianten', 'Diese Auswertung rechnet eine Hüllform, keinen Entwurf. Wohnungsspiegel, Raumgrössen und Betriebskonzept sind Gegenstand der Projektdefinition.'],
+      ['Varianten', 'Es wird genau ein Szenario gerechnet — die maximale baurechtliche Ausnützung. Eine Machbarkeitsstudie stellt üblicherweise mehrere Lösungsmöglichkeiten gegenüber.'],
+      ['Nachhaltigkeit und Energie', 'Standards, Energiekonzept und Materialwahl sind nicht behandelt; sie werden in dieser Phase mit der Bauherrschaft festgelegt.'],
+      ['Wirtschaftlichkeit', 'Enthalten ist eine Grobkostenschätzung der Erstellungskosten. NICHT enthalten sind Erträge, Betriebs- und Lebenszykluskosten und damit jede Renditeaussage.'],
+      ['Termine', 'Kein Terminplan, keine Aussage zum Bewilligungsverfahren und zu dessen Dauer.'],
+      ['Bestand', 'Es wird von unbebautem Land ausgegangen. Bestehende Bauten, Abbruch und Bestandesschutz sind nicht berücksichtigt.'],
+    ];
+    const block = (items) => items.map(([k, v]) =>
+      `<div class="ci ci-review"><span class="ci-badge">OFFEN</span>` +
+      `<span><b>${esc(k)}</b><br>${esc(v)}</span></div>`).join('');
+    return `<div class="note-box" style="margin-top:0;margin-bottom:6mm">
+        <b>Was dieses Dokument ist.</b> Eine baurechtliche Machbarkeitsprüfung: Zone,
+        Ausnützung, Abstände, Volumen und eine grobe Kostenschätzung, hergeleitet aus
+        den auf dem Blatt «Quellen und Vorbehalte» zitierten Bestimmungen. Sie deckt
+        den rechtlichen Teil der Phase Machbarkeit ab (SIA 112, 2014, Teilphase 21) —
+        nicht die Phase als Ganzes. Die folgenden Themen sind offen; keines davon
+        wurde geprüft und als unproblematisch befunden.
+      </div>
+      <div class="cols c-5050">
+        <div><h3>Standort, Umwelt, Technik — nicht geprüft</h3>${block(notChecked)}</div>
+        <div><h3>Nicht Gegenstand dieses Werkzeugs</h3>${block(notScope)}</div>
+      </div>`;
+  }
+
+  // ---- Parkierung -------------------------------------------------------
+  // Die Pflichtplaetze wachsen mit der Geschossflaeche und muessen in der
+  // Regel unter den Baukoerper — ab einer bestimmten Groesse bindet nicht
+  // mehr die Ausnuetzungsziffer, sondern die Garage. Gerechnet wurde das
+  // schon (core/parkierung.js), im Export fehlte es: die Zahlen standen nur
+  // am Bildschirm, auf Papier kam allenfalls eine Warnzeile an.
+  // Es wird weiterhin NICHTS vom Fussabdruck abgezogen — ob die Garage
+  // zweigeschossig wird oder das Haus kleiner, ist eine Entwurfsentscheidung.
+  function parkierungSheetBody(pk, rules) {
+    if (!pk.erfasst) {
+      return `<div class="cols c-5050">
+        <div>
+          <div class="hero">
+            <div class="hero-label">Pflichtparkplätze</div>
+            <div class="hero-value">Nicht prüfbar</div>
+            <div class="hero-sub">Hier wird nichts gerechnet und nichts geschätzt.</div>
+          </div>
+          <div class="note-box">${esc(pk.grund)}</div>
+        </div>
+        <div>
+          <h3>Warum das offen bleibt</h3>
+          <div class="note-box small">
+            § 242 PBG überlässt die Zahl der Abstellplätze der kommunalen Regelung.
+            Liegt diese Quelle dem Werkzeug nicht vor, wäre jede Zahl erfunden —
+            deshalb steht hier keine.<br><br>
+            <b>Nächster Schritt:</b> Parkplatzverordnung der Gemeinde samt Wegleitung
+            beiziehen und die Pflichtplätze festlegen, bevor das Volumen weiterbearbeitet
+            wird. Müssen die Plätze unterirdisch unter den Baukörper, können sie die auf
+            den Blättern «Volumetrie» und «Grundriss» gerechnete Geschossfläche
+            begrenzen — dann bindet die Garage und nicht die Ausnützungsziffer.
+          </div>
+        </div>
+      </div>`;
+    }
+    const A = pk.annahmen;
+    const rows = [
+      ['Bezugsgrösse (nutzbare Geschossfläche)', fmt(pk.gnfM2) + ' m²', ''],
+      ['Wohnungen', pk.wohnungen + (pk.wohnungenHergeleitet ? ' — hergeleitet, Annahme' : ' — gesetzt'), ''],
+      ['Plätze Bewohner', String(pk.bewohnerP), ''],
+      ['Plätze Besucher', String(pk.besucherP), ''],
+      ['Pflichtplätze total', String(pk.totalP), 'result'],
+      ['Flächenbedarf Tiefgarage', fmt(pk.tiefgarageBedarfM2) + ' m²', ''],
+      ['Flächenbedarf oberirdisch (Besucher)', fmt(pk.oberirdischBedarfM2) + ' m²', ''],
+      ['Freifläche auf der Parzelle', fmt(pk.freiflaecheM2) + ' m²', pk.oberirdischPasst ? '' : 'minus'],
+      ['Plätze je Untergeschoss', pk.plaetzeJeUgGeschoss + ' unter ' + fmt(pk.fussabdruckM2) + ' m² Baukörper', ''],
+      ['Geschossfläche, die ein UG trägt', fmt(pk.gnfAusEinemUgM2) + ' m²', 'result'],
+    ];
+    const verdict = pk.bindet
+      ? {
+          label: 'Bindend',
+          value: 'Die Parkierung begrenzt das Volumen',
+          sub: `${pk.ugGeschosseNoetig} Untergeschosse nötig — oder weniger Geschossfläche`,
+        }
+      : {
+          label: 'Nicht bindend',
+          value: `${pk.totalP} Pflichtplätze, unterbringbar`,
+          sub: 'Ein Untergeschoss trägt die gerechnete Geschossfläche',
+        };
+    return `<div class="cols c-5545">
+      <div>
+        <div class="hero">
+          <div class="hero-label">${esc(verdict.label)}</div>
+          <div class="hero-value">${esc(verdict.value)}</div>
+          <div class="hero-sub">${esc(verdict.sub)}</div>
+        </div>
+        <table class="derive">
+          ${rows.map(([k, v, cls]) => `<tr class="${cls}"><td>${esc(k)}</td><td>${esc(v)}</td></tr>`).join('')}
+        </table>
+      </div>
+      <div>
+        <h3>Rechtswert und Werkzeug-Annahme, getrennt</h3>
+        <table class="facts">
+          <tr><td>Rechtswert</td><td>${esc(rules.meta.parkierung.art || '—')}: Zahl der Pflichtplätze, hergeleitet aus Geschossfläche und Wohnungszahl.</td></tr>
+          <tr><td>Werkzeug-Annahme</td><td>Fläche je Platz Tiefgarage ${A.flaecheJePlatzTiefgarageM2} m² (Bandbreite ${A.flaecheJePlatzTiefgarageBandM2[0]}–${A.flaecheJePlatzTiefgarageBandM2[1]} m²), oberirdisch ${A.flaecheJePlatzOberirdischM2} m² (${A.flaecheJePlatzOberirdischBandM2[0]}–${A.flaecheJePlatzOberirdischBandM2[1]} m²), je inkl. Anteil Fahrgasse und Rampe. <b>Kein Gesetzeswert</b> — die Platzzahl oben ist belegt, der Flächenbedarf ist geschätzt.</td></tr>
+          ${pk.unterbringung ? `<tr><td>Unterbringung</td><td>${esc(pk.unterbringung)}</td></tr>` : ''}
+        </table>
+        <div class="note-box small">
+          Von der bebaubaren Fläche wurde für die Parkierung <b>nichts abgezogen</b>.
+          Ob die Garage zweigeschossig wird, über den Baukörper hinausreicht oder das
+          Haus kleiner wird, ist eine Entwurfsentscheidung — dieses Blatt sagt nur,
+          ab wann sie ansteht.
+        </div>
+        ${pk.hinweise.length ? `<div class="flags">${pk.hinweise.map((h) => `<div class="flagline">${esc(h)}</div>`).join('')}</div>` : ''}
+      </div>
+    </div>`;
+  }
+
+
   function sheet(title, kicker, bodyHtml, footerHtml, sourcesHtml) {
     return `<section class="sheet">
       <header class="sheet-head">
@@ -174,7 +304,11 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
 
     // ---- Sheet 1: Übersicht ------------------------------------------------
     const s1 = sheet(anchor.address || selection.map((p) => p.parcelNumber).join(' + '),
-      `Machbarkeitsstudie — Übersicht · Zone ${anchor.zone}${anchor.zoneLabel ? ` (${anchor.zoneLabel})` : ''}`,
+      // "Machbarkeitsstudie" versprach die ganze Phase (SIA 112 Teilphase 21:
+      // auch Standort, Umwelt, Nachhaltigkeit, Ertrag, Termine). Gerechnet wird
+      // hier der baurechtliche Teil — der Kicker sagt jetzt das, und das Blatt
+      // "Nicht Gegenstand dieser Auswertung" fuehrt den Rest als offene Punkte.
+      `Baurechtliche Machbarkeit — Ausnützungs- und Volumenanalyse · Zone ${anchor.zone}${anchor.zoneLabel ? ` (${anchor.zoneLabel})` : ''}`,
       `<div class="cols c-6040">
         <div>
           <div class="hero">
@@ -406,6 +540,22 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
           '<b>Quellen:</b> je Hinweis im Text genannt (Artikel/Paragraph); Wortlaut der zitierten Bestimmungen auf dem Blatt «Quellen und Vorbehalte».')
       : '';
 
+    // ---- Sheet 4c: Parkierung ---------------------------------------------
+    // Position: nach den Einschränkungen, vor den Kosten. Die Parkierung ist
+    // eine Einschränkung des Volumens und zugleich Voraussetzung des Volumens,
+    // aus dem die Kosten gerechnet werden — sie gehört zwischen beide.
+    const pk = r.parkierung;
+    const sPk = pk
+      ? sheet('Parkierung', pk.erfasst && pk.bindet
+          ? 'Wann die Garage das Volumen begrenzt — nicht die Ausnützungsziffer'
+          : 'Pflichtplätze und ihr Flächenbedarf',
+          parkierungSheetBody(pk, rules), foot,
+          pk.erfasst
+            ? sourcesLine(rules, [['Parkierung', 'parkierung']])
+              + ' · <b>Werkzeug-Annahme (kein Rechtswert):</b> Fläche je Abstellplatz.'
+            : '<b>Quellen:</b> § 242 PBG überlässt die Zahl der Abstellplätze der kommunalen Regelung; diese liegt dem Werkzeug für diese Gemeinde nicht vor — deshalb keine Zahl.')
+      : '';
+
     // ---- Sheet 5: Kosten ---------------------------------------------------
     const s5 = sheet('Grobe Kostenschätzung', 'Sehr grob — keine Kostenplanung',
       `<div class="cols c-5050">
@@ -434,6 +584,12 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
         </div>
       </div>`, foot,
       '<b>Quellen:</b> Kostenkennwert ist eine Werkzeug-Annahme (Bandbreite CHF 800–1000/m³ BKP 2), kein Gesetzeswert. Volumen aus dem oben hergeleiteten Baukörper.');
+
+    // ---- Sheet 5b: Abgrenzung ---------------------------------------------
+    // Direkt vor den Quellen: das Dokument schliesst mit Umfang und Grundlage.
+    const sAbg = sheet('Nicht Gegenstand dieser Auswertung', 'Was offen bleibt — benannt statt weggelassen',
+      abgrenzungSheetBody(), foot,
+      '<b>Quellen:</b> auf diesem Blatt wird nichts gerechnet. Der Umfang der Phase Machbarkeit folgt der Norm SIA 112, Modell Bauplanung, 2014, Teilphase 21.');
 
     // ---- Sheet 6: Quellen & Vorbehalte ------------------------------------
     // Full WORDING of every cited provision (from the provenance records) —
@@ -502,7 +658,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       <h3>Zitierte Bestimmungen (Wortlaut)</h3>
       <div class="quote-list">${quoteItems.join('')}</div>`, foot);
 
-    const html = [s1, s2, s2b, s3, s4, s4b, s5, s6].join('');
+    const html = [s1, s2, s2b, s3, s4, s4b, sPk, s5, sAbg, s6].join('');
     const host = document.getElementById('print-doc');
     host.innerHTML = html;
 
