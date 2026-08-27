@@ -99,14 +99,15 @@
 
   // Export flow: "PDF exportieren" composes the presentation document (one
   // argument per page, each with its plans and its sources) and opens it as
-  // a full-screen preview. There, "PDF herunterladen" writes a real PDF file
-  // and hands it to the browser as a download — no print dialog, no "Save as
-  // PDF" detour (js/ui/pdf.js). "Drucken" is kept beside it: the print path
-  // produces vector text instead of a page image, which is what you want if
-  // the quoted provisions have to stay selectable.
+  // a full-screen preview. There, "PDF öffnen" writes a real PDF file and
+  // opens it in its own tab, in the browser's PDF viewer — whose own toolbar
+  // carries the download arrow, search and page numbers (js/ui/pdf.js). No
+  // print dialog. "Drucken" is kept beside it: the print path produces vector
+  // text instead of a page image, which is what you want if the quoted
+  // provisions have to stay selectable.
   const printToolbarEl = document.getElementById('print-toolbar');
   const printBackBtn = document.getElementById('print-back-btn');
-  const printSaveBtn = document.getElementById('print-save-btn');
+  const printOpenBtn = document.getElementById('print-open-btn');
   const printPrintBtn = document.getElementById('print-print-btn');
 
   function closePrintPreview() {
@@ -141,21 +142,29 @@
     return T.safeFilename(['Machbarkeit', subject, stamp]);
   }
 
-  printSaveBtn.addEventListener('click', async () => {
-    const label = printSaveBtn.textContent;
-    printSaveBtn.disabled = true;
+  printOpenBtn.addEventListener('click', async () => {
+    const label = printOpenBtn.textContent;
+    const filename = pdfFilename();
+    // SYNCHRON, noch im Klick: nach dem Rastern gilt window.open() nicht mehr
+    // als Folge einer Nutzeraktion und Safari blockiert es als Popup.
+    const tab = T.openPendingTab(filename);
+    printOpenBtn.disabled = true;
     try {
-      await T.exportSheetsAsPdf(printDocEl, pdfFilename(), (i, n) => {
-        printSaveBtn.textContent = i < n ? `Blatt ${i + 1} von ${n} …` : 'PDF wird geschrieben …';
+      const res = await T.openSheetsAsPdf(tab, printDocEl, filename, (i, n) => {
+        printOpenBtn.textContent = i < n ? `Blatt ${i + 1} von ${n} …` : 'PDF wird geschrieben …';
       });
+      if (res.blocked) {
+        setStatus('Der Browser hat den neuen Tab blockiert — die PDF wurde stattdessen '
+          + 'heruntergeladen. Popups für diese Seite erlauben, dann öffnet sie sich im Viewer.', true);
+      }
     } catch (e) {
       // Ein fehlgeschlagener Export darf nicht als leerer Klick enden: der
       // Grund gehört in dieselbe Statuszeile wie jeder andere Fehler.
       setStatus(`Fehler beim PDF-Export: ${e.message}`, true);
       console.error(e);
     } finally {
-      printSaveBtn.textContent = label;
-      printSaveBtn.disabled = false;
+      printOpenBtn.textContent = label;
+      printOpenBtn.disabled = false;
     }
   });
 

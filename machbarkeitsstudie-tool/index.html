@@ -181,11 +181,13 @@
   <button type="button" id="print-back-btn">‹ Zurück</button>
   <span class="toolbar-note">Vorschau des Export-Dokuments — pro Seite ein Argument mit Plänen und Quellen</span>
   <span class="spacer"></span>
-  <!-- Herunterladen ist der Normalfall: eine fertige PDF-Datei, ohne
-       Druckdialog. "Drucken" bleibt daneben stehen, weil der Druckweg
-       vektoriellen (markierbaren) Text erzeugt statt eines Seitenbilds. -->
+  <!-- Normalfall: die fertige PDF oeffnet sich in einem eigenen Tab im
+       PDF-Viewer des Browsers — mit dessen eigener Leiste samt
+       Download-Pfeil, Suche und Seitenzahl. Kein Druckdialog.
+       "Drucken" bleibt daneben stehen, weil der Druckweg vektoriellen
+       (markierbaren) Text erzeugt statt eines Seitenbilds. -->
   <button type="button" id="print-print-btn" class="secondary">Drucken</button>
-  <button type="button" id="print-save-btn">PDF herunterladen</button>
+  <button type="button" id="print-open-btn">PDF öffnen</button>
 </div>
 <div id="print-doc"></div>
 

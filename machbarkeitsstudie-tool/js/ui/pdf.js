@@ -1,6 +1,7 @@
 // pdf.js — schreibt aus den fertigen A3-Blättern eine echte PDF-Datei und
-// gibt sie als Download aus. Ohne Druckdialog: ein Klick, die Datei liegt
-// im Download-Ordner.
+// öffnet sie in einem eigenen Tab im PDF-Viewer des Browsers. Ohne
+// Druckdialog: ein Klick, die Studie steht im Viewer, und dessen eigene
+// Leiste hat den Download-Pfeil, die Suche und die Seitenzahlen.
 //
 // Warum ohne Bibliothek. Eine PDF-Seite, die genau ein Bild enthält, ist ein
 // sehr kleiner Ausschnitt des Formats — Katalog, Seitenbaum, je Seite ein
@@ -42,10 +43,65 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
 
   // ---- öffentlicher Einstieg ---------------------------------------------
 
+  // Die zuletzt ausgegebene Objekt-URL. Sie darf NICHT widerrufen werden,
+  // solange der Viewer-Tab sie anzeigt — sonst bricht dort der Download-Pfeil
+  // ab. Widerrufen wird deshalb immer nur die URL des VORIGEN Exports, wenn
+  // ein neuer entsteht; so bleibt höchstens eine Datei im Speicher.
+  let lastObjectUrl = null;
+
+  // Öffnet den Viewer-Tab und füllt ihn, sobald die Datei fertig ist.
+  //
+  // Der Tab muss SYNCHRON im Klick-Handler geöffnet werden. Das Rastern
+  // dauert mehrere Sekunden; ein window.open() danach gilt nicht mehr als
+  // Folge einer Nutzeraktion und wird von Safari als Popup blockiert. Also:
+  // erst der leere Tab mit einer Wartemeldung, dann die fertige Datei
+  // hineinnavigiert.
+  //
+  // tab — das bereits geöffnete Fenster (oder null, wenn blockiert)
+  async function openSheetsAsPdf(tab, host, filename, onProgress) {
+    let blob;
+    try {
+      blob = await buildSheetsPdf(host, filename, onProgress);
+    } catch (e) {
+      if (tab && !tab.closed) tab.close();
+      throw e;
+    }
+    if (lastObjectUrl) URL.revokeObjectURL(lastObjectUrl);
+    lastObjectUrl = URL.createObjectURL(blob);
+
+    if (!tab || tab.closed) {
+      // Popup blockiert oder Tab zugemacht: die Datei ist fertig und darf
+      // nicht verlorengehen — dann eben als Download, und der Aufrufer sagt
+      // es in der Statuszeile. Lieber ein anderer Weg als gar keiner.
+      triggerDownload(blob, `${filename}.pdf`);
+      return { blocked: true, pages: blob.__pages, bytes: blob.size };
+    }
+    tab.location.replace(lastObjectUrl);
+    return { blocked: false, pages: blob.__pages, bytes: blob.size };
+  }
+
+  // Das leere Wartefenster. Wird synchron im Klick-Handler aufgerufen.
+  function openPendingTab(title) {
+    const tab = window.open('', '_blank');
+    if (!tab) return null;
+    tab.document.write(
+      `<!doctype html><html lang="de"><head><meta charset="utf-8">` +
+      `<title>${title}</title><style>` +
+      `body{margin:0;height:100vh;display:flex;align-items:center;justify-content:center;` +
+      `font:15px/1.6 -apple-system,"Helvetica Neue",Arial,sans-serif;background:#2b2b2e;color:#cfcabf}` +
+      `div{text-align:center}b{display:block;font-size:17px;color:#fff;margin-bottom:.4rem}` +
+      `</style></head><body><div><b>Die Studie wird gesetzt …</b>` +
+      `Zehn A3-Blätter werden gerendert. Das dauert einige Sekunden;` +
+      `<br>dieser Tab füllt sich von selbst.</div></body></html>`
+    );
+    tab.document.close();
+    return tab;
+  }
+
   // host      — das #print-doc-Element mit den fertigen .sheet-Kindern
   // filename  — Dateiname ohne Endung
   // onProgress(i, n) — für die Fortschrittsanzeige am Knopf
-  async function exportSheetsAsPdf(host, filename, onProgress) {
+  async function buildSheetsPdf(host, filename, onProgress) {
     const sheets = [...host.querySelectorAll('.sheet')];
     if (!sheets.length) throw new Error('Kein Export-Dokument vorhanden.');
 
@@ -61,8 +117,8 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     if (onProgress) onProgress(sheets.length, sheets.length);
 
     const blob = buildPdfBlob(pages, A3_LANDSCAPE_PT.w, A3_LANDSCAPE_PT.h, filename);
-    triggerDownload(blob, `${filename}.pdf`);
-    return { pages: pages.length, bytes: blob.size };
+    blob.__pages = pages.length;
+    return blob;
   }
 
   // ---- Blatt → JPEG ------------------------------------------------------
@@ -285,6 +341,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     return base || 'Machbarkeit';
   }
 
-  T.exportSheetsAsPdf = exportSheetsAsPdf;
+  T.openSheetsAsPdf = openSheetsAsPdf;
+  T.openPendingTab = openPendingTab;
   T.safeFilename = safeFilename;
 })();

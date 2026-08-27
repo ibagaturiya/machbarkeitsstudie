@@ -35,8 +35,8 @@
 #print-toolbar button { font-size: 0.9rem; padding: 0.4rem 0.9rem; cursor: pointer;
                         border-radius: 4px; border: 1px solid #555; background: #3a3a3e; color: #fff; }
 #print-toolbar button:hover { background: #4a4a4f; }
-#print-toolbar #print-save-btn { background: var(--accent, #b08b4f); border-color: var(--accent, #b08b4f); font-weight: 600; }
-#print-toolbar #print-save-btn[disabled] { opacity: .7; cursor: progress; }
+#print-toolbar #print-open-btn { background: var(--accent, #b08b4f); border-color: var(--accent, #b08b4f); font-weight: 600; }
+#print-toolbar #print-open-btn[disabled] { opacity: .7; cursor: progress; }
 #print-toolbar button.secondary { background: transparent; color: #cfcabf; }
 #print-toolbar .toolbar-note { font-size: 0.78rem; color: #cfcabf; }
 @media print { #print-toolbar { display: none !important; } }

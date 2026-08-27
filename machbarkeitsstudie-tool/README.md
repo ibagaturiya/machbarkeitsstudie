@@ -155,8 +155,9 @@ page in the legal PDF) — and opens it as a full-screen preview:
 
 Inside the preview sit two buttons:
 
-- **"PDF herunterladen"** writes a real PDF file and hands it straight to the
-  browser as a download — no print dialog, no "Save as PDF" detour. Pages are
+- **"PDF öffnen"** writes a real PDF file and opens it in **its own tab, in
+  the browser's PDF viewer** — whose own toolbar carries the download arrow,
+  search and page numbers. No print dialog, no "Save as PDF" detour. Pages are
   exact A3 landscape (420 × 297 mm), one rasterised sheet each at ~190 dpi;
   a ten-sheet export lands around 5 MB. Written by `js/ui/pdf.js` with **no
   library**: the browser rasterises each sheet through an SVG `foreignObject`
@@ -165,7 +166,18 @@ Inside the preview sit two buttons:
   exactly where html2canvas fails), and the PDF container itself is ~120 lines
   of object table and xref. Verified against macOS Quick Look / Preview, which
   is the same Core Graphics engine Safari uses.
-- **"Drucken"** is the old path: `window.print()` on the composed document.
+
+  The tab is opened **synchronously in the click handler**, showing a waiting
+  page, and navigated to the finished file some seconds later. Opening it
+  afterwards would no longer count as user-initiated and Safari would block it
+  as a popup. If it is blocked anyway, the file is downloaded instead and the
+  status line says so — a finished export is never silently dropped.
+
+  Known limitation: the viewer is fed a `blob:` URL, which carries no
+  filename. The document title is in the PDF's `/Title`, but what the viewer's
+  own download arrow suggests as a filename is up to the browser. Serving the
+  file under a real name would need a service worker.
+- **"Drucken"** is the print path: `window.print()` on the composed document.
   Slower to operate, but the text stays **vector** — use it when the quoted
   provisions have to remain selectable and searchable. Set margins to **None**
   and enable background graphics; the sheets carry their own margins.
