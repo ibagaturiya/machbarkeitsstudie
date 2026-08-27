@@ -245,5 +245,10 @@ footer { font-size: 0.8rem; color: var(--text-muted); margin-top: 2rem; border-t
 .cost-estimate { background: var(--bg-raised); border: 1px solid var(--border); border-radius: 6px; padding: 1rem; margin-bottom: 1rem; }
 .cost-estimate .total { font-size: 1.3rem; font-weight: bold; color: var(--accent); }
 .cost-estimate .note { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem; }
-#preview-pdf-btn { display: none; margin-bottom: 1rem; margin-right: 0.5rem; }
+/* Kein display:none mehr. Der Knopf steht jetzt fest in der Kopfzeile und
+   wird bei fehlender Analyse deaktiviert statt ausgeblendet — ausgeblendet
+   liess er die Kopfzeile bei jeder Suche springen. Das display:none hier
+   stammte aus der Zeit im Ergebnispanel, wo app.js es auf 'inline-block'
+   umstellte; ohne diese Zeile in app.js blieb der Knopf unsichtbar. */
+#preview-pdf-btn { margin-bottom: 0; margin-right: 0; }
 
