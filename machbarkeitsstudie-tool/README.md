@@ -153,9 +153,22 @@ page in the legal PDF) — and opens it as a full-screen preview:
    the rest of the phase still owes.
 10. **Quellen und Vorbehalte** — sources and limits, with the full wording
 
-Only inside the preview, next to **"Zurück"**, sits **"PDF speichern"** — it
-hands the composed document to the print dialog. Set margins to **None** and
-enable background graphics; the sheets carry their own margins.
+Inside the preview sit two buttons:
+
+- **"PDF herunterladen"** writes a real PDF file and hands it straight to the
+  browser as a download — no print dialog, no "Save as PDF" detour. Pages are
+  exact A3 landscape (420 × 297 mm), one rasterised sheet each at ~190 dpi;
+  a ten-sheet export lands around 5 MB. Written by `js/ui/pdf.js` with **no
+  library**: the browser rasterises each sheet through an SVG `foreignObject`
+  (so the page is laid out by the same engine that drew the preview — CSS
+  grid, `columns`, `aspect-ratio` and `mix-blend-mode` all survive, which is
+  exactly where html2canvas fails), and the PDF container itself is ~120 lines
+  of object table and xref. Verified against macOS Quick Look / Preview, which
+  is the same Core Graphics engine Safari uses.
+- **"Drucken"** is the old path: `window.print()` on the composed document.
+  Slower to operate, but the text stays **vector** — use it when the quoted
+  provisions have to remain selectable and searchable. Set margins to **None**
+  and enable background graphics; the sheets carry their own margins.
 
 The PDF shows the **same building as the screen** (the massing model with the
 chosen storeys — not the abstract legal hull, which used to overstate volume

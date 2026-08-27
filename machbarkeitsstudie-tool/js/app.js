@@ -99,11 +99,15 @@
 
   // Export flow: "PDF exportieren" composes the presentation document (one
   // argument per page, each with its plans and its sources) and opens it as
-  // a full-screen preview. Only there, next to "Zurück", sits "PDF
-  // speichern" — which hands the composed document to the print dialog.
+  // a full-screen preview. There, "PDF herunterladen" writes a real PDF file
+  // and hands it to the browser as a download — no print dialog, no "Save as
+  // PDF" detour (js/ui/pdf.js). "Drucken" is kept beside it: the print path
+  // produces vector text instead of a page image, which is what you want if
+  // the quoted provisions have to stay selectable.
   const printToolbarEl = document.getElementById('print-toolbar');
   const printBackBtn = document.getElementById('print-back-btn');
   const printSaveBtn = document.getElementById('print-save-btn');
+  const printPrintBtn = document.getElementById('print-print-btn');
 
   function closePrintPreview() {
     printDocEl.classList.remove('preview');
@@ -123,7 +127,37 @@
     }
   });
   printBackBtn.addEventListener('click', closePrintPreview);
-  printSaveBtn.addEventListener('click', () => window.print());
+  printPrintBtn.addEventListener('click', () => window.print());
+
+  // Der Dateiname trägt Adresse (oder Parzellennummern) und Datum, damit im
+  // Download-Ordner nicht zehn "Machbarkeit.pdf" nebeneinander liegen.
+  function pdfFilename() {
+    const r = lastResult;
+    const subject = r
+      ? (r.anchor.address || r.selection.map((p) => `Parzelle-${p.parcelNumber}`).join('_'))
+      : '';
+    const d = new Date();
+    const stamp = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    return T.safeFilename(['Machbarkeit', subject, stamp]);
+  }
+
+  printSaveBtn.addEventListener('click', async () => {
+    const label = printSaveBtn.textContent;
+    printSaveBtn.disabled = true;
+    try {
+      await T.exportSheetsAsPdf(printDocEl, pdfFilename(), (i, n) => {
+        printSaveBtn.textContent = i < n ? `Blatt ${i + 1} von ${n} …` : 'PDF wird geschrieben …';
+      });
+    } catch (e) {
+      // Ein fehlgeschlagener Export darf nicht als leerer Klick enden: der
+      // Grund gehört in dieselbe Statuszeile wie jeder andere Fehler.
+      setStatus(`Fehler beim PDF-Export: ${e.message}`, true);
+      console.error(e);
+    } finally {
+      printSaveBtn.textContent = label;
+      printSaveBtn.disabled = false;
+    }
+  });
 
   // The commune is detected from the parcel itself, so the dropdown is only
   // an override -- useful on a commune boundary, or to see what a zone would

@@ -414,6 +414,10 @@ Annahmen werden im Quellen-Abschnitt des Tools ausdrücklich als
 * Die **Parkierung** hat ein eigenes Blatt. Sie wurde schon gerechnet, stand
   aber nur am Bildschirm; eine bindende Einschränkung, die es nicht aufs
   Papier schafft, ist auf Papier eine falsche Zahl.
+* **«PDF herunterladen»** schreibt die Datei direkt (`js/ui/pdf.js`), ohne
+  Druckdialog. Die Seiten sind Bilder — inhaltlich identisch mit der Vorschau,
+  aber der Text darin ist nicht mehr markierbar. Wer den Wortlaut der
+  zitierten Bestimmungen zum Kopieren braucht, nimmt «Drucken» (vektoriell).
 * **Golden-Tests:** `node tests/run-tests.mjs` prüft die Rechenkette gegen
   handgerechnete Erwartungswerte (Zumikon W2/25, Zürich W2bI, Wald-Abzug,
   Monotonie, Null-Semantik, Belege). Muss vor jedem Commit grün sein.
