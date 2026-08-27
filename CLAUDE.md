@@ -150,6 +150,31 @@ typed decimals" cannot be taken literally, so the requirement is met as:
 
 ---
 
+## Session start: `git status` before anything else
+
+**Run `git status` as the first action of every session, before reading or
+editing anything.** The working tree lives in iCloud Drive (it has to — this
+file layers on `../CLAUDE.md`). The git database was moved out to
+`~/gitdirs/machbarkeitsstudie.git` on 2026-08-27, which stopped iCloud from
+corrupting the *locks* — but iCloud can still disturb the *working files*.
+
+Observed on 2026-08-27, immediately after the `.git` directory became a pointer
+file: iCloud left a `.git 2` conflict artifact in the repo root and removed the
+whole `888_issues/` folder from disk. Three tracked files silently vanished.
+
+So: if `git status` shows files as ` D ` (deleted) that you did not delete, that
+is iCloud, not a real change.
+
+- **Restore them — never commit the deletion.** `git restore <path>` brings
+  them back from HEAD; a commit would erase them from the tip of history.
+- Say so in the terminal when it happens. Do not fix it quietly — the user
+  needs to know iCloud is still interfering with this folder.
+- The same goes for stale `.git/*.lock` files and `* 2` conflict duplicates:
+  report them, don't silently clean up.
+
+This is why "verify locally, then commit and push" is not optional here — a
+pushed commit is the only copy iCloud cannot damage.
+
 ## Commands
 
 ```
