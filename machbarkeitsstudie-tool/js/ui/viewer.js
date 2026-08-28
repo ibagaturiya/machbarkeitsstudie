@@ -389,10 +389,12 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     const width = container.clientWidth || 600;
     const height = container.clientHeight || 450;
     const aspect = width / height;
-    const viewSize = Math.max(
-      40,
-      Math.max(...allFootprintPoints.map(([e, n]) => Math.hypot(e - centerE, n - centerN))) * 3
-    );
+    // viewSize is the camera's VERTICAL span; horizontal span is
+    // viewSize * aspect. In a pane narrower than tall (aspect < 1) a fit
+    // computed from the radius alone loses its sides, so divide by aspect
+    // there to guarantee the whole model stays inside the visible frame.
+    const fitRadius = Math.max(...allFootprintPoints.map(([e, n]) => Math.hypot(e - centerE, n - centerN)));
+    const viewSize = Math.max(40, (fitRadius * 3) / Math.min(1, aspect));
     let zoom = 1;
     const camera = new THREE.OrthographicCamera(
       (-viewSize * aspect) / 2, (viewSize * aspect) / 2,
@@ -410,7 +412,11 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     const POLAR_0 = Math.atan(1 / Math.SQRT2);   // ~35.26°, true isometric elevation
     let azimuth = AZIMUTH_0;                     // around the vertical axis
     let polar = POLAR_0;
-    const target = new THREE.Vector3(0, 0, 0);
+    // Resting look-at point sits a little below the ground plane: the model
+    // then rides in the upper part of the frame, clear of the § overlay that
+    // occupies the pane's lower-left corner. RESET returns here too.
+    const TARGET_0_Y = -viewSize * 0.1;
+    const target = new THREE.Vector3(0, TARGET_0_Y, 0);
 
     // The camera's own numbers, handed back so the panel can print them.
     // Reported as they really are -- azimuth and elevation in degrees, zoom
@@ -621,7 +627,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       zoomBy(factor) { zoom = Math.max(0.4, Math.min(6, zoom * factor)); applyCamera(); draw(); },
       reset() {
         azimuth = AZIMUTH_0; polar = POLAR_0; zoom = 1;
-        target.set(0, 0, 0);
+        target.set(0, TARGET_0_Y, 0);
         applyCamera(); draw();
       },
     };

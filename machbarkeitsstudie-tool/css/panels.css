@@ -186,7 +186,9 @@
   backdrop-filter: var(--blur-overlay); -webkit-backdrop-filter: var(--blur-overlay);
   border: 1px solid var(--hair);
   padding: 9px 12px 10px;
-  max-width: 300px;
+  /* Never wider than the pane leaves room for -- in a narrow column a fixed
+     300px would run past the right edge. */
+  max-width: min(300px, calc(100% - 28px));
   pointer-events: none;
 }
 .ovl .o-k {
@@ -206,8 +208,11 @@
 .ovl .o-row.is-na { color: var(--lbl); }
 .ovl .o-row.is-na .g { color: var(--lbl); }
 
-#ovl-modell { top: 40px; left: 14px; }
-#ovl-plan { top: 40px; left: 14px; max-width: 268px; }
+/* Bottom-left, not top-left: the model/plan sits centred in the pane, and
+   the other corners are taken (iso readout bottom-right, controls and zoom
+   top-right, north arrow top-left). */
+#ovl-modell { bottom: 14px; left: 14px; }
+#ovl-plan { bottom: 14px; left: 14px; max-width: 268px; }
 
 /* ---- 4. isometry controls --------------------------------------------- */
 
