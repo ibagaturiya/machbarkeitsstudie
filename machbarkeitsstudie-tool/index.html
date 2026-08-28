@@ -2,6 +2,10 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0e0f10">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Machbarkeitsstudie — Kanton Zürich</title>
 
 <!-- Stylesheets. Order IS the cascade:
@@ -28,13 +32,10 @@
 </head>
 <body>
 
-<!-- The tool is a desktop instrument: three columns of numbers at a design
-     width of 1720 px. Below ~1180 it says so rather than reflowing into a
-     layout the figures were never set for. -->
-<div id="too-narrow">
-  Diese Auswertung braucht ein breites Fenster —<br>drei Spalten, Entwurfsbreite 1720&nbsp;px.<br>
-  Bitte das Fenster vergrössern.
-</div>
+<!-- Ehemals stand hier die #too-narrow-Sperre ("braucht ein breites
+     Fenster"). Entfernt: unter 980 px stapelt das Layout jetzt auf EINE
+     Spalte (shell.css, Abschnitt "small screens") statt sich zu weigern —
+     damit läuft das Werkzeug auch auf dem iPhone. -->
 
 <!-- ======================= header ======================= -->
 <header id="topbar" class="panel">

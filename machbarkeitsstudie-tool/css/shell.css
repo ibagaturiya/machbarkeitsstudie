@@ -277,22 +277,64 @@ body.detail-open #kpis { display: none; }
 #screen-detail .panel-body > h2:first-child { margin-top: 0; }
 #screen-detail h3 { font: 600 12px/1.3 var(--font-ui); color: var(--txt); margin: 1rem 0 .4rem; }
 
-/* ---- 9. the app is a desktop instrument ------------------------------- */
-
-/* Design width is 1720 px. Below ~1400 the three columns stop being
-   readable, so the tool says so instead of reflowing into something the
-   numbers were never laid out for. */
-#too-narrow { display: none; }
-@media (max-width: 1180px) {
-  body > #screen-analyse, body > #screen-detail, body > #topbar { display: none !important; }
-  #too-narrow {
-    display: flex; flex: 1 1 auto; align-items: center; justify-content: center;
-    text-align: center; padding: 40px;
-    font: 500 13px/1.6 var(--font-num); color: var(--txt2);
-  }
-}
+/* ---- 9. print ---------------------------------------------------------- */
 
 @media print {
   body { display: block; padding: 0; background: #fff; }
-  #topbar, #screen-analyse, #screen-detail, #too-narrow { display: none !important; }
+  #topbar, #screen-analyse, #screen-detail { display: none !important; }
+}
+
+/* ---- 10. small screens: iPhone & schmale Fenster -----------------------
+   Bewusst am ENDE der Datei, nicht oben (Ausnahme vom Prepend-Protokoll wie
+   die geordneten Rechts-Pipelines): diese Bloecke ueberschreiben die
+   Desktop-Regeln oben bei GLEICHER Spezifitaet, und die Kaskade entscheidet
+   nach Reihenfolge — weiter oben eingefuegt wuerden sie stillschweigend
+   verlieren.
+
+   Unter 980 px (Summe der drei Spalten-Minima plus Raender) wird aus den
+   drei Spalten EINE: Karte, Isometrie, Plan, Kennwerte, Protokoll unter-
+   einander. Die Zeichnungen behalten feste Hoehen, alles andere waechst mit
+   dem Inhalt, und die SEITE scrollt als Ganzes — verschachtelte Scroll-
+   flaechen sind auf dem Telefon unbrauchbar. */
+@media (max-width: 980px) {
+  html, body { height: auto; }
+  body { padding: 8px; gap: 8px; }
+
+  /* Kopf: Marke + Adresse in einer Zeile, Auswahl und Knoepfe brechen um. */
+  #topbar { height: auto; flex-wrap: wrap; align-items: center; }
+  #brand { margin: 7px; }
+  #hcell-adresse { flex: 1 1 220px; margin-left: 0; padding: 6px 12px; }
+  #hcell-auswahl { flex: 1 1 130px; padding: 6px 12px; }
+  .btn-capsule { flex: 1 1 auto; justify-content: center; margin: 0 7px 8px; min-height: 40px; }
+
+  /* Kopfzahlen: zwei je Zeile statt fuenf nebeneinander. */
+  #kpis { height: auto; flex-wrap: wrap; }
+  .kpi {
+    flex: 1 1 40%; min-width: 40%; padding: 10px 14px;
+    border-left: none; border-top: 1px solid var(--hair-soft);
+  }
+  .kpi:nth-child(-n+2) { border-top: none; }
+
+  /* Eine Spalte. display:contents loest die beiden Spalten-Wrapper auf,
+     damit `order` die Panels als Geschwister sortieren kann. */
+  #screen-analyse { flex: none; min-height: auto; }
+  #dash { display: flex; flex-direction: column; flex: none; min-height: auto; gap: 8px; }
+  #col-left, #col-mid { display: contents; }
+  #pane-map { order: 1; flex: none; height: 320px; }
+  #pane-iso { order: 2; flex: none; height: 360px; }
+  #pane-plan { order: 3; flex: none; height: 320px; }
+  #pane-kw { order: 4; flex: none; }
+  #pane-log { order: 5; flex: none; height: 300px; }
+  #kennwerte { flex: none; overflow: visible; }
+
+  /* Varianten-Karten duerfen seitlich scrollen statt zu quetschen. */
+  #variants { overflow-x: auto; }
+  .variant { min-width: 150px; }
+
+  /* Fingerziele. */
+  #iso-controls button, .plan-zoom button { width: 34px; height: 34px; }
+
+  /* iOS Safari zoomt beim Fokussieren in jedes Eingabefeld unter 16 px —
+     16 px unterbindet genau diesen Sprung. */
+  #address-input { font-size: 16px; }
 }

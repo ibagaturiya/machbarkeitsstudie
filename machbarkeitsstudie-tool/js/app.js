@@ -1693,10 +1693,21 @@
     kwTip.textContent = text;
     kwTip.hidden = false;
     const r = rowEl.getBoundingClientRect();
-    kwTip.style.right = `${Math.round(window.innerWidth - r.left + 8)}px`;
-    kwTip.style.left = 'auto';
-    const h = kwTip.offsetHeight;
-    kwTip.style.top = `${Math.round(Math.max(8, Math.min(r.top, window.innerHeight - h - 8)))}px`;
+    if (r.left >= 260) {
+      // Genug Platz links neben der Tafel (Desktop-Dreispalter).
+      kwTip.style.right = `${Math.round(window.innerWidth - r.left + 8)}px`;
+      kwTip.style.left = 'auto';
+      const h = kwTip.offsetHeight;
+      kwTip.style.top = `${Math.round(Math.max(8, Math.min(r.top, window.innerHeight - h - 8)))}px`;
+    } else {
+      // Schmales Fenster / iPhone: unter der Zeile, ueber die volle Breite —
+      // links waere das Popover ausserhalb des Bildschirms.
+      kwTip.style.left = '12px';
+      kwTip.style.right = '12px';
+      const h = kwTip.offsetHeight;
+      const below = r.bottom + 6;
+      kwTip.style.top = `${Math.round(below + h > window.innerHeight - 8 ? Math.max(8, r.top - h - 6) : below)}px`;
+    }
   }
   function renderKennwerte(groups) {
     const cssKind = (k) => `kd-${k.replace('Ü', 'UE').replace('Ä', 'AE').replace('Ö', 'OE')}`;
