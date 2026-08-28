@@ -1724,7 +1724,7 @@
         // Spalte: so bildet es eine Kolonne, die sich von oben nach unten
         // ueberfliegen laesst. Stuende es hinten, muesste man es je Zeile
         // suchen. Das Wort dazu steht im Titel und in der Legende.
-        return `<div class="kw-row kw-s-${row.sicherheit}" data-formula="${esc(row.formula || '')}" data-sicher="${esc(stTitle)}">`
+        return `<div class="kw-row kw-s-${row.sicherheit}" data-formula="${esc(row.formula || '')}" data-sicher="${esc(stTitle)}" data-source="${esc(row.source || '')}">`
           + `<span class="sich s-${row.sicherheit}${row.sicherheitVererbt ? ' is-vererbt' : ''}" title="${esc(stTitle)}" aria-label="${esc(st.label)}">${esc(st.zeichen)}</span>`
           + `<span class="lb">${esc(row.label)}</span>`
           + `<span class="vl">${esc(row.value)}</span>`
@@ -1756,7 +1756,10 @@
       el.addEventListener('mouseenter', () => {
         const f = el.dataset.formula || 'keine Herleitung hinterlegt';
         const s = el.dataset.sicher;
-        showKwTip(el, s ? `${f}\n${s}` : f);
+        // Die Quelle steht ZUERST — wer hovert, fragt als Erstes "sagt wer?"
+        // (Artikel, BZO, Dienst), erst danach kommt der Rechenweg.
+        const src = el.dataset.source;
+        showKwTip(el, [src ? `Quelle: ${src}` : null, f, s].filter(Boolean).join('\n'));
       });
     });
     kwNoteEl.textContent = `${alleRows.length} Werte`;

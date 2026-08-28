@@ -105,5 +105,8 @@
      between two independently-rasterised adjacent WMTS tiles swing all the
      way to near-black vs near-white, which reads as a seam along the tile
      edge. A partial invert plus a touch of blur damps that swing. */
-  --map-filter: invert(0.92) hue-rotate(180deg) brightness(0.9) contrast(0.8) saturate(0.9);
+  /* grayscale VOR dem Invertieren: die Katasterkacheln (rosa Gebäude,
+     blaues Wasser, grüner Wald) werden zu reinem Grau/Weiss — Farbe auf der
+     Karte gehört allein den Orange-Overlays der gewählten Parzellen. */
+  --map-filter: grayscale(1) invert(0.92) brightness(0.9) contrast(0.85);
 }
