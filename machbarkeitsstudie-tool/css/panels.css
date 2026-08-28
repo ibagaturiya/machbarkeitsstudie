@@ -68,8 +68,69 @@
   font: 400 9.5px/1 var(--font-num); color: var(--txt3);
 }
 
+/* --- Sicherheitsstufen (js/core/sicherheit.js) ---------------------------
+   Zweite Achse neben `kind`: nicht WOHER der Wert kommt, sondern WIE
+   BELASTBAR er ist. Das Zeichen steht vorne in einer eigenen Kolonne, damit
+   sich die Tafel von oben nach unten ueberfliegen laesst.
+
+   Farbe ist hier NICHT die Kennzeichnung, sondern ihre Verstaerkung: jede
+   Stufe hat ein eigenes Zeichen (§ ≈ ~ ?) und bleibt damit lesbar, wenn das
+   Blatt schwarzweiss gedruckt wird oder der Leser Farben nicht unterscheidet. */
+.sich {
+  font: 700 10px/1.25 var(--font-num);
+  text-align: center; cursor: help; user-select: none;
+}
+.s-BELEGT { color: var(--ok); }
+.s-VEREINFACHT { color: var(--acc2); }
+.s-ANNAHME { color: var(--assume); }
+.s-NICHT_ERMITTELBAR { color: var(--txt3); }
+/* Geerbt heisst: der Wert selbst waere sicherer, ein Eingang ist es nicht.
+   Der Ring sagt "nicht von hier" — der Grund steht im Titel. */
+.sich.is-vererbt {
+  border: 1px dotted currentColor; border-radius: 50%;
+  width: 13px; height: 13px; display: inline-block; line-height: 11px;
+}
+/* Alles unterhalb von "belegt" bekommt eine Kante: eine Zeile, die etwas
+   nicht Belegtes traegt, darf sich nicht wie eine belegte lesen. */
+.kw-row.kw-s-VEREINFACHT { box-shadow: inset 2px 0 0 color-mix(in srgb, var(--acc2) 55%, transparent); }
+.kw-row.kw-s-ANNAHME { box-shadow: inset 2px 0 0 color-mix(in srgb, var(--assume) 65%, transparent); }
+.kw-row.kw-s-NICHT_ERMITTELBAR { box-shadow: inset 2px 0 0 var(--txt3); }
+
+/* Gemeinde ohne hinterlegte BZO: der Abbruch, benannt. Kein Ergebnis —
+   aber lesbar, welche Norm auf welcher Stufe fehlt. */
+.nicht-gerechnet { padding: 10px 10px 12px; }
+.ng-head {
+  font: 600 11px/1.3 var(--font-ui); color: var(--txt);
+  letter-spacing: .04em; text-transform: uppercase; margin-bottom: 5px;
+}
+.ng-intro, .ng-foot, .ng-none {
+  font: 400 10px/1.45 var(--font-ui); color: var(--txt2); margin: 0 0 9px;
+}
+.ng-foot { color: var(--txt3); margin-top: 9px; margin-bottom: 0; }
+.ng-sec h4 {
+  font: 600 8.5px/1.3 var(--font-num); color: var(--txt3);
+  letter-spacing: .07em; text-transform: uppercase;
+  margin: 0 0 3px; padding-top: 6px; border-top: 1px solid var(--row-rule);
+}
+.ng-list { list-style: none; margin: 0 0 8px; padding: 0; }
+.ng-list li {
+  display: grid; grid-template-columns: 13px minmax(0, 1fr) minmax(0, 1.15fr);
+  gap: 5px; align-items: baseline; padding: 2px 0;
+}
+.ng-lb { font: 400 10px/1.3 var(--font-ui); color: var(--txt2); }
+.ng-lb.ng-wide { grid-column: 2 / -1; }
+.ng-src { font: 400 8.5px/1.35 var(--font-num); color: var(--txt3); text-align: right; }
+
+.sich-legende {
+  display: flex; flex-wrap: wrap; gap: 4px 10px;
+  padding: 4px 8px 5px;
+  font: 400 8.5px/1.3 var(--font-num); color: var(--txt3);
+}
+.sich-legende span { display: inline-flex; align-items: center; gap: 3px; }
+.sich-legende .sich { font-size: 9.5px; font-style: normal; }
+
 .kw-row {
-  display: grid; grid-template-columns: minmax(0, 1fr) 108px 78px;
+  display: grid; grid-template-columns: 13px minmax(0, 1fr) 104px 74px;
   align-items: baseline; gap: 5px;
   padding: 2px 8px 3px; border-radius: var(--r-row);
   border-top: 1px solid var(--row-rule);
@@ -94,7 +155,7 @@
    bliebe fuer keine von beiden genug Breite, und die Art ist die Angabe,
    die man ueberfliegt, nicht liest. */
 .kw-row .kd {
-  grid-column: 3; text-align: right;
+  grid-column: 4; text-align: right;
   font: 600 7.5px/1.25 var(--font-num); letter-spacing: .06em;
 }
 .kd-GEHOLT { color: var(--txt3); }

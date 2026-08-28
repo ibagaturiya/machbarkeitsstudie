@@ -48,6 +48,95 @@ nichts nach; es ordnet ausschliesslich das fertige Ergebnisobjekt von
 
 ---
 
+## 11. Sicherheitsstufen — wie belastbar ist eine Zahl
+
+*(Steht hier oben, nicht hinten: §0 ordnet jeden Wert nach seinem RANG im
+Stufenbau, §11 nach seiner BELASTBARKEIT. Die beiden Achsen liest man
+zusammen. Die Nummer 11 sagt, dass dieser Abschnitt der neueste ist —
+CLAUDE.md §1.)*
+
+Die Tafel sagte bisher, **woher** ein Wert kommt (`kind`: GEHOLT, BERECHNET,
+GEPRÜFT, ANNAHME, ENTWURF). Sie sagte nicht, **wie belastbar** er ist. Das sind
+zwei Achsen: ein Grenzabstand aus Art. 17 BZO und ein Kostenkennwert von
+CHF 900/m³ sahen in derselben Spalte gleich aus. Seit `js/core/sicherheit.js`
+trägt jeder Wert zusätzlich eine von vier Stufen.
+
+| Zeichen | Stufe | Bedeutung |
+|---|---|---|
+| `§` | **belegt** | Rechtswert mit Artikel, Seite und Wortlaut — oder eine benannte amtliche Datenquelle (AV, ogd-0156, swissALTI3D). |
+| `≈` | **vereinfacht** | Rechtswert, aber genähert angewandt. Die Näherung ist im Register benannt. |
+| `~` | **Annahme** | Ohne Gesetzeszitat: Werkzeug-Grösse oder Entwurfsentscheidung. |
+| `?` | **nicht ermittelbar** | Regel existiert hier nicht (`null`), Quelle ausgefallen, oder bewusst nicht geprüft. **Nie 0.** |
+
+Farbe ist nicht die Kennzeichnung, sondern ihre Verstärkung — das Zeichen trägt
+sie allein, damit sie den Schwarzweissdruck übersteht.
+
+### 11.1 Die Kaskade
+
+`stufeVon()` in `js/core/sicherheit.js`, in dieser Reihenfolge; jeder Zweig endet
+in einer benannten Stufe, ein unbekannter Fall **wirft** (CLAUDE.md §4):
+
+1. Datenquelle ausgefallen → `nicht ermittelbar`
+2. kein Wert (`null`, `—`) → `nicht ermittelbar`
+3. `kind === 'ENTWURF'` → `Annahme` (keine Rechtsgrösse, aber auch kein Irrtum)
+4. `kind === 'ANNAHME'` oder Schlüssel in `WERKZEUG_ANNAHMEN` → `Annahme`
+5. Schlüssel in `VEREINFACHUNGEN` → `vereinfacht`
+6. Belegstelle ohne zonenscharfes Zitat (`source.synthetic`) → `vereinfacht`
+7. Gesetzeszitat mit Datei und Seite → `belegt` (Belegtyp `gesetzeszitat`)
+8. benannte amtliche Datenquelle → `belegt` (Belegtyp `amtliche_daten`)
+9. rechnerisches Zwischenergebnis → `belegt` (Belegtyp `abgeleitet`)
+10. sonst → **Fehler**
+
+Die Belegstelle liest die Kaskade über das bestehende `T.getProvenance()`
+(`js/core/rules.js`) — keine zweite Lesestelle.
+
+### 11.2 Vererbung
+
+Ein abgeleiteter Wert trägt die **schwächste** Stufe seiner Eingänge und seiner
+selbst (`schwaechste()`, `vererbeSicherheit()`). Die Kennwert-Zeilen erklären
+ihre Abhängigkeiten über `id`/`dependsOn`; der Nachlauf in
+`js/ui/kennwerte.js` läuft einmal über alle Zeilen in Ableitungsreihenfolge.
+
+Weil die anrechenbare Grundstücksfläche nur den Wald automatisch abzieht (§9),
+ist sie `vereinfacht` — und alles, was auf ihr aufbaut, erbt das. Das ist keine
+Übervorsicht, sondern die Sachlage: die Bezugsgrösse aller Ziffern kann zu gross
+sein. Zeilen, die nicht an ihr hängen (Zone, Höhenmass, Zonenwerte), bleiben
+`belegt`. Am Referenzfall Zumikon W2/25: 22 Werte, davon 11 belegt,
+8 vereinfacht, 2 Annahme, 1 nicht ermittelbar.
+
+### 11.3 Register
+
+`VEREINFACHUNGEN` und `WERKZEUG_ANNAHMEN` in `js/core/sicherheit.js` sind die
+maschinenlesbare Fassung von §5 und §9. Jeder Eintrag nennt den Artikel, der
+eigentlich gilt, was das Werkzeug stattdessen tut und ob das konservativ ist.
+**Bei einer Änderung ist das Register die Quelle**, nicht die Prosa hier.
+
+### 11.4 Wo die Stufen erscheinen
+
+* **Kennwerte-Tafel** — Zeichen vorne in eigener Kolonne, Legende darüber,
+  Zählung in der Kopfzeile (aus derselben Zählung wie die Abzeichen).
+* **Ablauf & Normkette** — Stufe je Schritt; wo der Wert von der Gemeinde und
+  die **Messweise** vom Kanton kommt, stehen beide untereinander (`messweise` /
+  `grundlage`). Damit ist die Ableitung PBG/ABV → BZO an jedem Schritt lesbar.
+* **PDF** — eigenes Blatt «Belastbarkeit der Zahlen» mit Legende und jeder Zahl.
+  Ein Wert, der am Bildschirm unsicher ist und auf dem Papier glatt aussieht,
+  ist auf dem Papier eine falsche Zahl (gleiche Begründung wie §7).
+
+### 11.5 Gemeinde ohne hinterlegte BZO
+
+Der Lauf **bricht weiterhin ab** (§1, CLAUDE.md §2) — es wird nichts geschätzt
+und kein Teilergebnis als Ergebnis dargestellt. Neu ist, dass der Abbruch die
+Lücke benennt: `GemeindeNichtHinterlegtError` (`js/core/rules.js`) trägt drei
+Listen — was PBG/ABV auch ohne BZO liefern (aus
+`data/kantonale-abstandsvorschriften.json`), welche Werte die BZO liefern müsste
+und wofür sie im Ablauf gebraucht werden (`KOMMUNAL_ERFORDERLICH`), und was
+beizubringen ist. `app.js` zeigt das als Tafel «Nicht gerechnet» statt als
+Fehlermeldung.
+
+Golden-Tests: Abschnitte 7, 8 und 9 in `tests/run-tests.mjs`.
+
+---
+
 ## 1. Geltungsbereich
 
 | | |
@@ -364,6 +453,10 @@ Seit der Behebung von Fehler A eingehalten; durch Golden-Test abgesichert
 Annahmen werden im Quellen-Abschnitt des Tools ausdrücklich als
 «Werkzeug-Annahmen ohne Gesetzeszitat» gelistet.
 
+**Maschinenlesbar** steht dieselbe Unterscheidung in `WERKZEUG_ANNAHMEN`
+(`js/core/sicherheit.js`); von dort kommt das Abzeichen `~` an jedem Wert.
+Bei Abweichungen gilt das Register, nicht diese Tabelle — siehe §11.
+
 ---
 
 ## 6. Was bewusst **nicht** gerechnet wird
@@ -473,6 +566,11 @@ Annahmen werden im Quellen-Abschnitt des Tools ausdrücklich als
 
 ## 9. Bekannte Ungenauigkeiten (kein Fehler, aber wissenswert)
 
+Jede der folgenden Näherungen steht als Eintrag im Register `VEREINFACHUNGEN`
+(`js/core/sicherheit.js`) und färbt die betroffenen Werte auf `≈ vereinfacht`
+(§11). Wer eine ergänzt, ergänzt sie dort — sonst trägt der Wert weiter ein
+`§`, das er nicht verdient.
+
 * Grenzabstands-Streifen mit runden Enden entlang Parzellenkanten statt
   Gebäude-Rechteck-Messung nach § 22 ABV (auf der sicheren Seite; angezeigt).
 * Mehrlängenzuschlag allseitig statt fassadenweise (konservativ; angezeigt).
@@ -487,6 +585,15 @@ Annahmen werden im Quellen-Abschnitt des Tools ausdrücklich als
 
 ## 10. Offene Punkte
 
+0. **Attikaregel: 45°-Profil oder Drittel der Gebäudelänge?** Das Werkzeug
+   rechnet nach Art. 31 Abs. 1 BZO Zumikon mit dem 45°-Profil und einem
+   Rücksprung von Attikahöhe minus 1 m. Die reale Baueingabe für Kat. 2999
+   (Haldenstrasse 5, ausgewertet in `999_cookies/referenz-zumikon-2999-*.md`)
+   hält statt dessen **ein Drittel der Gebäudelänge** ein — Haus A 7.39 m von
+   22.17 m, Haus B 6.35 m von 19.06 m, beide exakt auf dem Maximum. Das sind
+   zwei verschiedene Regeln. Die Pläne zitieren dafür keine Rechtsgrundlage.
+   **Vor jeder Änderung am Attika-Code in der BZO Zumikon verifizieren** —
+   nicht aus dem Plan übernehmen (CLAUDE.md §2).
 1. **Zonen-anteilige Rechnung** bei Mischzonen (§ 259 PBG) — Hinweis vorhanden,
    Rechnung fehlt.
 2. **Gewässer-/Nicht-Bauzonen-Abzug** der anrechenbaren Fläche automatisieren.

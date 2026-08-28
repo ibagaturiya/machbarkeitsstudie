@@ -234,12 +234,19 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
         'swissALTI3D')] : []),
     ];
 
-    return [
+    const gruppen = [
       { title: 'PARZELLE', note: `${rules.gemeinde} · ogd-0156`, rows: parzelleRows },
       { title: 'ABZÜGE & FUSSABDRUCK', note: `Grundabstand ${fmt(grundabstandM)} m`, rows: abzugRows },
       { title: 'AUSNÜTZUNG', note: `AZ ${(az / 100).toFixed(2)} · bindend`, rows: ausnRows },
       { title: 'VOLUMEN & HÖHEN', note: terrainHeight != null ? `Referenz ${fmt(terrainHeight)} m ü. M.` : 'ohne Terrainbezug', rows: volumenRows },
     ];
+
+    // Vererbung ueber ALLE Zeilen, nicht je Gruppe: der Umbaute Raum steht in
+    // VOLUMEN, haengt aber am Nutzbaren Fussabdruck in ABZUEGE. Ein Durchlauf
+    // in Ableitungsreihenfolge genuegt, weil die Zeilen in dieser Reihenfolge
+    // gebaut sind — eine Zeile haengt nie an einer spaeteren.
+    T.vererbeSicherheit(gruppen.flatMap((g) => g.rows));
+    return gruppen;
   }
 
   T.buildKennwerte = buildKennwerte;

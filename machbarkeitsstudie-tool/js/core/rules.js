@@ -9,6 +9,43 @@
 window.MachbarkeitTool = window.MachbarkeitTool || {};
 
 (function () {
+  // Which values ONLY the communal BZO can supply, and what each one is needed
+  // for in the pipeline of REGELN.md §3. Without them there is no footprint and
+  // no floor area — the run stops (CLAUDE.md §2), but it stops with a named
+  // list instead of a bare error, so the gap between PBG/ABV and BZO is
+  // visible rather than merely fatal.
+  const KOMMUNAL_ERFORDERLICH = [
+    { param: 'grundabstand_min_m', label: 'Grenzabstand (klein)', wofuer: 'Fussabdruck — Rückversatz von der Parzellengrenze' },
+    { param: 'grosser_grenzabstand_min_m', label: 'Grosser Grenzabstand', wofuer: 'Fussabdruck — Hauptfassaden nach Süden' },
+    { param: 'ausnuetzungsziffer_max_pct', label: 'Ausnützungsziffer', wofuer: 'anrechenbare Geschossfläche' },
+    { param: 'vollgeschosse_max', label: 'Zahl der Vollgeschosse', wofuer: 'Geschossaufteilung und Freibetrag § 255 Abs. 3 PBG' },
+    { param: 'gebaeudehoehe_max_m', label: 'Gebäude- oder Fassadenhöhe', wofuer: 'Hüllkurve und Geschosshöhe' },
+    { param: 'firsthoehe_zuschlag_m', label: 'Firsthöhe (Zuschlag)', wofuer: 'Dach- und Attikaprofil' },
+    { param: 'gesamtlaenge_max_m', label: 'Max. Gebäudelänge', wofuer: 'Aufteilung in Baukörper' },
+    { param: 'gruenflaechenziffer_min_pct', label: 'Grünflächenziffer', wofuer: 'Fussabdruck-Deckel (kann fehlen — dann null, nie 0)' },
+  ];
+
+  // Typed error: app.js renders the lists instead of a bare popup.
+  class GemeindeNichtHinterlegtError extends Error {
+    constructor(gemeinde, vorhanden, erfasst) {
+      super(
+        `Für die Gemeinde "${gemeinde}" sind keine Bauvorschriften hinterlegt. ` +
+        `Grenzabstand, Ausnützungsziffer und Höhen stehen nur in der kommunalen BZO. ` +
+        `Hinterlegt sind aktuell: ${erfasst.join(', ')}.`
+      );
+      this.name = 'GemeindeNichtHinterlegtError';
+      this.gemeinde = gemeinde;
+      this.vorhandenAusKanton = vorhanden;
+      this.erforderlichAusBzo = KOMMUNAL_ERFORDERLICH;
+      this.erfassteGemeinden = erfasst;
+      this.beizubringen = [
+        `Bau- und Zonenordnung (BZO) der Gemeinde ${gemeinde} als PDF`,
+        'Zonenplan der Gemeinde (für die Zonenzuordnung der Parzelle)',
+        `Daraus eine data/bzo-${gemeinde.toLowerCase()}.json mit Provenienz je Wert (Artikel, Seite, Wortlaut) — Verfahren in README.md`,
+      ];
+    }
+  }
+
   // Relative to index.html, NOT absolute: the app is served both locally
   // (serve.py, site root) and on GitHub Pages under /machbarkeitsstudie/,
   // where a leading slash would point outside the site.
@@ -29,13 +66,22 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     if (cache[gemeinde]) return cache[gemeinde];
     const url = GEMEINDE_FILES[gemeinde];
     if (!url) {
-      throw new Error(
-        `Für die Gemeinde "${gemeinde}" sind keine Bauvorschriften hinterlegt. ` +
-        `Die kantonale Nutzungsplanung liefert zwar Ausnützung und Geschosszahl, aber ` +
-        `Grenzabstand und Grünflächenziffer stehen nur in der kommunalen BZO. ` +
-        `Ohne diese Werte lässt sich kein Fussabdruck berechnen. ` +
-        `Hinterlegt sind aktuell: ${availableGemeinden().join(', ')}.`
-      );
+      // Was das kantonale Recht auch ohne BZO liefert — aus der Datendatei
+      // gelesen, nicht hier aufgezählt, damit die Liste nicht driftet.
+      let vorhanden = [];
+      try {
+        const kant = await loadKantonalesRecht();
+        vorhanden = Object.entries(kant.normen || {}).map(([param, n]) => ({
+          param,
+          label: n.label || param,
+          artikel: (n.source && n.source.article) || null,
+        }));
+      } catch (e) {
+        // Auch der kantonale Datensatz fehlt — dann bleibt die Liste leer.
+        // Kein Grund, den eigentlichen Abbruch zu verschlucken.
+        vorhanden = [];
+      }
+      throw new GemeindeNichtHinterlegtError(gemeinde, vorhanden, availableGemeinden());
     }
     const res = await fetch(url);
     if (!res.ok) throw new Error(`Konnte ${url} nicht laden: HTTP ${res.status}`);
@@ -217,6 +263,8 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     return null;
   }
 
+  window.MachbarkeitTool.GemeindeNichtHinterlegtError = GemeindeNichtHinterlegtError;
+  window.MachbarkeitTool.KOMMUNAL_ERFORDERLICH = KOMMUNAL_ERFORDERLICH;
   window.MachbarkeitTool.getZoneRules = getZoneRules;
   window.MachbarkeitTool.availableGemeinden = availableGemeinden;
   window.MachbarkeitTool.loadGemeindeData = loadGemeindeData;

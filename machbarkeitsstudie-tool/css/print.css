@@ -142,3 +142,28 @@
 #print-doc .ci-review { background: #fdf8e8; } #print-doc .ci-review .ci-badge { background: #c98a11; }
 #print-doc .flags { margin-top: 4mm; border-top: 1px solid #e0e0e0; padding-top: 4mm; }
 #print-doc .flagline { font-size: 8.5pt; color: #6a5330; background: #fdf8e8; border-left: 3px solid #d9a441; padding: 1.8mm 4mm; margin-bottom: 1.4mm; line-height: 1.32; }
+
+/* --- Blatt «Belastbarkeit der Zahlen» ------------------------------------
+   Die Sicherheitsstufe jeder Zahl (js/core/sicherheit.js) auf Papier. Auf
+   dem Bildschirm traegt sie Farbe; gedruckt traegt sie das Zeichen — deshalb
+   ist hier das Zeichen die Kennzeichnung und Grau nur die Abstufung. */
+#print-doc .c-3565 { grid-template-columns: 35% 1fr; }
+#print-doc .bel-tafel td { padding: 2mm 0; font-size: 9.5pt; vertical-align: top; }
+#print-doc .bel-tafel td:last-child {
+  text-align: left; white-space: normal; color: #777; font-size: 8.5pt;
+}
+#print-doc .bel-z {
+  width: 6mm; text-align: center; font-weight: 700; font-size: 11pt;
+}
+#print-doc .bel-n { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+#print-doc .bel-erk { color: #777; font-size: 9pt; }
+#print-doc .bel-v { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+#print-doc tr.bel-grp td {
+  padding-top: 4mm; border-bottom: 1.5px solid #1a1a1a;
+  font: 700 8.5pt/1.2 inherit; letter-spacing: .08em; text-transform: uppercase;
+}
+/* Belegt bleibt schwarz; alles darunter wird schrittweise zurueckgenommen,
+   damit die belegten Zahlen die kraeftigsten auf dem Blatt sind. */
+#print-doc tr.bel-r-VEREINFACHT td { color: #4a4a4a; }
+#print-doc tr.bel-r-ANNAHME td { color: #6a6a6a; }
+#print-doc tr.bel-r-NICHT_ERMITTELBAR td { color: #8a8a8a; font-style: italic; }

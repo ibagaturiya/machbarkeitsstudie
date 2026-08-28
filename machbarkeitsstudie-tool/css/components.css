@@ -95,7 +95,16 @@
 .nk-titel { font-size: 0.84rem; font-weight: 600; }
 .nk-wert { font-size: 0.8rem; color: var(--text); }
 .nk-verlust { font-size: 0.78rem; color: var(--flag-badge); font-variant-numeric: tabular-nums; }
-.nk-grundlage { flex-basis: 100%; font-size: 0.74rem; color: var(--text-faint); }
+/* Messweise ueber Wert: die hoehere Norm sagt WIE gemessen wird, die tiefere
+   sagt WIEVIEL. Untereinander gesetzt ist die Ableitung PBG/ABV -> BZO an
+   jedem Schritt ablesbar, statt in einer Zeile zu verschwimmen. */
+.nk-messweise, .nk-grundlage { flex-basis: 100%; font-size: 0.74rem; color: var(--text-faint); }
+.nk-messweise i, .nk-grundlage i {
+  display: inline-block; min-width: 4.4em; font-style: normal;
+  font-size: 0.66rem; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--text-faint); opacity: .7;
+}
+.nk-step .sich { margin-left: 2px; font-size: 0.78rem; }
 .nk-detail { flex-basis: 100%; font-size: 0.76rem; color: var(--text-muted); }
 /* Ein Ausfall wird nie gruen dargestellt (REGELN.md 2/3.17) -- 'review'
    traegt hier dieselbe Farbe wie in der Checkliste. */

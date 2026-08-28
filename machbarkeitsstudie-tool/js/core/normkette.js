@@ -87,7 +87,16 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       if (!NORM_EBENEN[s.ebene]) throw new Error(`Unbekannte Normebene "${s.ebene}"`);
       schritte.push({
         nr: schritte.length + 1, status: 'ok', wert: null, detail: null,
-        flaecheM2: null, verlustM2: null, geometry: null, entfernt: null, ...s,
+        flaecheM2: null, verlustM2: null, geometry: null, entfernt: null,
+        // messweise: die HOEHERE Norm, die vorgibt WIE gemessen wird, wenn der
+        // WERT von einer tieferen Stufe kommt. Ohne sie liest sich ein
+        // BZO-Grenzabstand, als haette die Gemeinde auch die Messweise
+        // gesetzt — die steht aber im PBG/ABV. Genau diese Ableitung
+        // PBG/ABV -> BZO soll die Kette zeigen.
+        messweise: null,
+        // stufe: wie belastbar der Schritt ist (js/core/sicherheit.js).
+        stufe: 'BELEGT',
+        ...s,
       });
     };
     const rules = (r && r.rules) || {};
@@ -102,7 +111,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     //   eine Normkette, die bei der Gemeinde anfängt, die Rangordnung falsch
     //   darstellt. Status 'info' heisst: eingeordnet, nicht geprüft.
     push({
-      ebene: 'bund', titel: 'Bauzone', status: 'info',
+      ebene: 'bund', titel: 'Bauzone', status: 'info', stufe: 'NICHT_ERMITTELBAR',
       grundlage: 'RPG (Bundesrecht)', wert: 'nicht gerechnet',
       detail: 'Das Bundesrecht trennt Bau- von Nichtbaugebiet und bindet die kantonale und kommunale Planung. Dieses Werkzeug prüft die Bauzonen­zugehörigkeit nicht selbst — es setzt sie voraus und rechnet ausschliesslich Wohnzonen.',
     });
@@ -132,7 +141,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     const waldAbzugM2 = m2(r && r.flaechenAbzuege && r.flaechenAbzuege.waldM2) || 0;
     push({
       ebene: 'kanton', titel: 'Anrechenbare Grundstücksfläche',
-      grundlage: '§ 255/259 PBG', status: 'ok',
+      grundlage: '§ 255/259 PBG', status: 'ok', stufe: 'VEREINFACHT',
       wert: anrechenbar != null ? `${Math.round(anrechenbar)} m²` : null,
       flaecheM2: anrechenbar,
       verlustM2: waldAbzugM2 > 0 ? waldAbzugM2 : null,
@@ -149,7 +158,8 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     }
     push({
       ebene: 'gemeinde', titel: 'Grundabstand (kleiner Grenzabstand)',
-      grundlage: artGrundmasse, status: 'ok',
+      grundlage: artGrundmasse, status: 'ok', stufe: 'VEREINFACHT',
+      messweise: '§ 260 PBG · § 22 ABV — rechtwinklig zur Fassade',
       wert: grundM != null ? `− ${grundM.toFixed(1)} m allseitig` : null,
       flaecheM2: areaOf(ringOnly),
       verlustM2: parcelAreaM2 != null && areaOf(ringOnly) != null ? Math.max(0, parcelAreaM2 - areaOf(ringOnly)) : null,
@@ -161,7 +171,8 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     if (r && r.mehrlaengen) {
       push({
         ebene: 'gemeinde', titel: 'Mehrlängenzuschlag',
-        grundlage: 'Art. 14 BZO 2016 (Zürich)', status: 'ok',
+        grundlage: 'Art. 14 BZO 2016 (Zürich)', status: 'ok', stufe: 'VEREINFACHT',
+        messweise: '§ 260 PBG — Grenzabstand als Mass ab der Grenze',
         wert: `${r.mehrlaengen.baseM.toFixed(1)} m → ${r.mehrlaengen.requiredM.toFixed(1)} m`,
         detail: `Die längste Fassade misst ${r.mehrlaengen.facadeLengthM.toFixed(1)} m. Ein Drittel der Mehrlänge über 12 m erhöht den Grenzabstand, gedeckelt bei ${r.mehrlaengen.capM} m. Allseitig angewandt — konservativ.`,
       });
@@ -172,6 +183,8 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       push({
         ebene: 'gemeinde', titel: 'Grosser Grenzabstand (Hauptfassaden)',
         grundlage: artGrundmasse, status: r.grenzabstandDegraded ? 'review' : 'ok',
+        stufe: 'VEREINFACHT',
+        messweise: '§ 22 Abs. 2 ABV — Eckenregel, Streifen endet bündig',
         wert: rules.grosser_grenzabstand_min_m != null
           ? `− ${rules.grosser_grenzabstand_min_m.toFixed(1)} m auf ${(r.chosenIndices || []).length || 1} Seite(n)`
           : null,
@@ -191,6 +204,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       ebene: 'kanton', titel: 'Waldabstand',
       grundlage: '§ 262 PBG (Waldabstandslinie im Zonenplan)',
       status: wald.failed ? 'review' : (wald.applies ? 'ok' : 'skip'),
+      stufe: wald.failed ? 'NICHT_ERMITTELBAR' : 'VEREINFACHT',
       wert: wald.failed ? 'nicht prüfbar'
         : (r && r.waldLossInFootprintM2 > 0 ? `− ${Math.round(r.waldLossInFootprintM2)} m²` : 'kein Abzug'),
       flaecheM2: areaOf(afterWald),
@@ -326,7 +340,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     });
 
     push({
-      ebene: 'annahme', titel: 'Werkzeug-Annahmen', status: 'info',
+      ebene: 'annahme', titel: 'Werkzeug-Annahmen', status: 'info', stufe: 'ANNAHME',
       grundlage: 'ohne Gesetzeszitat', wert: 'siehe Quellen',
       detail: 'Kostenkennwert, Mindestbreiten, Suchradien und die Fassadenkanten-Näherung sind Annahmen des Werkzeugs, keine Rechtswerte. Vollständige Liste im Abschnitt «Quellen».',
     });
@@ -464,9 +478,12 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
           ? `<span class="nk-verlust">−${Math.round(s.verlustM2)} m²</span>` : '';
         return `<li class="nk-step nk-${s.status}" data-nr="${s.nr}" data-stage="${stageIdx}"${stageIdx >= 0 ? ' tabindex="0" role="button"' : ''}>` +
           `<span class="nk-rang" style="--nk-col:${farbeOf(s.ebene, dark())}" title="${esc(e.label)} — Rang ${e.rang}">${esc(e.kurz)}</span>` +
+          (T.SICHERHEIT_STUFEN && T.SICHERHEIT_STUFEN[s.stufe]
+            ? `<span class="sich s-${s.stufe}" title="${esc(T.SICHERHEIT_STUFEN[s.stufe].label)}">${esc(T.SICHERHEIT_STUFEN[s.stufe].zeichen)}</span>` : '') +
           `<span class="nk-body"><span class="nk-titel">${esc(s.titel)}</span>` +
           (s.wert ? `<span class="nk-wert">${esc(s.wert)}</span>` : '') + verlust +
-          `<span class="nk-grundlage">${esc(s.grundlage || '')}</span>` +
+          (s.messweise ? `<span class="nk-messweise"><i>Messweise</i>${esc(s.messweise)}</span>` : '') +
+          `<span class="nk-grundlage">${s.messweise ? '<i>Wert</i>' : ''}${esc(s.grundlage || '')}</span>` +
           (s.detail ? `<span class="nk-detail">${esc(s.detail)}</span>` : '') +
           `</span></li>`;
       }).join('');

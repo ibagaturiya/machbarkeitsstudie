@@ -666,6 +666,55 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       </div>`, foot,
       '<b>Quellen:</b> Kostenkennwert ist eine Werkzeug-Annahme (Bandbreite CHF 800–1000/m³ BKP 2), kein Gesetzeswert. Volumen aus dem oben hergeleiteten Baukörper.');
 
+    // ---- Sheet 5a: Belastbarkeit ------------------------------------------
+    // Jede Zahl dieses Berichts mit ihrer Sicherheitsstufe. Ohne dieses Blatt
+    // sähe auf dem Papier ein geschätzter Wert aus wie ein belegter — und ein
+    // Wert, der am Bildschirm als unsicher markiert ist, aber gedruckt glatt
+    // erscheint, ist gedruckt eine falsche Zahl (gleiche Begründung wie beim
+    // Parkierungsblatt, REGELN.md §7).
+    const sBel = (r.kennwerte && r.kennwerte.length)
+      ? (() => {
+          const alle = r.kennwerte.flatMap((g) => g.rows);
+          const z = T.zaehleSicherheit(alle);
+          const legende = T.SICHERHEIT_STUFEN_NACH_RANG.map((st) =>
+            `<tr>`
+            + `<td class="bel-z bel-${st.key}">${esc(st.zeichen)}</td>`
+            + `<td><b>${esc(st.label)}</b><br><span class="bel-erk">${esc(st.erklaerung)}</span></td>`
+            + `<td class="bel-n">${z[st.key]}</td></tr>`).join('');
+          const tafel = r.kennwerte.map((g) =>
+            `<tr class="bel-grp"><td colspan="4">${esc(g.title)}</td></tr>`
+            + g.rows.map((row) => {
+              const st = T.SICHERHEIT_STUFEN[row.sicherheit];
+              return `<tr class="bel-r bel-r-${row.sicherheit}">`
+                + `<td class="bel-z bel-${row.sicherheit}">${esc(st.zeichen)}</td>`
+                + `<td>${esc(row.label)}</td>`
+                + `<td class="bel-v">${esc(row.value)}</td>`
+                + `<td class="bel-g">${esc(row.sicherheitGrund || st.kurz)}${row.sicherheitVererbt ? ' <i>(geerbt)</i>' : ''}</td>`
+                + `</tr>`;
+            }).join('')).join('');
+          return sheet('Belastbarkeit der Zahlen', 'Was belegt ist — und was nicht',
+            `<div class="cols c-3565">
+              <div>
+                <div class="hero">
+                  <div class="hero-label">Von ${alle.length} Werten belegt</div>
+                  <div class="hero-value">${z.BELEGT} von ${alle.length}</div>
+                  <div class="hero-sub">${z.VEREINFACHT} vereinfacht · ${z.ANNAHME} Annahme · ${z.NICHT_ERMITTELBAR} nicht ermittelbar</div>
+                </div>
+                <table class="facts">${legende}</table>
+                <div class="note-box small">
+                  Ein abgeleiteter Wert trägt die schwächste Stufe seiner Eingänge.
+                  «Geerbt» heisst: der Wert selbst wäre besser belegt, einer seiner
+                  Eingänge ist es nicht. Kein Wert unterhalb von «belegt» ist eine
+                  bestandene Prüfung.
+                </div>
+              </div>
+              <div><table class="derive bel-tafel" data-flow>${tafel}</table></div>
+            </div>`, foot,
+            '<b>Quellen:</b> die Einstufung selbst rechnet nichts. Sie liest die Belegstellen der Datendateien '
+            + '(Artikel, Seite, Wortlaut) und das Register der Werkzeug-Annahmen — Wortlaut auf dem Blatt «Quellen und Vorbehalte».');
+        })()
+      : '';
+
     // ---- Sheet 5b: Abgrenzung ---------------------------------------------
     // Direkt vor den Quellen: das Dokument schliesst mit Umfang und Grundlage.
     const sAbg = sheet('Nicht Gegenstand dieser Auswertung', 'Was offen bleibt — benannt statt weggelassen',
@@ -739,7 +788,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       <h3>Zitierte Bestimmungen (Wortlaut)</h3>
       <div class="quote-list" data-flow>${quoteItems.join('')}</div>`, foot);
 
-    const html = [s1, s2, s2b, s3, s4, s4b, sPk, s5, sAbg, s6].join('');
+    const html = [s1, s2, s2b, s3, s4, s4b, sPk, s5, sBel, sAbg, s6].join('');
     const host = document.getElementById('print-doc');
     host.innerHTML = html;
 

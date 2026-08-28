@@ -31,7 +31,7 @@ globalThis.fetch = async (url) => {
   }
 };
 
-for (const f of ['js/core/parkierung.js', 'js/core/normkette.js', 'js/sources/checklist.js', 'js/core/envelope.js', 'js/core/rules.js']) {
+for (const f of ['js/core/format.js', 'js/core/sicherheit.js', 'js/core/parkierung.js', 'js/core/normkette.js', 'js/sources/checklist.js', 'js/core/envelope.js', 'js/core/rules.js', 'js/ui/kennwerte.js']) {
   // Plain scripts attaching to window.MachbarkeitTool — evaluate in order.
   // eslint-disable-next-line no-eval
   (0, eval)(await readFile(join(root, f), 'utf8'));
@@ -321,6 +321,171 @@ function check(name, actual, expected, tol = 0.01) {
       check(`Beleg für ${rules.gemeinde}/${k} vorhanden (Datei+Seite)`, !!(p && p.file && p.page), true);
     }
   }
+}
+
+// ---------------------------------------------------------------------------
+// 7) Sicherheitsstufen — js/core/sicherheit.js
+//    Die Skala beantwortet "wie belastbar", nicht "woher". Geprueft wird die
+//    Kaskade in beide Richtungen: dass jeder benannte Fall die erwartete Stufe
+//    ergibt UND dass ein unbenannter Fall wirft statt zu raten (CLAUDE.md §4).
+{
+  const S = (d) => T.stufeVon(d).stufe;
+
+  // Ordnung und Vererbung
+  check('Rangordnung belegt < vereinfacht', T.schwaechsteSicherheit('BELEGT', 'VEREINFACHT'), 'VEREINFACHT');
+  check('Rangordnung vereinfacht < Annahme', T.schwaechsteSicherheit('VEREINFACHT', 'ANNAHME'), 'ANNAHME');
+  check('Rangordnung Annahme < nicht ermittelbar', T.schwaechsteSicherheit('ANNAHME', 'NICHT_ERMITTELBAR'), 'NICHT_ERMITTELBAR');
+  check('schwaechste ist reihenfolgeunabhaengig', T.schwaechsteSicherheit('NICHT_ERMITTELBAR', 'BELEGT'), 'NICHT_ERMITTELBAR');
+  let threw = false;
+  try { T.schwaechsteSicherheit('ERFUNDEN'); } catch (e) { threw = true; }
+  check('unbekannte Stufe wirft', threw, true);
+
+  // Die vier Faelle der Kaskade
+  const beleg = { article: 'Art. 17, BZO Zumikon', file: 'source/bzo-zumikon-2019.pdf', page: 8 };
+  check('Gesetzeszitat mit Datei+Seite ⇒ BELEGT',
+    S({ wert: '5 m', kind: 'GEHOLT', prov: beleg, label: 'Grenzabstand' }), 'BELEGT');
+  check('amtlicher Datensatz ohne Artikel ⇒ BELEGT',
+    S({ wert: '1240 m²', kind: 'GEHOLT', prov: null, source: 'Amtliche Vermessung', label: 'Parzellenfläche' }), 'BELEGT');
+  check('Belegtyp wird unterschieden',
+    T.stufeVon({ wert: '5 m', kind: 'GEHOLT', prov: beleg, label: 'x' }).belegtyp, 'gesetzeszitat');
+  check('Registrierte Vereinfachung ⇒ VEREINFACHT',
+    S({ wert: '400 m²', kind: 'BERECHNET', prov: beleg, schluessel: 'grenzabstand_parzellenkante', label: 'Fussabdruck' }), 'VEREINFACHT');
+  check('Zonenwert ohne zonenscharfes Zitat ⇒ VEREINFACHT',
+    S({ wert: '5 m', kind: 'GEHOLT', prov: { article: 'Art. 17', synthetic: true }, label: 'x' }), 'VEREINFACHT');
+  check('kind ANNAHME ⇒ ANNAHME',
+    S({ wert: '28 m²', kind: 'ANNAHME', source: 'Werkzeug-Annahme', label: 'Tiefgarage' }), 'ANNAHME');
+  check('Registrierte Werkzeug-Annahme ⇒ ANNAHME',
+    S({ wert: '900', kind: 'BERECHNET', schluessel: 'kostenkennwert_chf_m3', label: 'Kosten' }), 'ANNAHME');
+  check('Entwurfsentscheidung ⇒ ANNAHME',
+    S({ wert: '2 Geschosse', kind: 'ENTWURF', source: 'Entwurf', label: 'Bebaubar als' }), 'ANNAHME');
+  check('null ⇒ NICHT_ERMITTELBAR (nie 0)',
+    S({ wert: null, kind: 'GEPRÜFT', label: 'Grünflächenziffer' }), 'NICHT_ERMITTELBAR');
+  check('"— nicht anwendbar" ⇒ NICHT_ERMITTELBAR',
+    S({ wert: '— nicht anwendbar', kind: 'GEPRÜFT', source: 'BZO Zumikon', label: 'GFZ-Deckel' }), 'NICHT_ERMITTELBAR');
+  check('ausgefallene Quelle ⇒ NICHT_ERMITTELBAR',
+    S({ wert: '712 m ü. M.', kind: 'GEHOLT', source: 'swissALTI3D', quelleAusgefallen: true, label: 'Terrain' }), 'NICHT_ERMITTELBAR');
+
+  // Kein stiller Durchfall: ein Wert ohne Beleg, ohne Register und ohne
+  // Rechenherkunft ist ein Datenfehler und muss auffallen.
+  threw = false;
+  try { S({ wert: '42', kind: 'GEHOLT', source: 'irgendwoher', label: 'Phantasiewert' }); } catch (e) { threw = true; }
+  check('unbelegter GEHOLT-Wert wirft', threw, true);
+
+  // Vererbung ueber eine Kette: die schwaechste Stufe gewinnt und wird
+  // transitiv weitergereicht.
+  const rows = [
+    { id: 'a', label: 'Parzelle', sicherheit: 'BELEGT' },
+    { id: 'b', label: 'anrechenbar', sicherheit: 'VEREINFACHT', dependsOn: ['a'] },
+    { id: 'c', label: 'Geschossfläche', sicherheit: 'BELEGT', dependsOn: ['b'] },
+    { id: 'd', label: 'Kosten', sicherheit: 'ANNAHME', dependsOn: ['c'] },
+    { id: 'e', label: 'Ergebnis', sicherheit: 'BELEGT', dependsOn: ['d'] },
+  ];
+  T.vererbeSicherheit(rows);
+  check('Vererbung: b bleibt vereinfacht', rows[1].sicherheit, 'VEREINFACHT');
+  check('Vererbung: c erbt vereinfacht', rows[2].sicherheit, 'VEREINFACHT');
+  check('Vererbung: c ist als geerbt markiert', rows[2].sicherheitVererbt, true);
+  check('Vererbung: e erbt Annahme über zwei Stufen', rows[4].sicherheit, 'ANNAHME');
+  check('Zählung stimmt mit den Zeilen überein', T.zaehleSicherheit(rows).VEREINFACHT, 2);
+
+  threw = false;
+  try { T.vererbeSicherheit([{ id: 'x', label: 'x', sicherheit: 'BELEGT', dependsOn: ['fehlt'] }]); } catch (e) { threw = true; }
+  check('Abhängigkeit auf unbekannte id wirft', threw, true);
+}
+
+// ---------------------------------------------------------------------------
+// 8) Fremde Gemeinde: Abbruch, aber benannt. Die Rechnung liefert weiterhin
+//    KEINE Zahl (CLAUDE.md §2) — sie sagt nur praezise, was fehlt.
+{
+  let err = null;
+  try {
+    await T.getZoneRules({ zone: 'W2', gemeinde: 'Küsnacht', kantonaleWerte: {} });
+  } catch (e) { err = e; }
+  check('fremde Gemeinde bricht ab', err !== null, true);
+  check('Fehlertyp ist benannt', err && err.name, 'GemeindeNichtHinterlegtError');
+  check('nennt die Gemeinde', err && err.gemeinde, 'Küsnacht');
+  check('listet kantonal Vorhandenes', !!(err && err.vorhandenAusKanton.length > 0), true);
+  check('jeder kantonale Eintrag trägt einen Artikel',
+    err ? err.vorhandenAusKanton.every((v) => !!v.artikel) : false, true);
+  check('listet die fehlenden BZO-Werte', !!(err && err.erforderlichAusBzo.length >= 6), true);
+  check('jeder fehlende Wert sagt, wofür er gebraucht wird',
+    err ? err.erforderlichAusBzo.every((v) => !!v.wofuer && !!v.label) : false, true);
+  check('nennt, was beizubringen ist', !!(err && err.beizubringen.length === 3), true);
+  check('nennt die erfassten Gemeinden', err ? err.erfassteGemeinden.join(',') : '', 'Zürich,Zumikon');
+}
+
+// ---------------------------------------------------------------------------
+// 9) Die Kennwerte-Tafel als Ganzes, am Referenzfall Zumikon W2/25.
+//    Ohne Browser: buildKennwerte ist reine Logik ueber das Ergebnisobjekt.
+//    Geprueft wird, dass JEDE Zeile eine gueltige Stufe bekommt (sonst wirft
+//    stufeVon), dass die Vererbung durch die Kette laeuft und dass die
+//    Zaehlung der Tafel entspricht — die Zahl in der Kopfzeile kann damit
+//    nicht von den Abzeichen darunter abweichen.
+{
+  const rules = await T.getZoneRules({ zone: 'W2/25', gemeinde: 'Zumikon', kantonaleWerte: {} });
+  const anrechenbar = 3190;
+  const reconciled = T.reconcileEnvelope({
+    parcelAreaM2: 3259, anrechenbareFlaecheM2: anrechenbar,
+    setbackFootprintAreaM2: 900, rules,
+  });
+  const r = {
+    anchor: { address: 'Haldenstrasse 5, 8126 Zumikon', parcelNumber: '2999', zone: 'W2/25', zoneSource: { rechtsstatus: 'inKraft' } },
+    rules, rulesData: null, reconciled, selection: [{ parcelNumber: '2999', egrid: 'CH796077735733' }],
+    terrainHeight: 717.6,
+    parcelAreaM2: 3259, anrechenbareFlaecheM2: anrechenbar,
+    flaechenAbzuege: { waldM2: 69 },
+    footprintBeforeWaldM2: 960, footprintAfterWaldM2: 900,
+    waldLossInFootprintM2: 60, baulinienLossM2: 0,
+    grundabstandUsedM: 5, hasDirectional: true, lengthLimitM: 35,
+    footprintRect: { lengthM: 30, widthM: 20 },
+    massingModel: {
+      ordinaryStoreys: 2, ordinaryMax: 2, attikaStoreys: 1, ugStoreys: 1, maxStoreys: 3,
+      floorplateM2: 398, attikaFloorplateM2: 200, ugFloorplateM2: 300,
+      gfaUsedM2: 797, perStoreyFreeM2: 398, extraDachCreditM2: 0,
+      nutzflaecheTotalM2: 1296, buildingHeightM: 6.5, ordinaryStoreyHeightM: 3.25,
+      attikaStoreyHeightM: 3.25, attikaHeightIsModelled: false,
+      volumeM3: 2587, hullVolumeM3: 5850,
+    },
+    hang: null, mehrlaengen: null, grenzabstandDegraded: null, massing: null,
+  };
+  const groups = T.buildKennwerte(r, {
+    provFor: (rl, ...keys) => { for (const k of keys) { const p = T.getProvenance(rl, k); if (p) return p; } return null; },
+    storeyCountLabel: (o, a) => `${o} Vollgeschosse${a ? ` + ${a} Attika` : ''}`,
+    compassLabel: () => 'N',
+  });
+  const alle = groups.flatMap((g) => g.rows);
+  check('Tafel gebaut (4 Gruppen)', groups.length, 4);
+  check('jede Zeile traegt eine gueltige Stufe',
+    alle.every((rw) => !!T.SICHERHEIT_STUFEN[rw.sicherheit]), true);
+  check('jede Zeile traegt eine Begruendung',
+    alle.every((rw) => typeof rw.sicherheitGrund === 'string' && rw.sicherheitGrund.length > 0), true);
+
+  const byLabel = (l) => alle.find((rw) => rw.label === l);
+  // Der Kern der Sache, an vier Zeilen: die vier Stufen kommen wirklich vor.
+  check('Zone ist belegt', byLabel('Zone').sicherheit, 'BELEGT');
+  check('Ausnützungsziffer-Zeile erbt die Vereinfachung der Bezugsfläche',
+    byLabel('Max. anrechenbare Geschossfläche').sicherheit, 'VEREINFACHT');
+  check('… und ist als geerbt markiert',
+    byLabel('Max. anrechenbare Geschossfläche').sicherheitVererbt, true);
+  check('anrechenbare Fläche ist vereinfacht (nur Wald abgezogen)',
+    byLabel('Anrechenbare Grundstücksfläche').sicherheit, 'VEREINFACHT');
+  check('Grünflächenziffer Zumikon ⇒ nicht ermittelbar (nie 0)',
+    byLabel('Grünflächenziffer-Deckel').sicherheit, 'NICHT_ERMITTELBAR');
+  check('Attikahöhe ohne Höhenzuschlag ⇒ Annahme',
+    byLabel('Attikahöhe').sicherheit, 'ANNAHME');
+  check('Geschosszahl ist Entwurf ⇒ Annahme', byLabel('Bebaubar als').sicherheit, 'ANNAHME');
+
+  // Jede belegte Zeile muss ihren Beleg auch tragen koennen.
+  const belegt = alle.filter((rw) => rw.sicherheit === 'BELEGT');
+  check('jede belegte Zeile nennt ihren Belegtyp',
+    belegt.every((rw) => ['gesetzeszitat', 'amtliche_daten', 'abgeleitet'].includes(rw.belegtyp)), true);
+  check('jede per Gesetzeszitat belegte Zeile hat Datei und Seite',
+    belegt.filter((rw) => rw.belegtyp === 'gesetzeszitat')
+      .every((rw) => !!(rw.prov && rw.prov.file && rw.prov.page != null)), true);
+
+  const z = T.zaehleSicherheit(alle);
+  check('Zählung deckt alle Zeilen ab',
+    z.BELEGT + z.VEREINFACHT + z.ANNAHME + z.NICHT_ERMITTELBAR, alle.length);
+  console.log(`     → ${alle.length} Werte: ${z.BELEGT} belegt · ${z.VEREINFACHT} vereinfacht · ${z.ANNAHME} Annahme · ${z.NICHT_ERMITTELBAR} nicht ermittelbar`);
 }
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nAlle Tests bestanden.');

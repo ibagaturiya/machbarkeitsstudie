@@ -1612,6 +1612,40 @@
     }
   }
 
+  // ---- Nicht gerechnet: Gemeinde ohne hinterlegte BZO ------------------
+  // Der Lauf bricht weiterhin ab — es wird keine Zahl geschaetzt und kein
+  // Teilergebnis als Ergebnis dargestellt (CLAUDE.md §2). Neu ist nur, dass
+  // der Abbruch die Luecke BENENNT: was das kantonale Recht auch ohne BZO
+  // hergibt, was die BZO liefern muesste, und was beizubringen ist. Genau an
+  // dieser Stelle wird die Ableitung PBG/ABV → BZO sichtbar.
+  function renderNichtGerechnet(err) {
+    const liste = (items) => `<ul class="ng-list">${items.join('')}</ul>`;
+    const kantonal = err.vorhandenAusKanton.length
+      ? liste(err.vorhandenAusKanton.map((v) =>
+          `<li><span class="sich s-BELEGT">§</span>`
+          + `<span class="ng-lb">${esc(v.label.replace(/_/g, ' '))}</span>`
+          + `<span class="ng-src">${esc(v.artikel || '—')}</span></li>`))
+      : `<p class="ng-none">Auch der kantonale Datensatz liess sich nicht laden.</p>`;
+    const kommunal = liste(err.erforderlichAusBzo.map((v) =>
+      `<li><span class="sich s-NICHT_ERMITTELBAR">?</span>`
+      + `<span class="ng-lb">${esc(v.label)}</span>`
+      + `<span class="ng-src">${esc(v.wofuer)}</span></li>`));
+    kennwerteEl.innerHTML =
+      `<div class="nicht-gerechnet">`
+      + `<div class="ng-head">Nicht gerechnet — ${esc(err.gemeinde)}</div>`
+      + `<p class="ng-intro">Für diese Gemeinde ist keine Bau- und Zonenordnung hinterlegt. `
+      + `Das kantonale Recht allein trägt keinen Fussabdruck und keine Geschossfläche, `
+      + `deshalb wird hier nichts gerechnet statt geschätzt.</p>`
+      + `<div class="ng-sec"><h4>Aus PBG / ABV vorhanden</h4>${kantonal}</div>`
+      + `<div class="ng-sec"><h4>Aus der BZO erforderlich — fehlt</h4>${kommunal}</div>`
+      + `<div class="ng-sec"><h4>Beizubringen</h4>`
+      + liste(err.beizubringen.map((b) => `<li><span class="ng-lb ng-wide">${esc(b)}</span></li>`))
+      + `</div>`
+      + `<p class="ng-foot">Hinterlegt sind zurzeit: ${esc(err.erfassteGemeinden.join(', '))}.</p>`
+      + `</div>`;
+    kwNoteEl.textContent = 'nicht gerechnet';
+  }
+
   // ---- Kennwerte-Tafel ------------------------------------------------
   // Kennwert / Wert / Beleg, gruppiert. Beim Ueberfahren einer Zeile steht
   // ihre Herleitung in der Leiste unten -- jeder Wert traegt den String, es
@@ -1621,7 +1655,18 @@
     kennwerteEl.innerHTML = groups.map((g) => {
       const rows = g.rows.map((row) => {
         const id = row.prov ? provRegistry.push(row.prov) - 1 : null;
-        return `<div class="kw-row" data-formula="${esc(row.formula || '')}">`
+        // Zweites Abzeichen: wie belastbar ist der Wert (js/core/sicherheit.js).
+        // `kind` sagt woher er kommt, `sicherheit` sagt was er traegt — die
+        // beiden Achsen werden bewusst nicht zusammengelegt.
+        const st = T.SICHERHEIT_STUFEN[row.sicherheit];
+        const stTitle = `${st.label}: ${row.sicherheitGrund || st.erklaerung}`
+          + (row.sicherheitVererbt ? ' · geerbt von einem Eingangswert' : '');
+        // Das Sicherheitszeichen steht VORNE, in einer eigenen schmalen
+        // Spalte: so bildet es eine Kolonne, die sich von oben nach unten
+        // ueberfliegen laesst. Stuende es hinten, muesste man es je Zeile
+        // suchen. Das Wort dazu steht im Titel und in der Legende.
+        return `<div class="kw-row kw-s-${row.sicherheit}" data-formula="${esc(row.formula || '')}" data-sicher="${esc(stTitle)}">`
+          + `<span class="sich s-${row.sicherheit}${row.sicherheitVererbt ? ' is-vererbt' : ''}" title="${esc(stTitle)}" aria-label="${esc(st.label)}">${esc(st.zeichen)}</span>`
           + `<span class="lb">${esc(row.label)}</span>`
           + `<span class="vl">${esc(row.value)}</span>`
           + `<span class="bg ${row.isCitation ? 'is-par' : 'is-src'}" title="${esc(row.source)}">`
@@ -1635,13 +1680,29 @@
         + `<div class="kw-group-head">${esc(g.title)}<span class="note">${esc(g.note)}</span></div>`
         + rows + `</div>`;
     }).join('');
+    // Legende der Sicherheitsstufen. Ein Zeichen ohne Legende ist eine
+    // Geheimschrift — sie gehoert an denselben Ort wie die Zeichen.
+    kennwerteEl.insertAdjacentHTML('afterbegin',
+      `<div class="sich-legende">`
+      + T.SICHERHEIT_STUFEN_NACH_RANG.map((st) =>
+        `<span title="${esc(st.erklaerung)}"><i class="sich s-${st.key}">${esc(st.zeichen)}</i>${esc(st.kurz)}</span>`).join('')
+      + `</div>`);
     wireProvButtons(kennwerteEl);
     kennwerteEl.querySelectorAll('.kw-row').forEach((el) => {
       el.addEventListener('mouseenter', () => {
-        herleitungEl.textContent = el.dataset.formula || 'keine Herleitung hinterlegt';
+        const f = el.dataset.formula || 'keine Herleitung hinterlegt';
+        const s = el.dataset.sicher;
+        herleitungEl.textContent = s ? `${f}  ·  ${s}` : f;
       });
     });
-    kwNoteEl.textContent = `${groups.reduce((n, g) => n + g.rows.length, 0)} Werte`;
+    // Die Zahlen hier kommen aus derselben Zaehlung wie die Abzeichen in der
+    // Tabelle — sie koennen deshalb nicht davon abweichen.
+    const alleRows = groups.flatMap((g) => g.rows);
+    const z = T.zaehleSicherheit(alleRows);
+    const teile = T.SICHERHEIT_STUFEN_NACH_RANG
+      .filter((st) => z[st.key] > 0)
+      .map((st) => `${z[st.key]} ${st.kurz}`);
+    kwNoteEl.textContent = `${alleRows.length} Werte · ${teile.join(' · ')}`;
   }
   kennwerteEl.addEventListener('mouseleave', () => {
     herleitungEl.textContent = HERLEITUNG_IDLE;
@@ -2214,7 +2275,14 @@
       // nicht nur in die Statuszeile.
       P.warn(`Abbruch — ${err.message || err}`);
       logNoteEl.textContent = 'abgebrochen';
-      setStatus('Fehler: ' + (err.message || err), true);
+      // Der Abbruch wegen fehlender BZO ist kein Programmfehler, sondern ein
+      // Ergebnis: er sagt, welche Norm fehlt. Deshalb Tafel statt Popup.
+      if (err && err.name === 'GemeindeNichtHinterlegtError') {
+        renderNichtGerechnet(err);
+        setStatus(`Nicht gerechnet — für ${err.gemeinde} ist keine BZO hinterlegt.`, true);
+      } else {
+        setStatus('Fehler: ' + (err.message || err), true);
+      }
     }
   }
 
