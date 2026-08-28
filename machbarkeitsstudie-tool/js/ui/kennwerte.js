@@ -92,9 +92,12 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
           : `Polygonfläche ${anchor.parcelNumber} = ${fmt(reconciled.parcelAreaM2)} m² (planar, LV95)`,
         'Amtliche Vermessung'),
       row('Anrechenbare Grundstücksfläche', `${fmt(reconciled.anrechenbareFlaecheM2)} m²`, 'BERECHNET',
-        abz.waldM2 > 0.5
-          ? `${fmt(reconciled.parcelAreaM2)} − ${fmt(abz.waldM2)} m² Wald in der Parzelle = ${fmt(reconciled.anrechenbareFlaecheM2)} m²`
-          : `${fmt(reconciled.parcelAreaM2)} m² − 0 m² (kein Wald in der Parzelle; Gewässer und Zonenanteile nicht automatisch geprüft)`,
+        (abz.waldM2 > 0.5 || abz.waldAbstand15M2 > 0.5)
+          ? `${fmt(reconciled.parcelAreaM2)}`
+            + (abz.waldM2 > 0.5 ? ` − ${fmt(abz.waldM2)} m² Wald in der Parzelle` : '')
+            + (abz.waldAbstand15M2 > 0.5 ? ` − ${fmt(abz.waldAbstand15M2)} m² Waldabstandsfläche > 15 m hinter der Linie (§ 259 aPBG)` : '')
+            + ` = ${fmt(reconciled.anrechenbareFlaecheM2)} m²`
+          : `${fmt(reconciled.parcelAreaM2)} m² − 0 m² (kein Wald, keine Fläche > 15 m hinter der Waldabstandslinie${abz.waldAbstand15M2 == null ? ' ermittelbar — manuell prüfen' : ''}; Gewässer und Zonenanteile nicht automatisch geprüft)`,
         art('massgebliche_grundflaeche', 'anrechenbare_grundstuecksflaeche', 'massgebliche_grundflaeche_altrecht'),
         null, { id: 'anrechenbar', schluessel: 'anrechenbare_flaeche_nur_wald' }),
     ];

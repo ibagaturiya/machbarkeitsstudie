@@ -97,8 +97,8 @@ selbst (`schwaechste()`, `vererbeSicherheit()`). Die Kennwert-Zeilen erklären
 ihre Abhängigkeiten über `id`/`dependsOn`; der Nachlauf in
 `js/ui/kennwerte.js` läuft einmal über alle Zeilen in Ableitungsreihenfolge.
 
-Weil die anrechenbare Grundstücksfläche nur den Wald automatisch abzieht (§9),
-ist sie `vereinfacht` — und alles, was auf ihr aufbaut, erbt das. Das ist keine
+Weil die anrechenbare Grundstücksfläche Gewässer- und Nicht-Bauzonen-Anteile
+nicht automatisch abzieht (§9), ist sie `vereinfacht` — und alles, was auf ihr aufbaut, erbt das. Das ist keine
 Übervorsicht, sondern die Sachlage: die Bezugsgrösse aller Ziffern kann zu gross
 sein. Zeilen, die nicht an ihr hängen (Zone, Höhenmass, Zonenwerte), bleiben
 `belegt`. Am Referenzfall Zumikon W2/25: 22 Werte, davon 11 belegt,
@@ -299,11 +299,25 @@ bleibt die **ungeteilte** bebaubare Fläche — die Gebäudeabstands-Lücken kos
 keine Ausnützung mehr. Ausgewiesen wird die Zahl der Baukörper mit der
 **tatsächlich längsten** Blocklänge (nach allen Schnittdurchgängen).
 
-### 3.9 Anrechenbare Grundstücksfläche (NEU)
+### 3.9 Anrechenbare Grundstücksfläche
 Bezugsgrösse aller Ziffern (AZ/ÜZ/GFZ) ist die **anrechenbare
 Grundstücksfläche** (§ 255/259 PBG; altrechtlich § 259 aPBG «massgebliche
-Grundfläche»): **Waldflächen innerhalb der Parzelle werden abgezogen**
-(Geometrie aus ogd-0111). Offene Gewässer und Flächenanteile ausserhalb der
+Grundfläche»). Automatisch abgezogen werden:
+
+* **Waldflächen innerhalb der Parzelle** (Geometrie aus ogd-0111);
+* **NEU (28.08.2026) — Waldabstandsflächen, soweit sie mehr als 15 m hinter
+  der Waldabstandslinie liegen** (§ 259 aPBG, Wortlaut in
+  `data/kantonale-abstandsvorschriften.json` → `massgebliche_grundflaeche_altrecht`).
+  Geometrie: bereits bestimmte Waldseite der Parzelle minus 15-m-Band um die
+  Linie minus Wald (der separat abgezogen wird, kein Doppelzählen) —
+  `waldAusserAnsatz()` in `js/sources/waldabstand.js`. Ist die Waldseite
+  nicht bestimmbar, ist der Abzug **nicht ermittelbar** (`null`, nie 0) und
+  wird als solcher geflaggt. Validiert am Referenzfall Zumikon 2999
+  (`999_cookies/referenz-zumikon-2999-ausnuetzung.md`): die eingereichte
+  Ausnützungsberechnung zieht dafür 69.0 m² ab (3'259 − 69 = 3'190 × 25 % =
+  797.5 m²); ohne den Abzug lag das Werkzeug 2.1 % zu hoch.
+
+Offene Gewässer und Flächenanteile ausserhalb der
 Bauzone werden **nicht** automatisch erkannt — dauerhafter Warnhinweis.
 
 ### 3.10 Fussabdruck-Deckel: Grünflächenziffer und Überbauungsziffer
@@ -436,6 +450,7 @@ Seit der Behebung von Fehler A eingehalten; durch Golden-Test abgesichert
 |---|---|---|---|
 | 3.0 m | kürzeste Kante, die als Fassade zählt | Annahme | `grenzabstand.js` |
 | 250 m / 400 m / 60 m / 0.15 m | Suchradien / Arbeitsrand / Schnittbreite | Annahme | `waldabstand.js` |
+| 15 m | Waldabstandsfläche hinter der Linie fällt ausser Ansatz | **§ 259 aPBG** (Wortlaut in `data/kantonale-abstandsvorschriften.json`) | `waldabstand.js` |
 | 30 m | BBOX-Halbweite Zonenabfrage | Annahme | `zone-lookup.js` |
 | 4 m / 5 m² / 40 / 3 | Block-Minima / Maxima | Annahme | `massing.js` |
 | 3.5 m | min. Breite eines Baukörpers | Annahme | `coordinates.js` |
@@ -576,7 +591,8 @@ Jede der folgenden Näherungen steht als Eintrag im Register `VEREINFACHUNGEN`
 * Mehrlängenzuschlag allseitig statt fassadenweise (konservativ; angezeigt).
 * Waldabstands-Seitenbestimmung hängt an der Auswahl-Grösse (3.6).
 * Mischzonen: Zone der Ausgangsparzelle für alles (Hinweis auf § 259 PBG).
-* Anrechenbare Fläche: nur Wald automatisch abgezogen.
+* Anrechenbare Fläche: Wald und der 15-m-Streifen hinter der Waldabstandslinie
+  automatisch abgezogen; Gewässer und Zonenanteile nur als Hinweis.
 * Baukörper schematisch (Rechteck, gleichverteilte Fläche, keine Erschliessung).
 * Für Zürich fehlt eine Attika-Profil-Regel in den Daten → voller Rücksprung
   (konservativ).

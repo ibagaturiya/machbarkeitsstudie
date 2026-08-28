@@ -20,6 +20,42 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
 
 (function () {
   const T = window.MachbarkeitTool;
+
+  // § 259 aPBG (Anhang bisheriges Recht): "Ausser Ansatz fallen
+  // Waldabstandsflächen, soweit sie mehr als 15 m hinter der
+  // Waldabstandslinie liegen, Wald und offene Gewässer." Rechtswert aus dem
+  // zitierten Wortlaut (Beleg: data/kantonale-abstandsvorschriften.json,
+  // massgebliche_grundflaeche_altrecht, S. 97) — kein Werkzeugwert.
+  const AUSSER_ANSATZ_HINTER_LINIE_M = 15;
+
+  // Pure Geometrie fuer den § 259-Flaechenabzug: der Teil der bereits
+  // bestimmten Waldseite der Parzelle (forbidden = Parzelle ∩ Waldseite der
+  // Linie inkl. Wald), der mehr als 15 m hinter der Linie liegt. Der Wald
+  // selbst wird ausgenommen: er faellt ohnehin ausser Ansatz und wird in
+  // js/app.js separat abgezogen (flaechenAbzuege.waldM2) — sonst zaehlte er
+  // doppelt. Rueckgabe { feature, areaM2 }; areaM2 ist null, wenn die
+  // Geometrie nicht bestimmbar war — nie stillschweigend 0 (CLAUDE.md §2).
+  //
+  // Referenzfall Zumikon 2999 (999_cookies/referenz-zumikon-2999-
+  // ausnuetzung.md): die eingereichte Ausnuetzungsberechnung zieht genau
+  // diese Flaeche (dort 69.0 m²) von der Grundstuecksflaeche ab, bevor die
+  // AZ angewendet wird. Ohne den Abzug lag das Werkzeug 2.1 % zu hoch.
+  function waldAusserAnsatz(forbidden, lineFeature, forestUnion) {
+    if (!forbidden) return { feature: null, areaM2: 0 };
+    const nearBand = T.bufferLV95(lineFeature, AUSSER_ANSATZ_HINTER_LINIE_M);
+    if (!nearBand) return { feature: null, areaM2: null };
+    // undefined = Operation gescheitert; null = leeres Ergebnis (zulaessig).
+    let far = safeOp(() => turf.difference(forbidden, nearBand), undefined);
+    if (far === undefined) return { feature: null, areaM2: null };
+    if (far && forestUnion) {
+      const noForest = safeOp(() => turf.difference(far, forestUnion), undefined);
+      if (noForest === undefined) return { feature: null, areaM2: null };
+      far = noForest;
+    }
+    const areaM2 = far ? T.planarAreaAnyLV95(far) : 0;
+    return areaM2 > 0.5 ? { feature: far, areaM2 } : { feature: null, areaM2: 0 };
+  }
+
   const WFS = 'https://maps.zh.ch/wfs/OGDZHWFS';
   const LAYER_ABSTANDSLINIE = 'ogd-0152_arv_basis_abstandslinie_wald_l';
   const LAYER_WALDAREAL = 'ogd-0111_giszhpub_wald_waldareal_f';
@@ -224,13 +260,14 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     ]);
 
     if (lineFeatures.length === 0) {
-      return { applies: false, reason: 'keine Waldabstandslinie in der Umgebung', forbidden: null, lostAreaM2: 0 };
+      // Keine Linie: nichts liegt "hinter" einer Linie — Abzug bestimmt 0.
+      return { applies: false, reason: 'keine Waldabstandslinie in der Umgebung', forbidden: null, lostAreaM2: 0, ausserAnsatzM2: 0 };
     }
     if (forestFeatures.length === 0) {
       // Line but no forest polygon nearby: the side test has no reference, so
       // say so rather than guessing a side.
       return {
-        applies: true, undetermined: true, forbidden: null, lostAreaM2: 0,
+        applies: true, undetermined: true, forbidden: null, lostAreaM2: 0, ausserAnsatzM2: null,
         reason: 'Waldabstandslinie vorhanden, aber kein Waldareal in der Umgebung gefunden — Seite nicht bestimmbar',
         lines: lineFeatures,
       };
@@ -291,6 +328,8 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
         undetermined: true,
         forbidden: lost > 1 ? forestOnlyInParcel : null,
         lostAreaM2: lost > 1 ? lost : 0,
+        // Ohne Seitenaufloesung ist auch der 15-m-Streifen unbestimmt.
+        ausserAnsatzM2: null,
         reason: 'Die Waldabstandslinie liess sich nicht in zwei Seiten auflösen; abgezogen wurde nur die tatsächliche Waldfläche',
         lines: lineFeatures,
         forest: forestFeatures,
@@ -322,15 +361,21 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     const parcelAreaM2 = T.planarAreaAnyLV95(parcelFeature);
 
     if (!forbidden || lostAreaM2 < 1) {
-      return { applies: true, forbidden: null, lostAreaM2: 0,
+      // Kein Parzellenteil auf der Waldseite → auch nichts > 15 m dahinter.
+      return { applies: true, forbidden: null, lostAreaM2: 0, ausserAnsatzM2: 0,
                reason: 'Waldabstandslinie in der Nähe, schneidet die Parzelle aber nicht',
                lines: lineFeatures, forest: forestFeatures };
     }
 
+    // § 259-Abzug von der massgeblichen Grundflaeche (nicht vom
+    // Fussabdruck): Waldabstandsflaeche > 15 m hinter der Linie, ohne Wald.
+    const ausserAnsatz = waldAusserAnsatz(forbidden, lineFeature, forestUnion);
     return {
       applies: true,
       forbidden,
       lostAreaM2,
+      ausserAnsatzM2: ausserAnsatz.areaM2,
+      ausserAnsatzFeature: ausserAnsatz.feature,
       fullyBlocked: lostAreaM2 > parcelAreaM2 - 1,
       sideUndetermined,
       lines: lineFeatures,
@@ -339,6 +384,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     };
   }
 
+  T.waldAusserAnsatz = waldAusserAnsatz;
   T.computeWaldabstand = computeWaldabstand;
   T.computeBaulinien = computeBaulinien;
 })();

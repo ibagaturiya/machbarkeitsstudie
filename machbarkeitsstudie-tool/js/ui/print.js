@@ -467,6 +467,9 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     if (abz.waldM2 > 0.5) {
       derivation.push(['Abzug Wald (§ 259 PBG: fällt ausser Ansatz)', '− ' + fmt(abz.waldM2) + ' m²', 'minus']);
     }
+    if (abz.waldAbstand15M2 > 0.5) {
+      derivation.push(['Abzug Waldabstandsfläche > 15 m hinter der Linie (§ 259 aPBG)', '− ' + fmt(abz.waldAbstand15M2) + ' m²', 'minus']);
+    }
     derivation.push(['Anrechenbare Grundstücksfläche', fmt(reconciled.anrechenbareFlaecheM2) + ' m²', '']);
     derivation.push([`Fussabdruck nach Grundabstand (${fmt(r.grundabstandUsedM ?? rules.grundabstand_min_m)} m)`, fmt(footprintBeforeWaldM2) + ' m²', 'minus']);
     if (waldLossInFootprintM2 > 0.5) {

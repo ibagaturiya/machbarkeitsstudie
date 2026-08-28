@@ -968,9 +968,18 @@
     // Anrechenbare Grundstücksfläche (§ 255/259 PBG bzw. § 259 aPBG):
     // forest inside the parcel does not count toward the AZ/ÜZ/GFZ reference
     // area (old law: "Wald ... fallen ausser Ansatz"; harmonised law: forest
-    // is not Bauzone). Open water and non-Bauzone parts are NOT auto-detected
-    // — reported as unchecked in the flags.
-    let flaechenAbzuege = { waldM2: 0, waldChecked: !wald.failed, gewaesserChecked: false, andereZoneChecked: false };
+    // is not Bauzone), and neither do Waldabstandsflächen more than 15 m
+    // behind the Waldabstandslinie (§ 259 aPBG; computed geometrically in
+    // js/sources/waldabstand.js — the Zumikon-2999 reference filing deducts
+    // exactly this before applying the AZ). Open water and non-Bauzone parts
+    // are NOT auto-detected — reported as unchecked in the flags.
+    let flaechenAbzuege = {
+      waldM2: 0,
+      // null = nicht ermittelbar (Quelle ausgefallen oder Seite unbestimmt),
+      // nie stillschweigend 0 — die Flags sagen es dann.
+      waldAbstand15M2: typeof wald.ausserAnsatzM2 === 'number' ? wald.ausserAnsatzM2 : null,
+      waldChecked: !wald.failed, gewaesserChecked: false, andereZoneChecked: false,
+    };
     if (wald.forest && wald.forest.length) {
       try {
         const forestUnion = wald.forest
@@ -980,7 +989,8 @@
         if (forestInParcel) flaechenAbzuege.waldM2 = T.planarAreaAnyLV95(forestInParcel);
       } catch (e) { /* keep 0, the flag reports water/zones as unchecked anyway */ }
     }
-    const anrechenbareFlaecheM2 = Math.max(0, parcelAreaM2 - flaechenAbzuege.waldM2);
+    const anrechenbareFlaecheM2 = Math.max(0,
+      parcelAreaM2 - flaechenAbzuege.waldM2 - (flaechenAbzuege.waldAbstand15M2 || 0));
 
     // A new shape invalidates any facade the user had picked by hand -- and
     // the Wohnungszahl, die zur alten Geschossflaeche gehoerte.
@@ -1010,6 +1020,9 @@
     P.stage('geometry', `geometry.solve buffer(−${fmt(derived.grundabstandUsedM ?? rules.grundabstand_min_m)} m) → ${fmt(derived.footprintBeforeWaldM2)} m²`);
     if (derived.waldLossInFootprintM2 > 0.5) P.step(`forest.setback −${fmt(derived.waldLossInFootprintM2)} m² im Fussabdruck`);
     if (derived.baulinienLossM2 > 0.5) P.step(`baulinie.cut −${fmt(derived.baulinienLossM2)} m² im Fussabdruck`);
+    if (flaechenAbzuege.waldAbstand15M2 > 0.5) {
+      P.step(`flaeche.ausserAnsatz § 259 aPBG: − ${fmt(flaechenAbzuege.waldAbstand15M2)} m² Waldabstandsfläche > 15 m hinter der Linie`);
+    }
     P.step(`az.apply ${fmt(anrechenbareFlaecheM2)} × ${(rules.ausnuetzungsziffer_max_pct / 100).toFixed(2)} = ${fmt(derived.reconciled.maxGfaM2)} m²`);
     if (derived.massingModel) {
       const m = derived.massingModel;
@@ -1964,7 +1977,7 @@
     }
     if (mmForFlags && mmForFlags.droppedBlockCount > 0) {
       const totalBlocks = (r.massing && r.massing.count) || mmForFlags.droppedBlockCount;
-      flags.push(`${mmForFlags.droppedBlockCount} von ${totalBlocks} Baukörpern aus der Längenaufteilung ${mmForFlags.droppedBlockCount > 1 ? 'waren' : 'war'} an dieser Stelle der Parzelle zu schmal (unter ${T.MIN_PRIMITIVE_WIDTH_M} m) für ein eigenständiges Gebäude und ${mmForFlags.droppedBlockCount > 1 ? 'wurden' : 'wurde'} nicht dargestellt. Die entsprechende Fläche fehlt in der unten ausgewiesenen Differenz zur rechnerischen Geschossfläche.`);
+      flags.push(`${mmForFlags.droppedBlockCount} von ${totalBlocks} Baukörpern aus der Längenaufteilung ${mmForFlags.droppedBlockCount > 1 ? 'waren' : 'war'} an dieser Stelle der Parzelle zu schmal (unter ${T.MIN_PRIMITIVE_WIDTH_M} m) für ein eigenständiges Gebäude und ${mmForFlags.droppedBlockCount > 1 ? 'wurden' : 'wurde'} nicht dargestellt. Das ist eine Folge der schematischen Gleichteilung mit festem Gebäudeabstand, keine Rechtsaussage: ein anders platzierter oder schmalerer Baukörper kann an dieser Stelle zulässig sein — die Anordnung der Gebäude ist Sache des Entwurfs. Die entsprechende Fläche fehlt in der unten ausgewiesenen Differenz zur rechnerischen Geschossfläche.`);
     } else if (mmForFlags && mmForFlags.cuboidNotPrimitive) {
       flags.push(`Für ${storeyCountLabel(mmForFlags.ordinaryStoreys, mmForFlags.attikaStoreys)} liess sich in dieser Form der Parzelle kein Rechteck mit der vollen benötigten Fläche (${fmt(mmForFlags.floorplateM2)} m² je Geschoss) platzieren. Der dargestellte Baukörper folgt daher ausnahmsweise dem unregelmässigen Umriss des bebaubaren Bereichs statt einer einfachen Box.`);
     } else if (mmForFlags && mmForFlags.cuboidAreaShortfallM2 > mmForFlags.floorplateM2 * 0.03) {
@@ -2020,7 +2033,7 @@
     // What the anrechenbare Fläche could NOT check automatically.
     const abzInfo = r.flaechenAbzuege || {};
     if (!abzInfo.gewaesserChecked || !abzInfo.andereZoneChecked) {
-      flags.push(`Anrechenbare Grundstücksfläche: automatisch abgezogen wurde nur Wald innerhalb der Parzelle${abzInfo.waldM2 > 0.5 ? ` (${fmt(abzInfo.waldM2)} m²)` : ' (hier: keiner)'}. Offene Gewässer und allfällige Flächenanteile ausserhalb der Bauzone werden nicht automatisch erkannt und wären zusätzlich abzuziehen (§ 259 PBG bzw. § 259 aPBG) — bei Gewässernähe oder Zonengrenzlage manuell prüfen.`);
+      flags.push(`Anrechenbare Grundstücksfläche: automatisch abgezogen wurden Wald innerhalb der Parzelle${abzInfo.waldM2 > 0.5 ? ` (${fmt(abzInfo.waldM2)} m²)` : ' (hier: keiner)'} und Waldabstandsflächen mehr als 15 m hinter der Waldabstandslinie${abzInfo.waldAbstand15M2 > 0.5 ? ` (${fmt(abzInfo.waldAbstand15M2)} m², § 259 aPBG)` : abzInfo.waldAbstand15M2 == null ? ' (nicht ermittelbar — Waldquelle oder Seitenbestimmung fehlt, manuell prüfen)' : ' (hier: keine)'}. Offene Gewässer und allfällige Flächenanteile ausserhalb der Bauzone werden nicht automatisch erkannt und wären zusätzlich abzuziehen (§ 259 PBG bzw. § 259 aPBG) — bei Gewässernähe oder Zonengrenzlage manuell prüfen.`);
     }
     // Arealüberbauung potential (Art. 6/7 E-BZO): not computed, but too much
     // money to leave silently on the table.

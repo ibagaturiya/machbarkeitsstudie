@@ -104,10 +104,10 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       konservativ: 'Unbestimmte Seiten werden als betroffen behandelt und erscheinen zusätzlich als Prüfpunkt.',
     },
     anrechenbare_flaeche_nur_wald: {
-      artikel: '§ 255/259 PBG',
-      gilt: 'Von der anrechenbaren Grundstücksfläche sind Wald, offene Gewässer und Flächen ausserhalb der Bauzone abzuziehen.',
-      werkzeug: 'Automatisch abgezogen wird nur der Wald. Gewässer und Zonenanteile erscheinen als Hinweis.',
-      konservativ: 'Nicht konservativ — die anrechenbare Fläche kann zu GROSS sein. Deshalb steht der Hinweis, und die Stufe fällt.',
+      artikel: '§ 255/259 PBG bzw. § 259 aPBG',
+      gilt: 'Von der anrechenbaren Grundstücksfläche sind Wald, Waldabstandsflächen mehr als 15 m hinter der Waldabstandslinie, offene Gewässer und Flächen ausserhalb der Bauzone abzuziehen.',
+      werkzeug: 'Automatisch abgezogen werden Wald und die Waldabstandsfläche > 15 m hinter der Linie. Gewässer und Zonenanteile erscheinen als Hinweis.',
+      konservativ: 'Nicht konservativ — wegen der ungeprüften Gewässer- und Zonenanteile kann die anrechenbare Fläche zu GROSS sein. Deshalb steht der Hinweis, und die Stufe fällt.',
     },
     zone_mischzone: {
       artikel: '§ 259 PBG',

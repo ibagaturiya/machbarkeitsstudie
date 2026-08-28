@@ -31,7 +31,11 @@ globalThis.fetch = async (url) => {
   }
 };
 
-for (const f of ['js/core/format.js', 'js/core/sicherheit.js', 'js/core/parkierung.js', 'js/core/normkette.js', 'js/sources/checklist.js', 'js/core/envelope.js', 'js/core/rules.js', 'js/ui/kennwerte.js']) {
+// turf zuerst: coordinates.js und waldabstand.js greifen beim Aufruf darauf
+// zu. Die UMD nimmt in ESM den globalThis-Zweig.
+(0, eval)(await readFile(join(root, 'vendor/turf-6.5.0/turf.min.js'), 'utf8'));
+
+for (const f of ['js/core/format.js', 'js/core/sicherheit.js', 'js/core/parkierung.js', 'js/core/normkette.js', 'js/sources/checklist.js', 'js/core/envelope.js', 'js/core/rules.js', 'js/ui/kennwerte.js', 'js/core/coordinates.js', 'js/sources/waldabstand.js']) {
   // Plain scripts attaching to window.MachbarkeitTool — evaluate in order.
   // eslint-disable-next-line no-eval
   (0, eval)(await readFile(join(root, f), 'utf8'));
@@ -49,6 +53,51 @@ function check(name, actual, expected, tol = 0.01) {
   } else {
     console.log(`ok   ${name}`);
   }
+}
+
+// ---------------------------------------------------------------------------
+// 000) § 259 aPBG — Waldabstandsfläche > 15 m hinter der Linie fällt ausser
+//      Ansatz (js/sources/waldabstand.js, waldAusserAnsatz).
+//      Referenzfall Zumikon 2999 (999_cookies/referenz-zumikon-2999-
+//      ausnuetzung.md): die eingereichte Ausnützungsberechnung zieht 69.0 m²
+//      Waldabstandsfläche von 3'259.0 m² ab und wendet die AZ auf 3'190.0 m²
+//      an → 797.50 m². Ohne diesen Abzug rechnete das Werkzeug 2.1 % zu viel.
+//      Toleranzen: bufferLV95 läuft über WGS84 (turf.buffer, sphärisch) und
+//      weicht ~0.3 % vom exakten 15-m-Band ab — in Richtung MEHR Abzug, also
+//      auf der sicheren Seite.
+{
+  const E = 2685000, N = 1245000; // gültige LV95-Koordinaten (Raum ZH)
+  const sq = (x0, y0, x1, y1) => turf.polygon([[
+    [E + x0, N + y0], [E + x1, N + y0], [E + x1, N + y1], [E + x0, N + y1], [E + x0, N + y0],
+  ]]);
+  // Linie bei x = 20, Waldseite links: forbidden = Parzellenteil x ∈ [0, 20].
+  const line = turf.lineString([[E + 20, N - 50], [E + 20, N + 90]]);
+
+  // Streifen weiter als 15 m hinter der Linie: x ∈ [0, 5] × 40 m = 200 m².
+  let r = T.waldAusserAnsatz(sq(0, 0, 20, 40), line, null);
+  check('§ 259: Fläche > 15 m hinter der Linie fällt ausser Ansatz (200 m²)', r.areaM2, 200, 2.5);
+  check('§ 259: die Abzugsgeometrie wird mitgeliefert', !!r.feature, true);
+
+  // Wald wird ausgenommen — er fällt separat ausser Ansatz (kein Doppelzählen).
+  r = T.waldAusserAnsatz(sq(0, 0, 20, 40), line, sq(0, 0, 3, 40));
+  check('§ 259: Wald im Streifen zählt nicht doppelt (200 − 120 = 80 m²)', r.areaM2, 80, 2.5);
+
+  // Alles näher als 15 m an der Linie: kein Abzug — und ausdrücklich 0, nicht null.
+  r = T.waldAusserAnsatz(sq(6, 0, 20, 40), line, null);
+  check('§ 259: innerhalb 15 m hinter der Linie bleibt anrechenbar (0 m²)', r.areaM2, 0);
+
+  // Keine Waldseite auf der Parzelle: bestimmt 0.
+  r = T.waldAusserAnsatz(null, line, null);
+  check('§ 259: ohne Waldseite ist der Abzug 0', r.areaM2, 0);
+
+  // Referenz-Arithmetik (Kette wie in js/app.js analyse()):
+  // anrechenbar = GF − ausserAnsatz; maxGFA = anrechenbar × AZ;
+  // Freibetrag je befreitem Geschoss = maxGFA / Vollgeschosszahl (§ 255 Abs. 3).
+  const anrechenbar = 3259.0 - 69.0;
+  check('Referenz 2999: anrechenbare Grundfläche', anrechenbar, 3190.0);
+  const maxGfa = anrechenbar * 0.25;
+  check('Referenz 2999: max. Ausnützung (AZ 25 %)', maxGfa, 797.5);
+  check('Referenz 2999: Freibetrag je Geschoss (§ 255 Abs. 3)', maxGfa / 2, 398.75);
 }
 
 // ---------------------------------------------------------------------------
