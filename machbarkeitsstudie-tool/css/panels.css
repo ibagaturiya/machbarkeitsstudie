@@ -160,7 +160,9 @@
 }
 .kw-row .bg {
   font: 400 8.5px/1.2 var(--font-num); text-align: right;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  /* Umbrechen statt abschneiden: "Art. 17/18 BZO Zumikon" auf zwei Zeilen
+     ist lesbar, "Art. 17/18 BZ…" ist es nicht. */
+  overflow-wrap: anywhere;
 }
 /* § references in the accent, plain dataset names in tertiary: the eye can
    tell a legal citation from a data source without reading either. */
