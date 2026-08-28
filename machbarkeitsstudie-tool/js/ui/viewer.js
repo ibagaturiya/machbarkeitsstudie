@@ -143,18 +143,18 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   // a near-black background (ground, outlines, ghost hull) is themed.
   const PALETTE = {
     light: {
-      bg: 0xf5f5f5, outline: 0x8a4b08, storeyLine: 0x6d3d07, attikaLine: 0x2f6b8a, attikaTint: 0x5a8fa8,
+      bg: 0xf5f5f5, outline: 0x8a4b08, storeyLine: 0x6d3d07, attikaLine: 0x8a8a8a, attikaTint: 0xffffff,
       ghostColor: 0x8a6a3a, ghostOpacity: 0.09, ghostOutline: 0xb09a72,
       parcelOutline: 0x333333, ambient: 0.6, sun: 0.8,
     },
     dark: {
-      bg: 0x1b1b1f, outline: 0xffb066, storeyLine: 0xffcf9e, attikaLine: 0x7ec8e3, attikaTint: 0x8fd0e8,
+      bg: 0x1b1b1f, outline: 0xffb066, storeyLine: 0xffcf9e, attikaLine: 0xffffff, attikaTint: 0xffffff,
       ghostColor: 0xd8b98a, ghostOpacity: 0.16, ghostOutline: 0x8a795f,
       parcelOutline: 0xcfcfcf, ambient: 0.75, sun: 0.65,
     },
   };
 
-  function renderEnvelope(container, { footprintFeature, parcelFeature, heightM, removedFeature, massing = null, interactive = false, dark = false, draggable = false, buildableArea = null, blockGapM = 0, onMove = null }) {
+  function renderEnvelope(container, { footprintFeature, parcelFeature, heightM, removedFeature, massing = null, interactive = false, dark = false, draggable = false, buildableArea = null, blockGapM = 0, onMove = null, onCamera = null }) {
     const pal = dark ? PALETTE.dark : PALETTE.light;
     const footprintRings = exteriorRingsOf(footprintFeature);
     const parcelRings = exteriorRingsOf(parcelFeature);
@@ -180,15 +180,17 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     // duplicate surface" artifact. The offset makes the resolution
     // deterministic instead of relying on the visibility threshold below to
     // always catch the coincident case.
+    // Baukörper in der Akzentfarbe des Werkzeugs (--acc, #ff9d2e) — dieselbe
+    // Farbe wie die gewählte Parzelle auf der Karte, ein Orange im ganzen UI.
     const material = new THREE.MeshStandardMaterial({
-      color: 0xd9a066, opacity: 0.85, transparent: true, side: THREE.DoubleSide,
+      color: 0xff9d2e, opacity: 0.85, transparent: true, side: THREE.DoubleSide,
       polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1,
     });
-    // Attikageschosse get their own tinted material -- a cooler colour, not
-    // just a thin outline -- so the step in the massing reads from any
-    // angle, not only when the storey-level lines happen to be visible.
+    // Attikageschosse: weiss und deutlich durchscheinender als der Baukörper
+    // darunter — der Rücksprung liest sich als leichter Aufsatz, nicht als
+    // andersfarbiges Vollgeschoss.
     const attikaMaterial = new THREE.MeshStandardMaterial({
-      color: pal.attikaTint, opacity: 0.85, transparent: true, side: THREE.DoubleSide,
+      color: pal.attikaTint, opacity: 0.45, transparent: true, side: THREE.DoubleSide,
       polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1,
     });
 
@@ -389,10 +391,12 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     const width = container.clientWidth || 600;
     const height = container.clientHeight || 450;
     const aspect = width / height;
-    const viewSize = Math.max(
-      40,
-      Math.max(...allFootprintPoints.map(([e, n]) => Math.hypot(e - centerE, n - centerN))) * 3
-    );
+    // viewSize is the camera's VERTICAL span; horizontal span is
+    // viewSize * aspect. In a pane narrower than tall (aspect < 1) a fit
+    // computed from the radius alone loses its sides, so divide by aspect
+    // there to guarantee the whole model stays inside the visible frame.
+    const fitRadius = Math.max(...allFootprintPoints.map(([e, n]) => Math.hypot(e - centerE, n - centerN)));
+    const viewSize = Math.max(40, (fitRadius * 3) / Math.min(1, aspect));
     let zoom = 1;
     const camera = new THREE.OrthographicCamera(
       (-viewSize * aspect) / 2, (viewSize * aspect) / 2,
@@ -406,9 +410,27 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     // in this scene's local frame), but Shift+drag pans it, which is just
     // moving this point in the view plane and re-orbiting around the new one.
     const dist = viewSize * 1.5;
-    let azimuth = Math.PI / 4;              // around the vertical axis
-    let polar = Math.atan(1 / Math.SQRT2);  // ~35.26°, true isometric elevation
-    const target = new THREE.Vector3(0, 0, 0);
+    const AZIMUTH_0 = Math.PI / 4;               // 45°, the classic isometric plan angle
+    const POLAR_0 = Math.atan(1 / Math.SQRT2);   // ~35.26°, true isometric elevation
+    let azimuth = AZIMUTH_0;                     // around the vertical axis
+    let polar = POLAR_0;
+    // Resting look-at point sits a little below the ground plane: the model
+    // then rides in the upper part of the frame, clear of the § overlay that
+    // occupies the pane's lower-left corner. RESET returns here too.
+    const TARGET_0_Y = -viewSize * 0.1;
+    const target = new THREE.Vector3(0, TARGET_0_Y, 0);
+
+    // The camera's own numbers, handed back so the panel can print them.
+    // Reported as they really are -- azimuth and elevation in degrees, zoom
+    // as a factor -- rather than as the mock's scaleY percentage, which was
+    // a property of a flattened SVG and has no counterpart on a real camera.
+    const cameraState = () => ({
+      azimuthDeg: ((Math.round((azimuth * 180) / Math.PI) % 360) + 360) % 360,
+      polarDeg: Math.round((polar * 180) / Math.PI),
+      zoom,
+    });
+    const reportCamera = () => { if (onCamera) onCamera(cameraState()); };
+
     function applyCamera() {
       const r = dist * Math.cos(polar);
       camera.position.set(target.x + r * Math.sin(azimuth), target.y + dist * Math.sin(polar), target.z + r * Math.cos(azimuth));
@@ -418,6 +440,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       camera.top = viewSize / 2 / zoom;
       camera.bottom = -viewSize / 2 / zoom;
       camera.updateProjectionMatrix();
+      reportCamera();
     }
     applyCamera();
 
@@ -596,7 +619,22 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       }, { passive: false });
     }
 
-    return { scene, camera, renderer, draw };
+    // The same orbit the pointer drives, exposed for the panel's ⟲ / ⟳ and
+    // RESET buttons. One code path for both -- a second, button-only
+    // rotation would drift out of step with the drag the first time either
+    // side gained a clamp.
+    const orbit = {
+      state: cameraState,
+      stepAzimuth(deg) { azimuth += (deg * Math.PI) / 180; applyCamera(); draw(); },
+      zoomBy(factor) { zoom = Math.max(0.4, Math.min(6, zoom * factor)); applyCamera(); draw(); },
+      reset() {
+        azimuth = AZIMUTH_0; polar = POLAR_0; zoom = 1;
+        target.set(0, TARGET_0_Y, 0);
+        applyCamera(); draw();
+      },
+    };
+
+    return { scene, camera, renderer, draw, orbit };
   }
 
   // Renders the same envelope off-screen at an arbitrary size and returns a

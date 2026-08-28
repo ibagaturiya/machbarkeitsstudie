@@ -23,7 +23,24 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   // and it 400s entirely at zoom 20, so tiles loaded inconsistently and the
   // map showed dark rectangular patches that looked like overlapping tiles.
   // One layer, no blending, no artifacts.
-  const CADASTRE_WMTS_URL = 'https://wmts.geo.admin.ch/1.0.0/ch.kantone.cadastralwebmap-farbe/default/current/3857/{z}/{x}/{y}.png';
+  // Amtliche Vermessung direkt vom Kanton Zürich (MapServer-WMS, on the fly
+  // aus den Vektordaten gerendert). Ersetzt die gekachelte cadastralwebmap
+  // des Bundes: deren WMTS-Cache lieferte Nachbarkacheln aus verschiedenen
+  // Datenständen — Strassen und Parzellenlinien sprangen an den Kachel-
+  // grenzen sichtbar um mehrere Pixel (mit drei nebeneinandergelegten
+  // Originalkacheln verifiziert, 2026-08-28; der Bund-WMS zeigte dieselbe
+  // Naht, er bedient sich aus demselben Cache). Der kantonale Dienst rendert
+  // jede Anfrage frisch, die Geometrie stösst exakt aneinander, und die
+  // Layergruppe blendet bei kleinen Massstäben selbst auf Landeskarten um
+  // statt mit 400 zu antworten. Das Werkzeug rechnet ohnehin nur im Kanton
+  // Zürich (CLAUDE.md, Zero-Assumption).
+  const AV_WMS_URL = 'https://wms.zh.ch/AVfarbigZH';
+  const CADASTRE_WMTS_URL = 'https://wmts.geo.admin.ch/1.0.0/ch.kantone.cadastralwebmap-farbe/default/current/3857/{z}/{x}/{y}.png'; // eslint-disable-line no-unused-vars -- dokumentiert die abgelöste Quelle
+  // Underneath it: the grey national map as fallback ground. The cadastre
+  // layer only exists at large scales — zoomed further out its tiles 400
+  // and the pane went fully black. The cadastre's opaque white ground
+  // covers this layer wherever it exists, so nothing blends at high zoom.
+  const BASE_WMTS_URL = 'https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.pixelkarte-grau/default/current/3857/{z}/{x}/{y}.jpeg';
   // The cadastre layer serves up to z20 and 400s at z21, so cap there
   // rather than letting Leaflet request tiles that don't exist.
   const MAX_ZOOM = 20;
@@ -44,7 +61,14 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   // reloading the page.
   let activeMap = null;
 
-  function initParcelMap(containerId, firstParcel, onSelectionChange, gemeindeOverride) {
+  // onHover bekommt die Parzellennummer, ueber der der Zeiger steht, oder
+  // null. Nur fuer die BEREITS gewaehlten Polygone: die uebrigen Parzellen
+  // kommen aus gerasterten Katasterkacheln, unter denen keine Geometrie
+  // liegt -- ein Hover-Effekt auf ihnen hiesse, bei jeder Mausbewegung den
+  // Identify-Dienst zu fragen. Der Entwurf ging von einer Vektor-Parzellen-
+  // ebene aus; die hat diese Karte nicht, und so zu tun als ob waere ein
+  // Effekt ohne Deckung.
+  function initParcelMap(containerId, firstParcel, onSelectionChange, gemeindeOverride, onHover) {
     if (activeMap) {
       activeMap.remove();
       activeMap = null;
@@ -63,18 +87,26 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       .setView([lat, lon], 19);
     activeMap = map;
 
-    L.tileLayer(CADASTRE_WMTS_URL, {
+    L.tileLayer(BASE_WMTS_URL, {
       maxZoom: MAX_ZOOM,
-      maxNativeZoom: MAX_ZOOM,
-      attribution: 'swisstopo / Kantone',
+      // The grey map itself stops at z19; Leaflet upscales it beyond that,
+      // invisible under the opaque cadastre tiles that cover those zooms.
+      maxNativeZoom: 19,
+      // Kein eigener Attribution-Text: die Kachel-Ebene darueber nennt
+      // swisstopo bereits — zweimal "swisstopo" in der Leiste ist Rauschen.
       keepBuffer: 4,
-      // Native EPSG:3857, 256px tiles -- Leaflet's default CRS.EPSG3857 grid
-      // origin and resolutions already match this exactly, so there is no
-      // tile-matrix/grid-origin mismatch to correct here (ruled out as a
-      // seam cause). updateWhenZooming:false stops Leaflet from swapping in
-      // lower-resolution tiles mid-zoom (irrelevant to seams directly, but
-      // one less source of mid-transition tile churn now that zoomAnimation
-      // is already off, above).
+      updateWhenZooming: false,
+    }).addTo(map);
+    L.tileLayer.wms(AV_WMS_URL, {
+      layers: 'AVfarbigZH',
+      format: 'image/png',
+      version: '1.3.0',
+      maxZoom: MAX_ZOOM,
+      // 512er-Kacheln: halb so viele Requests an den ungecachten Dienst,
+      // und Strassennamen wiederholen sich seltener je Bildschirm.
+      tileSize: 512,
+      attribution: 'AV GIS-ZH / swisstopo',
+      keepBuffer: 2,
       updateWhenZooming: false,
     }).addTo(map);
     L.control.scale({ metric: true, imperial: false, position: 'bottomleft' }).addTo(map);
@@ -104,8 +136,21 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     // instead of typing a second address to get there.
     let anchorEgrid = null;
 
-    const ANCHOR_STYLE = { color: '#1565c0', weight: 3, fillOpacity: 0.35 };
-    const EXTRA_STYLE = { color: '#c62828', weight: 3, fillOpacity: 0.35 };
+    // Die Auswahl traegt die Akzentfarbe der Oberflaeche, nicht mehr Blau
+    // und Rot: der ganze Bildschirm hat genau einen Akzent, und eine Karte
+    // mit zwei fremden Signalfarben darin liest sich wie ein zweites
+    // Werkzeug. Die Ausgangsparzelle steht voll im Akzent, weitere in der
+    // helleren Stufe -- der Rang bleibt sichtbar, ohne eine dritte Farbe.
+    // Die Werte werden aus den CSS-Variablen gelesen, damit --acc weiterhin
+    // die EINE Stelle ist, an der die Farbe des Werkzeugs steht.
+    const cssVar = (name, fallback) => {
+      const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+      return v || fallback;
+    };
+    const ACC = cssVar('--acc', '#ff9d2e');
+    const ACC2 = cssVar('--acc2', '#ffbe63');
+    const ANCHOR_STYLE = { color: ACC, weight: 2.5, fillColor: ACC, fillOpacity: 0.3 };
+    const EXTRA_STYLE = { color: ACC2, weight: 1.8, fillColor: ACC2, fillOpacity: 0.2 };
 
     function styleFor(egrid) {
       return egrid === anchorEgrid ? ANCHOR_STYLE : EXTRA_STYLE;
@@ -142,6 +187,10 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       if (anchorEgrid === null) anchorEgrid = parcelData.egrid;
       const latlngs = lv95RingToLatLngs(parcelData.geometryLV95[0]);
       const leafletLayer = L.polygon(latlngs, styleFor(parcelData.egrid)).addTo(layerGroup);
+      if (onHover) {
+        leafletLayer.on('mouseover', () => onHover(parcelData.parcelNumber, true));
+        leafletLayer.on('mouseout', () => onHover(null, false));
+      }
       const point = representativePoint(parcelData, clickPoint);
       selection.set(parcelData.egrid, { ...parcelData, ...point, leafletLayer });
       onSelectionChange(Array.from(selection.values()));

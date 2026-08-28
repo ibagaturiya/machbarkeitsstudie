@@ -13,28 +13,75 @@
   // Shared with print.js and evidence.js — see js/core/format.js.
   const esc = T.esc, fmt = T.fmt;
 
-  const form = document.getElementById('address-form');
-  const statusEl = document.getElementById('status');
-  const mapSectionEl = document.getElementById('map-section');
-  const selectionListEl = document.getElementById('selection-list');
-  const resultsEl = document.getElementById('results');
-  const versionBannerEl = document.getElementById('version-banner');
-  const zoneHeadlineEl = document.getElementById('zone-headline');
-  const bindingSummaryEl = document.getElementById('binding-summary');
-  const numbersTableEl = document.getElementById('numbers-table');
-  const parkierungEl = document.getElementById('parkierung');
-  const flagsEl = document.getElementById('flags');
-  const checklistEl = document.getElementById('checklist');
-  const viewerEl = document.getElementById('viewer');
-  const footnotesEl = document.getElementById('footnotes');
-  const sourcesSectionEl = document.getElementById('sources-section');
-  const zoningMapEl = document.getElementById('zoning-map');
-  const costEstimateEl = document.getElementById('cost-estimate');
-  const gemeindeSelect = document.getElementById('gemeinde-select');
+  const $ = (id) => document.getElementById(id);
 
-  const previewPdfBtn = document.getElementById('preview-pdf-btn');
-  const logBtn = document.getElementById('log-btn');
-  const printDocEl = document.getElementById('print-doc');
+  // Bright-paper switch: the unexplained little checkbox in the status bar
+  // flips body.bg-bright (shell.css). Survives reloads via localStorage;
+  // nothing else re-themes with it.
+  {
+    const bgToggle = $('bg-toggle');
+    const applyBg = (on) => document.body.classList.toggle('bg-bright', on);
+    let savedBg = null;
+    try { savedBg = localStorage.getItem('bg-bright'); } catch (_) { /* private mode */ }
+    if (bgToggle) {
+      bgToggle.checked = savedBg === '1';
+      applyBg(bgToggle.checked);
+      bgToggle.addEventListener('change', () => {
+        applyBg(bgToggle.checked);
+        try { localStorage.setItem('bg-bright', bgToggle.checked ? '1' : '0'); } catch (_) { /* private mode */ }
+      });
+    }
+  }
+
+  // ---- analysis screen -------------------------------------------------
+  const form = $('address-form');
+  const gemeindeSelect = $('gemeinde-select');
+  const auswahlValueEl = $('auswahl-value');
+  const analyseBtn = $('analyse-btn');
+  const previewPdfBtn = $('pdf-btn');
+  const detailBtn = $('detail-btn');
+
+  const mapHoverEl = $('map-hover');
+  const mapSelEl = $('map-sel');
+  const viewerEl = $('viewer');
+  const isoNoteEl = $('iso-note');
+  const isoReadoutEl = $('iso-readout');
+  const isoControlsEl = $('iso-controls');
+  const ovlModellEl = $('ovl-modell');
+  const ovlPlanEl = $('ovl-plan');
+  const planNoteEl = $('plan-note');
+  const variantsEl = $('variants');
+
+  const logEl = $('log');
+  const logFilterEl = $('log-filter');
+  const logNoteEl = $('log-note');
+  const logSourcesEl = $('log-sources');
+
+  const kennwerteEl = $('kennwerte');
+  const kwNoteEl = $('kw-note');
+
+  // The five KPI cells, each a value and a sub-line.
+  const KPI = ['volumen', 'gfa', 'fuss', 'hoehe', 'nutz']
+    .reduce((acc, k) => { acc[k] = { v: $(`kpi-${k}`), s: $(`kpi-${k}-s`) }; return acc; }, {});
+
+  // ---- status bar ------------------------------------------------------
+  const statusEl = $('status-msg');
+  const statusStandEl = $('status-stand');
+  const statusTimingsEl = $('status-timings');
+
+  // ---- detail screen ---------------------------------------------------
+  const versionBannerEl = $('version-banner');
+  const zoneHeadlineEl = $('zone-headline');
+  const bindingSummaryEl = $('binding-summary');
+  const parkierungEl = $('parkierung');
+  const flagsEl = $('flags');
+  const flagsNoteEl = $('flags-note');
+  const checklistEl = $('checklist');
+  const footnotesEl = $('footnotes');
+  const sourcesSectionEl = $('sources-section');
+  const zoningMapEl = $('zoning-map');
+  const costEstimateEl = $('cost-estimate');
+  const printDocEl = $('print-doc');
   // Kept so the print document can be composed from the last analysis
   // without re-running it.
   let lastResult = null;
@@ -55,110 +102,32 @@
     return true;
   }
 
-  // ---- Theme (light/dark) --------------------------------------------
-  // Applied to <html> before first paint (inline script in index.html) so
-  // there's no flash; this just keeps the toggle button and the 3D view in
-  // sync with it afterwards. The Leaflet basemap and the app chrome are
-  // themed entirely in CSS (var(--map-filter) inverts the raster tiles);
-  // three.js has no CSS to hook into, so the viewer is re-rendered with the
-  // current theme's palette instead.
-  const themeToggleBtn = document.getElementById('theme-toggle');
-  function currentTheme() {
-    return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
-  }
-  function isDark() {
-    return currentTheme() === 'dark';
-  }
-  // Line icons, not emoji: an emoji renders at its own colour and weight and
-  // reads as a coloured badge, which is far too loud for a preference switch
-  // sitting next to the analysis controls.
-  const ICON_SUN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.4M12 19.6V22M4.2 4.2l1.7 1.7M18.1 18.1l1.7 1.7M2 12h2.4M19.6 12H22M4.2 19.8l1.7-1.7M18.1 5.9l1.7-1.7"/></svg>';
-  const ICON_MOON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 14.6A8.6 8.6 0 0 1 9.4 3.5a8.6 8.6 0 1 0 11.1 11.1z"/></svg>';
-  function applyThemeIcon() {
-    themeToggleBtn.innerHTML = isDark() ? ICON_MOON : ICON_SUN;
-  }
-  applyThemeIcon();
-  themeToggleBtn.addEventListener('click', () => {
-    const next = isDark() ? 'light' : 'dark';
-    document.documentElement.dataset.theme = next;
-    localStorage.setItem('machbarkeit-theme', next);
-    applyThemeIcon();
-    if (lastResult) renderViewer(lastResult);
-    ablaufPanel.redraw();
+  // ---- One theme, and one screen at a time ---------------------------
+  // The light/dark toggle is gone with the 3a shell: the glass, the
+  // millimetre paper and every accent tint are calibrated for #0e0f10, and
+  // a light counterpart would be a second design rather than a variable
+  // swap. isDark() stays -- viewer.js, floorplan.js and normkette.js all
+  // take a palette flag, and the honest answer here is now simply "yes".
+  // The print document is unaffected: it is a paper document, always light.
+  function isDark() { return true; }
+
+  // The analysis screen shows everything at once. What design 3a has no
+  // slot for -- Zonen-Steckbrief, Prüfliste, Quellen, Kosten, Grundbuch,
+  // Normkette -- lives on a second screen behind this button, never behind
+  // a click that would hide part of the result on the screen it left.
+  detailBtn.addEventListener('click', () => {
+    const open = document.body.classList.toggle('detail-open');
+    detailBtn.textContent = open ? 'ZURÜCK' : 'DETAILS';
+    // A WebGL canvas sized while hidden has no size; coming back needs a
+    // redraw at the real dimensions.
+    if (!open && lastResult) { renderViewer(lastResult); renderFloorPlan(lastResult); }
+    if (open) ablaufPanel.redraw();
   });
 
-  // Tabs in the geometry pane. The 3D canvas is sized by CSS, so it must be
-  // re-rendered when its pane becomes visible (a hidden canvas has no size).
-  document.querySelectorAll('.tab').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const target = btn.dataset.tab === 'viewer' ? 'viewer-wrap' : btn.dataset.tab;
-      document.querySelectorAll('.tab').forEach((b) => b.classList.toggle('active', b === btn));
-      document.querySelectorAll('.tab-pane').forEach((p) => p.classList.toggle('active', p.id === target));
-      if (target === 'viewer-wrap' && lastResult) renderViewer(lastResult);
-    });
-  });
-
-  // Export: ein Knopf, eine Handlung. "PDF exportieren" baut das Dokument
-  // (pro Seite ein Argument mit Plänen und Quellen), rastert es und öffnet
-  // die fertige PDF in einem eigenen Tab im PDF-Viewer des Browsers —
-  // dessen eigene Leiste trägt Download-Pfeil, Suche und Seitenzahlen
-  // (js/ui/pdf.js). Kein Druckdialog, keine Zwischenvorschau: das Dokument
-  // wird ausserhalb des Bildes aufgebaut (Klasse "exporting") und ist nie
-  // als Bildschirmzustand zu sehen.
-
-  // Berechnungslog in einem eigenen Fenster: die Normkette, Schritt für
-  // Schritt, mit Rechtsgrundlage und der Fläche, die jeder Schritt kostet —
-  // dazu die Hinweise. Am Bildschirm steht dasselbe im eingeklappten Panel
-  // "Ablauf & Normkette"; als eigenes Fenster lässt es sich neben die Karte
-  // legen und beim Prüfen offen halten.
-  logBtn.addEventListener('click', () => {
-    if (!lastResult) return;
-    const win = window.open('', 'berechnungslog', 'width=920,height=1000');
-    if (!win) { setStatus('Der Browser hat das Log-Fenster blockiert — Popups für diese Seite erlauben.', true); return; }
-    const kette = T.buildNormkette(lastResult, { withGeometry: false });
-    const rows = kette.schritte.map((s) => {
-      const ebene = T.NORM_EBENEN[s.ebene];
-      const verlust = s.verlustM2 != null && s.verlustM2 > 0.5 ? `−${fmt(s.verlustM2, 1)} m²` : '';
-      const rest = s.flaecheM2 != null ? `${fmt(s.flaecheM2, 1)} m²` : '';
-      return `<tr class="st-${esc(s.status)}"><td class="nr">${s.nr}</td>` +
-        `<td><span class="ebene">${esc(ebene.kurz)}</span></td>` +
-        `<td><b>${esc(s.titel)}</b>${s.wert ? ` — ${esc(s.wert)}` : ''}` +
-        `<div class="grundlage">${esc(s.grundlage || '')}</div>` +
-        (s.detail ? `<div class="detail">${esc(s.detail)}</div>` : '') + `</td>` +
-        `<td class="num minus">${esc(verlust)}</td><td class="num">${esc(rest)}</td></tr>`;
-    }).join('');
-    const a = lastResult.anchor;
-    win.document.write(
-      `<!doctype html><html lang="de"><head><meta charset="utf-8">` +
-      `<title>Berechnungslog — ${esc(a.address || '')}</title><style>` +
-      `body{margin:0;padding:22px 26px;font:13px/1.5 -apple-system,"Helvetica Neue",Arial,sans-serif;` +
-      `background:#16161a;color:#e6e3dc}` +
-      `h1{font-size:16px;margin:0 0 2px}p.sub{margin:0 0 18px;color:#9a948a;font-size:12px}` +
-      `table{width:100%;border-collapse:collapse}` +
-      `td{padding:7px 8px;border-bottom:1px solid #2c2c32;vertical-align:top}` +
-      `td.nr{color:#6f6a62;width:2em}td.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;width:7em}` +
-      `td.minus{color:#d98b8b}` +
-      `.ebene{display:inline-block;font-size:10px;letter-spacing:.06em;text-transform:uppercase;` +
-      `border:1px solid #4a4a52;border-radius:3px;padding:1px 5px;color:#b0aaa0}` +
-      `.grundlage{color:#9a948a;font-size:11.5px;margin-top:2px}` +
-      `.detail{color:#7f7a72;font-size:11.5px;margin-top:2px}` +
-      `tr.st-warn td{background:#2a2418}tr.st-fail td{background:#2d1c1c}` +
-      `h2{font-size:13px;margin:26px 0 8px;color:#b0aaa0}` +
-      `.flag{background:#2a2418;border-left:3px solid #b08b4f;padding:7px 10px;margin-bottom:6px;font-size:12px}` +
-      `</style></head><body>` +
-      `<h1>Berechnungslog — ${esc(a.address || lastResult.selection.map((p) => p.parcelNumber).join(' + '))}</h1>` +
-      `<p class="sub">${esc(lastResult.rules.gemeinde)} · Zone ${esc(a.zone)} · ` +
-      `${kette.schritte.length} Schritte · erstellt ${new Date().toLocaleString('de-CH')}</p>` +
-      `<table>${rows}</table>` +
-      (lastFlags.length ? `<h2>Hinweise (${lastFlags.length})</h2>` +
-        lastFlags.map((f) => `<div class="flag">${esc(f)}</div>`).join('') : '') +
-      `</body></html>`
-    );
-    win.document.close();
-  });
-
-  // Der Dateiname trägt Adresse (oder Parzellennummern) und Datum, damit im
-  // Download-Ordner nicht zehn "Machbarkeit.pdf" nebeneinander liegen.
+  // Der Dateiname trägt Adresse (oder Parzellennummern), Datum und die
+  // Werkzeug-Version, damit im Download-Ordner nicht zehn "Machbarkeit.pdf"
+  // nebeneinander liegen und zwei Exporte verschiedener Stände
+  // unterscheidbar bleiben.
   function pdfFilename() {
     const r = lastResult;
     const subject = r
@@ -166,13 +135,13 @@
       : '';
     const d = new Date();
     const stamp = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    return T.safeFilename(['Machbarkeit', subject, stamp]);
+    return T.safeFilename(['Machbarkeitsstudie', subject, stamp, T.WERKZEUG_VERSION]);
   }
 
-  // Startzustand: ohne Analyse gibt es nichts zu exportieren und nichts zu
-  // protokollieren.
+  // Startzustand: ohne Analyse gibt es nichts zu exportieren und nichts
+  // aufzuschlüsseln.
   previewPdfBtn.disabled = true;
-  logBtn.disabled = true;
+  detailBtn.disabled = true;
   previewPdfBtn.addEventListener('click', async () => {
     const label = previewPdfBtn.textContent;
     const filename = pdfFilename();
@@ -361,6 +330,62 @@
     statusEl.textContent = text;
     statusEl.className = isError ? 'error' : '';
     if (text) ablaufPanel.live(isError ? `FEHLER — ${text}` : text);
+  }
+
+  // ---- the run protocol ------------------------------------------------
+  // One protokoll per analysis run. Lines stream into the log panel as they
+  // are emitted rather than appearing all at once at the end -- during a run
+  // the log IS the progress indicator, which is why there is no spinner and
+  // no fake percentage anywhere in this tool.
+  let protokoll = null;
+
+  function appendLogLine(line) {
+    const el = document.createElement('div');
+    el.className = `log-line ${line.kind}`;
+    el.innerHTML = `<span class="t">${esc(line.t)}</span>`
+      + `<span class="b">${esc(line.badge)}</span>`
+      + `<span class="m">${esc(line.msg)}</span>`;
+    logEl.appendChild(el);
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  function startProtokoll() {
+    logEl.innerHTML = '';
+    logFilterEl.innerHTML = '';
+    logSourcesEl.innerHTML = '';
+    logNoteEl.textContent = 'läuft …';
+    protokoll = T.createProtokoll({ onLine: appendLogLine });
+    return protokoll;
+  }
+
+  // The filter line and the run summary are COUNTED from the protocol and
+  // the Kennwerte, never typed: "2 Annahmen" that disagreed with the two
+  // rows tagged ANNAHME would be worse than no number at all.
+  function renderLogSummary(sum) {
+    logNoteEl.textContent = `${(sum.durationMs / 1000).toFixed(2)} s`;
+    logFilterEl.innerHTML =
+      `<span>alle ${protokoll.lines.length}</span>` +
+      `<span class="lf-acc">${sum.citations} § Belege</span>` +
+      `<span class="lf-warn">${sum.warnings} Warnung${sum.warnings === 1 ? '' : 'en'}</span>` +
+      `<span class="lf-right">${sum.rulesChecked} Regeln · ${sum.assumptions} Annahmen · ${sum.conflicts} Konflikte</span>`;
+    statusTimingsEl.textContent = protokoll.timings
+      .map((t) => `${t.key} ${Math.round(t.ms)} ms`).join(' · ');
+  }
+
+  // QUELLEN · STAND: which dataset every number came out of, and when it
+  // was last verified. Dates come from the data files, not from here.
+  function renderLogSources(r) {
+    const md = r.rulesData || {};
+    const rows = [
+      ['Kommunale BZO', `${md.version || '—'}`, md.data_last_verified || null],
+      ['Nutzungsplanung Kanton', 'ogd-0156 (WFS maps.zh.ch)', null],
+      ['Amtliche Vermessung', 'geo.admin.ch — Liegenschaften', null],
+      ['Höhenmodell', 'swissALTI3D', null],
+    ];
+    logSourcesEl.innerHTML = '<span class="ls-k">QUELLEN · STAND</span>' +
+      rows.map(([k, v, d]) =>
+        `<div class="ls-row"><span>${esc(k)}</span><span class="d">${esc(d ? `${v} · ${formatDateCH(d)}` : v)}</span></div>`
+      ).join('');
   }
 
   // "2 Vollgeschosse", "2 Vollgeschosse + 1 Attika" -- used everywhere a
@@ -867,7 +892,39 @@
   // selection: array of parcels from parcel-selector.js, each with
   // geometryLV95 / egrid / parcelNumber / zone / rules. One entry = plain
   // single-parcel case; several = merged case.
-  async function analyse(selection) {
+  // Welche Normen dieser Durchgang tatsaechlich angewandt hat, als Paare
+  // [Schluessel im _provenance-Block, was sie hier bewirkt hat]. Bedingt
+  // notierte Zeilen stehen nur drin, wenn die Regel wirklich gegriffen hat --
+  // ein Paragraph, der nichts getan hat, gehoert nicht ins Protokoll.
+  function citedRules(rules, d) {
+    const out = [
+      ['grundabstand_min_m', `Grundabstand ${fmt(d.grundabstandUsedM ?? rules.grundabstand_min_m)} m`],
+      ['ausnuetzungsziffer_max_pct', `Ausnützungsziffer ${(rules.ausnuetzungsziffer_max_pct / 100).toFixed(2)} — bindendes Maximum`],
+      ['vollgeschosse_max', `Vollgeschosse max. ${rules.vollgeschosse_max}`],
+      [rules.heightRegime ? 'gebaeudehoehe_max_m_bzo2016'
+        : (rules.traufseitige_fassadenhoehe_max_m != null ? 'traufseitige_fassadenhoehe_max_m' : 'gebaeudehoehe_max_m'),
+        `${rules.heightMetric} max. ${rules.heightM} m`],
+    ];
+    if (d.hasDirectional && rules.grosser_grenzabstand_min_m != null) {
+      out.push(['grosser_grenzabstand_min_m', `grosser Grenzabstand ${fmt(rules.grosser_grenzabstand_min_m)} m an der Hauptfassade`]);
+    }
+    if (d.mehrlaengen) out.push(['mehrlaengenzuschlag', `Mehrlängenzuschlag auf ${fmt(d.mehrlaengen.requiredM)} m`]);
+    if (d.waldLossInFootprintM2 > 0.5) out.push(['waldabstand', `Waldabstand — ${fmt(d.waldLossInFootprintM2)} m² entfallen`]);
+    if (d.reconciled.hasGreenCap) out.push(['gruenflaechenziffer_min_pct', `Grünflächenziffer min. ${rules.gruenflaechenziffer_min_pct} %`]);
+    if (d.reconciled.hasUeberbauungsCap) out.push(['ueberbauungsziffer_hauptgebaeude_max_pct', `Überbauungsziffer max. ${rules.ueberbauungsziffer_hauptgebaeude_max_pct} %`]);
+    if (d.lengthLimitM != null) {
+      out.push([rules.gesamtlaenge_max_m != null ? 'gesamtlaenge_max_m' : 'gebaeudelaenge_inkl_klein_anbauten_max_m',
+        `Gebäudelänge max. ${d.lengthLimitM} m`]);
+    }
+    const mm = d.massingModel;
+    if (mm && (mm.attikaStoreys > 0 || mm.ugStoreys > 0)) {
+      out.push(['dach_attika_ug_freibetrag', `Freibetrag Dach-/Attika-/Untergeschoss bis ${fmt(mm.perStoreyFreeM2)} m² je Geschoss`]);
+    }
+    if (mm && mm.attikaStoreys > 0) out.push(['attika_profil_ueberhoehung_m', `45°-Profil Attika, Rücksprung ${fmt(mm.attikaSetbackM)} m`]);
+    return out;
+  }
+
+  async function analyse(selection, P) {
     const anchor = selection[0];
     const rules = anchor.rules;
     const rulesData = rules.meta;
@@ -882,6 +939,11 @@
       ? `${selection.length} Parzellen vereinigt — ${Math.round(parcelAreaM2)} m²`
       : `Parzelle ${anchor.parcelNumber || anchor.egrid || ''} — ${Math.round(parcelAreaM2)} m²`);
     ablaufPanel.live(`Zone ${anchor.zone} · ${rules.gemeinde} · ${rulesData.article_grundmasse}`);
+    P.stage('parcel', selection.length > 1
+      ? `parcel.union ${selection.length} Parzellen → ${fmt(parcelAreaM2)} m²`
+      : `parcel.fetch ${anchor.parcelNumber || anchor.egrid} → Polygon ${fmt(parcelAreaM2)} m²`);
+    P.stage('zone', `zone.match ogd-0156 → ${anchor.zone} (${anchor.zoneSource ? anchor.zoneSource.rechtsstatus : 'inKraft'})`);
+    P.mark('sources');
 
     // Waldabstand is a real geometric constraint, computed and subtracted --
     // not just flagged. The Grundabstand is measured from the parcel edge and
@@ -911,15 +973,30 @@
       T.sampleTerrainGrid(bb[0], bb[1], bb[2], bb[3], 7, 7).catch(() => null),
     ]);
     ablaufPanel.live(`Wald: ${wald.failed ? 'nicht prüfbar' : (wald.applies ? 'Abstandslinie schneidet die Parzelle' : 'kein Abzug')} · Baulinien: ${baulinien.failed ? 'nicht prüfbar' : (baulinien.applies ? 'vorhanden' : 'kein Abzug')}`);
+    P.stage('sources', 'sources.fetch Waldabstand · Baulinien · Terrain');
+    if (!wald.failed && !wald.applies) P.ok('check.wald keine Waldabstandslinie auf der Parzelle');
+    if (!baulinien.failed && !baulinien.applies) P.ok('check.baulinien keine Baulinie auf der Parzelle');
+    // Der Hoehendienst faellt still aus (catch -> null) und landet nicht in
+    // `degraded`; deshalb hier eigens gemeldet.
+    if (!terrainGrid) P.warn('Höhenmodell nicht erreichbar — Hanglage und Attika-Bergseite ungeprüft');
     const slope = terrainGrid ? T.fitTerrainSlope(terrainGrid.points) : null;
     const hang = slope ? { ...slope, isHang: slope.slopePercent >= 10 } : null;
 
     // Anrechenbare Grundstücksfläche (§ 255/259 PBG bzw. § 259 aPBG):
     // forest inside the parcel does not count toward the AZ/ÜZ/GFZ reference
     // area (old law: "Wald ... fallen ausser Ansatz"; harmonised law: forest
-    // is not Bauzone). Open water and non-Bauzone parts are NOT auto-detected
-    // — reported as unchecked in the flags.
-    let flaechenAbzuege = { waldM2: 0, waldChecked: !wald.failed, gewaesserChecked: false, andereZoneChecked: false };
+    // is not Bauzone), and neither do Waldabstandsflächen more than 15 m
+    // behind the Waldabstandslinie (§ 259 aPBG; computed geometrically in
+    // js/sources/waldabstand.js — the Zumikon-2999 reference filing deducts
+    // exactly this before applying the AZ). Open water and non-Bauzone parts
+    // are NOT auto-detected — reported as unchecked in the flags.
+    let flaechenAbzuege = {
+      waldM2: 0,
+      // null = nicht ermittelbar (Quelle ausgefallen oder Seite unbestimmt),
+      // nie stillschweigend 0 — die Flags sagen es dann.
+      waldAbstand15M2: typeof wald.ausserAnsatzM2 === 'number' ? wald.ausserAnsatzM2 : null,
+      waldChecked: !wald.failed, gewaesserChecked: false, andereZoneChecked: false,
+    };
     if (wald.forest && wald.forest.length) {
       try {
         const forestUnion = wald.forest
@@ -929,7 +1006,8 @@
         if (forestInParcel) flaechenAbzuege.waldM2 = T.planarAreaAnyLV95(forestInParcel);
       } catch (e) { /* keep 0, the flag reports water/zones as unchecked anyway */ }
     }
-    const anrechenbareFlaecheM2 = Math.max(0, parcelAreaM2 - flaechenAbzuege.waldM2);
+    const anrechenbareFlaecheM2 = Math.max(0,
+      parcelAreaM2 - flaechenAbzuege.waldM2 - (flaechenAbzuege.waldAbstand15M2 || 0));
 
     // A new shape invalidates any facade the user had picked by hand -- and
     // the Wohnungszahl, die zur alten Geschossflaeche gehoerte.
@@ -947,6 +1025,32 @@
     // index instead of the still-unresolved null.
     southFacadeIndex = derived.chosenIdx;
     ablaufPanel.live(`Fussabdruck abgeleitet — ${Math.round(derived.reconciled.usableFootprintAreaM2)} m² bebaubar, bindend: ${derived.reconciled.bindingConstraint}`);
+    // Eine Zitatzeile je Norm, die in DIESEM Lauf wirklich gegriffen hat --
+    // deshalb hier und nicht vor der Ableitung: vorher ist nur bekannt, was
+    // die Zone kennt, nicht was angewandt wurde. Der Artikeltext kommt aus
+    // dem _provenance-Block der Datendatei; hier wird kein Paragraph
+    // formuliert (CLAUDE.md §4).
+    for (const [key, was] of citedRules(rules, derived)) {
+      const prov = T.getProvenance(rules, key);
+      if (prov && prov.article) P.cite(prov.article, was);
+    }
+    P.stage('geometry', `geometry.solve buffer(−${fmt(derived.grundabstandUsedM ?? rules.grundabstand_min_m)} m) → ${fmt(derived.footprintBeforeWaldM2)} m²`);
+    if (derived.waldLossInFootprintM2 > 0.5) P.step(`forest.setback −${fmt(derived.waldLossInFootprintM2)} m² im Fussabdruck`);
+    if (derived.baulinienLossM2 > 0.5) P.step(`baulinie.cut −${fmt(derived.baulinienLossM2)} m² im Fussabdruck`);
+    if (flaechenAbzuege.waldAbstand15M2 > 0.5) {
+      P.step(`flaeche.ausserAnsatz § 259 aPBG: − ${fmt(flaechenAbzuege.waldAbstand15M2)} m² Waldabstandsfläche > 15 m hinter der Linie`);
+    }
+    P.step(`az.apply ${fmt(anrechenbareFlaecheM2)} × ${(rules.ausnuetzungsziffer_max_pct / 100).toFixed(2)} = ${fmt(derived.reconciled.maxGfaM2)} m²`);
+    if (derived.massingModel) {
+      const m = derived.massingModel;
+      P.step(`massing.stack ${m.ordinaryStoreys} VG${m.attikaStoreys ? ' + Attika' : ''} à ${fmt(m.floorplateM2)} m² → H ${fmt(m.buildingHeightM)} m`);
+    }
+    if (derived.lengthLimitM != null && derived.footprintRect && !derived.lengthExceeded) {
+      P.ok(`check.length ${fmt(derived.footprintRect.lengthM)} × ${fmt(derived.footprintRect.widthM)} m ≤ ${derived.lengthLimitM} m — eingehalten`);
+    } else if (derived.lengthExceeded) {
+      P.warn(`check.length ${fmt(derived.areaRect.lengthM)} m > ${derived.lengthLimitM} m — Aufteilung in Baukörper`);
+    }
+    P.mark('oereb');
     ablaufPanel.live('ÖREB-Kataster und Höhenmodell werden abgefragt…');
 
     const [terrainHeight, restrictionsPerParcel] = await Promise.all([
@@ -971,12 +1075,23 @@
       baulinien: agg('baulinien'),
     };
 
+    P.stage('oereb', 'oereb.fetch ÖREB-Kataster · Höhenpunkt');
+    // Jede ausgefallene Quelle wird hier gemeldet — an EINER Stelle, nachdem
+    // alle abgefragt sind. Vorher stand die Zaehlung ("1 Konflikt") in der
+    // Filterzeile, ohne dass eine einzige Zeile im Protokoll sagte, welche
+    // Quelle es war: eine Zahl ohne Beleg, genau das, was dieses Fenster
+    // verhindern soll. Eine ausgefallene Quelle ist kein bestandener Test
+    // (REGELN.md §2).
+    for (const d of degraded) P.warn(d);
     ablaufPanel.live('Checkliste wird erstellt…');
+    P.mark('checklist');
     const checklist = await T.buildChecklist({ parcelPolygon: merged, restrictions, rules, gemeinde: rules.gemeinde, bfsNr: anchor.bfsNr, wald, waldLossInFootprintM2: derived.waldLossInFootprintM2, baulinien, baulinienLossM2: derived.baulinienLossM2 })
       .catch((e) => {
         degraded.push(`Checkliste unvollständig: ${e.message || e}`);
         return { tierA: [], tierB: [{ status: 'warn', label: 'Checkliste', text: 'Konnte nicht vollständig erstellt werden — Datenquelle nicht erreichbar. Manuell prüfen.' }] };
       });
+
+    P.stage('checklist', `check.list ${checklist.tierA.length} automatisch · ${checklist.tierB.length} manuell zu prüfen`);
 
     return { setbackRingFeature: derived.setbackRingFeature, afterWaldFeature: derived.afterWaldFeature,
              selection, anchor, rules, rulesData, merged, isSingleShape, parcelAreaM2,
@@ -998,9 +1113,7 @@
 
   // Kept separate so a tab switch can redraw it: three.js sizes the canvas
   // from the container, which is zero while the pane is hidden.
-  const viewerHintEl = document.getElementById('viewer-hint');
   const floorplanEl = document.getElementById('floorplan');
-  const floorplanLegendEl = document.getElementById('floorplan-legend');
 
   // Pan (drag) and zoom (wheel) for the floor plan SVG, matching the
   // isometric view's interaction model. Manipulates the SVG's own viewBox
@@ -1093,7 +1206,7 @@
   // after moving the building, without re-running renderViewer (which would
   // rebuild the whole three.js scene) or the full analysis.
   function renderFloorPlan(r) {
-    if (!r.setbackFootprint) { floorplanEl.innerHTML = ''; floorplanLegendEl.textContent = ''; return; }
+    if (!r.setbackFootprint) { floorplanEl.innerHTML = ''; planNoteEl.textContent = ''; return; }
     // `mm && mm.footprintFeature`, not just `mm`: a massing model can exist
     // (the areas and the GFA are computed) while no Baukörper could be
     // drawn. That has to fall back to plotting the buildable area itself,
@@ -1154,16 +1267,13 @@
     if (draggableHere) {
       enablePlanBuildingDrag(floorplanEl, r);
     }
-    const wholeAreaM2 = r.footprintAfterWaldM2;
+    // Die Legende ist in die Notizzeile des Panelkopfs gewandert: eine
+    // Textzeile unter der Zeichnung kostete Zeichenflaeche, und im 3a-Raster
+    // ist der Situationsplan das kleinere der beiden Fenster.
     const builtAreaM2 = footprintFeature ? T.planarAreaAnyLV95(footprintFeature) : 0;
-    // Data only -- the how-to-interact sentence that used to live here read
-    // like a cookie-consent banner sitting under the drawing. Interaction
-    // hints are a hover tooltip on the plan itself instead (title attribute,
-    // below), not permanent on-screen text.
-    floorplanLegendEl.innerHTML =
-      `<b>${fmt(wholeAreaM2)} m²</b> bebaubare Grundfläche (Baukörper: ${fmt(builtAreaM2)} m²)` +
-      (r.waldLossInFootprintM2 > 0.5 ? ` · <span style="color:#c62828">schraffiert: ${fmt(r.waldLossInFootprintM2)} m² durch Waldabstand entfallen</span>` : '') +
-      (r.hasDirectional ? ` · Hauptfassade im Grundriss anklickbar` : '');
+    planNoteEl.textContent = `${fmt(r.footprintAfterWaldM2)} m² bebaubar · Baukörper ${fmt(builtAreaM2)} m²`
+      + (r.waldLossInFootprintM2 > 0.5 ? ` · ${fmt(r.waldLossInFootprintM2)} m² Waldabstand` : '');
+
     const svgEl = floorplanEl.querySelector('svg');
     if (svgEl) {
       svgEl.querySelector('title')?.remove();
@@ -1284,14 +1394,29 @@
     });
   }
 
+  // Die drei Knoepfe an der Isometrie. Einmal verdrahtet, danach zeigt der
+  // Handler nur noch auf die jeweils aktuelle Umlaufbahn -- renderViewer
+  // baut die Szene bei jeder Aenderung neu, und ein pro Aufbau neu
+  // registrierter Listener haette sich mit jedem Rendern vervielfacht.
+  let isoOrbit = null;
+  function wireIsoControls(orbit) {
+    isoOrbit = orbit;
+    if (isoControlsEl.dataset.wired) return;
+    isoControlsEl.dataset.wired = '1';
+    document.getElementById('iso-ccw').addEventListener('click', () => isoOrbit && isoOrbit.stepAzimuth(-15));
+    document.getElementById('iso-cw').addEventListener('click', () => isoOrbit && isoOrbit.stepAzimuth(15));
+    document.getElementById('iso-reset').addEventListener('click', () => isoOrbit && isoOrbit.reset());
+  }
+
   function renderViewer(r) {
     if (!r.setbackFootprint) {
-      viewerEl.innerHTML = '<p style="padding:1rem;color:#c62828;">Kein Volumen darstellbar.</p>';
+      viewerEl.innerHTML = '<p class="pane-empty">Kein Volumen darstellbar.</p>';
+      isoControlsEl.hidden = true; isoReadoutEl.hidden = true; ovlModellEl.hidden = true;
       return;
     }
     if (!viewerEl.clientWidth) return;
     const mm = r.massingModel;
-    T.renderEnvelope(viewerEl, {
+    const view = T.renderEnvelope(viewerEl, {
       footprintFeature: r.setbackFootprint,
       parcelFeature: r.merged,
       removedFeature: r.waldRemoved,
@@ -1316,7 +1441,18 @@
           : { ...r.massingModel, footprintFeature: movedFootprint };
         renderFloorPlan(r);
       },
+      // Die Kamera meldet ihre eigenen Zahlen zurueck; die Ableseleiste
+      // erfindet nichts und rechnet nichts nach.
+      onCamera: (c) => {
+        isoReadoutEl.textContent = `Azimut ${c.azimuthDeg}° · Neigung ${c.polarDeg}° · ${c.zoom.toFixed(2)}×`;
+      },
     });
+    // ⟲ / ⟳ / RESET fahren dieselbe Umlaufbahn wie das Ziehen (viewer.js
+    // orbit) -- eine zweite, knopfeigene Drehung waere beim ersten Clamp auf
+    // einer der beiden Seiten aus dem Tritt geraten.
+    isoControlsEl.hidden = false;
+    isoReadoutEl.hidden = false;
+    wireIsoControls(view.orbit);
     // Same "is the ghost actually drawn" threshold as viewer.js -- explains
     // the pale volume in the scene instead of leaving it unlabelled.
     const ghostShown = mm && (mm.footprintScale < 0.97 || mm.buildingHeightM < r.rules.heightM - 0.05);
@@ -1324,8 +1460,11 @@
     const dragHint = mm && mm.storeyOptions
       ? ` Den Baukörper${multiBlock ? ' (bei mehreren: den jeweiligen)' : ''} direkt anfassen und ziehen, um ihn innerhalb der Hülle zu verschieben. Shift+Ziehen verschiebt stattdessen den Bildausschnitt.`
       : '';
-    viewerHintEl.textContent = 'Zum Drehen ziehen, zum Zoomen scrollen.' + dragHint
-      + (ghostShown ? ' Das helle, transparente Volumen ist die maximal zonenrechtlich zulässige Hülle (ganzer Fussabdruck × maximale Höhe) — dort darf der Baukörper stehen; der farbige Teil ist, was bei der gewählten Geschosszahl tatsächlich gebaut wird.' : '');
+    const canvasEl = viewerEl.querySelector('canvas');
+    if (canvasEl) {
+      canvasEl.title = 'Zum Drehen ziehen, Shift+Ziehen verschiebt den Ausschnitt, Scrollen zoomt.' + dragHint
+        + (ghostShown ? ' Das helle, transparente Volumen ist die maximal zonenrechtlich zulässige Hülle (ganzer Fussabdruck × maximale Höhe); der farbige Teil ist, was bei der gewählten Geschosszahl gebaut wird.' : '');
+    }
   }
 
   // Recompute only the massing (geometry + cost depend on it) and redraw.
@@ -1505,6 +1644,248 @@
     }
   }
 
+  // ---- Nicht gerechnet: Gemeinde ohne hinterlegte BZO ------------------
+  // Der Lauf bricht weiterhin ab — es wird keine Zahl geschaetzt und kein
+  // Teilergebnis als Ergebnis dargestellt (CLAUDE.md §2). Neu ist nur, dass
+  // der Abbruch die Luecke BENENNT: was das kantonale Recht auch ohne BZO
+  // hergibt, was die BZO liefern muesste, und was beizubringen ist. Genau an
+  // dieser Stelle wird die Ableitung PBG/ABV → BZO sichtbar.
+  function renderNichtGerechnet(err) {
+    const liste = (items) => `<ul class="ng-list">${items.join('')}</ul>`;
+    const kantonal = err.vorhandenAusKanton.length
+      ? liste(err.vorhandenAusKanton.map((v) =>
+          `<li><span class="sich s-BELEGT">§</span>`
+          + `<span class="ng-lb">${esc(v.label.replace(/_/g, ' '))}</span>`
+          + `<span class="ng-src">${esc(v.artikel || '—')}</span></li>`))
+      : `<p class="ng-none">Auch der kantonale Datensatz liess sich nicht laden.</p>`;
+    const kommunal = liste(err.erforderlichAusBzo.map((v) =>
+      `<li><span class="sich s-NICHT_ERMITTELBAR">?</span>`
+      + `<span class="ng-lb">${esc(v.label)}</span>`
+      + `<span class="ng-src">${esc(v.wofuer)}</span></li>`));
+    kennwerteEl.innerHTML =
+      `<div class="nicht-gerechnet">`
+      + `<div class="ng-head">Nicht gerechnet — ${esc(err.gemeinde)}</div>`
+      + `<p class="ng-intro">Für diese Gemeinde ist keine Bau- und Zonenordnung hinterlegt. `
+      + `Das kantonale Recht allein trägt keinen Fussabdruck und keine Geschossfläche, `
+      + `deshalb wird hier nichts gerechnet statt geschätzt.</p>`
+      + `<div class="ng-sec"><h4>Aus PBG / ABV vorhanden</h4>${kantonal}</div>`
+      + `<div class="ng-sec"><h4>Aus der BZO erforderlich — fehlt</h4>${kommunal}</div>`
+      + `<div class="ng-sec"><h4>Beizubringen</h4>`
+      + liste(err.beizubringen.map((b) => `<li><span class="ng-lb ng-wide">${esc(b)}</span></li>`))
+      + `</div>`
+      + `<p class="ng-foot">Hinterlegt sind zurzeit: ${esc(err.erfassteGemeinden.join(', '))}.</p>`
+      + `</div>`;
+    kwNoteEl.textContent = 'nicht gerechnet';
+  }
+
+  // ---- Kennwerte-Tafel ------------------------------------------------
+  // Kennwert / Wert / Beleg, gruppiert. Beim Ueberfahren einer Zeile steht
+  // ihre Herleitung in der Leiste unten -- jeder Wert traegt den String, es
+  // gibt also auf diesem Bildschirm keine Zahl ohne sichtbaren Rechenweg.
+  // Die Herleitung erscheint als Popover NEBEN der Zeile: die eine Leiste
+  // unten war fuer lange Formeln zu kurz und zu weit vom Blick entfernt.
+  // Die Leiste bleibt bestehen und zeigt weiterhin denselben Text.
+  const kwTip = document.createElement('div');
+  kwTip.id = 'kw-tip';
+  kwTip.hidden = true;
+  document.body.appendChild(kwTip);
+  function showKwTip(rowEl, text) {
+    kwTip.textContent = text;
+    kwTip.hidden = false;
+    const r = rowEl.getBoundingClientRect();
+    if (r.left >= 260) {
+      // Genug Platz links neben der Tafel (Desktop-Dreispalter).
+      kwTip.style.right = `${Math.round(window.innerWidth - r.left + 8)}px`;
+      kwTip.style.left = 'auto';
+      const h = kwTip.offsetHeight;
+      kwTip.style.top = `${Math.round(Math.max(8, Math.min(r.top, window.innerHeight - h - 8)))}px`;
+    } else {
+      // Schmales Fenster / iPhone: unter der Zeile, ueber die volle Breite —
+      // links waere das Popover ausserhalb des Bildschirms.
+      kwTip.style.left = '12px';
+      kwTip.style.right = '12px';
+      const h = kwTip.offsetHeight;
+      const below = r.bottom + 6;
+      kwTip.style.top = `${Math.round(below + h > window.innerHeight - 8 ? Math.max(8, r.top - h - 6) : below)}px`;
+    }
+  }
+  function renderKennwerte(groups) {
+    const cssKind = (k) => `kd-${k.replace('Ü', 'UE').replace('Ä', 'AE').replace('Ö', 'OE')}`;
+    kennwerteEl.innerHTML = groups.map((g) => {
+      const rows = g.rows.map((row) => {
+        const id = row.prov ? provRegistry.push(row.prov) - 1 : null;
+        // Zweites Abzeichen: wie belastbar ist der Wert (js/core/sicherheit.js).
+        // `kind` sagt woher er kommt, `sicherheit` sagt was er traegt — die
+        // beiden Achsen werden bewusst nicht zusammengelegt.
+        const st = T.SICHERHEIT_STUFEN[row.sicherheit];
+        const stTitle = `${st.label}: ${row.sicherheitGrund || st.erklaerung}`
+          + (row.sicherheitVererbt ? ' · geerbt von einem Eingangswert' : '');
+        // Das Sicherheitszeichen steht VORNE, in einer eigenen schmalen
+        // Spalte: so bildet es eine Kolonne, die sich von oben nach unten
+        // ueberfliegen laesst. Stuende es hinten, muesste man es je Zeile
+        // suchen. Das Wort dazu steht im Titel und in der Legende.
+        return `<div class="kw-row kw-s-${row.sicherheit}" data-formula="${esc(row.formula || '')}" data-sicher="${esc(stTitle)}" data-source="${esc(row.source || '')}">`
+          + `<span class="sich s-${row.sicherheit}${row.sicherheitVererbt ? ' is-vererbt' : ''}" title="${esc(stTitle)}" aria-label="${esc(st.label)}">${esc(st.zeichen)}</span>`
+          + `<span class="lb">${esc(row.label)}</span>`
+          + `<span class="vl">${esc(row.value)}</span>`
+          + `<span class="bg ${row.isCitation ? 'is-par' : 'is-src'}" title="${esc(row.source)}">`
+          + esc(row.source)
+          + (id != null ? `<button type="button" class="prov-btn" data-prov="${id}" title="Beleg im Originaldokument">§</button>` : '')
+          + `</span>`
+          + `<span class="kd ${cssKind(row.kind)}">${esc(row.kind)}</span>`
+          + `</div>`;
+      }).join('');
+      return `<div class="kw-group">`
+        + `<div class="kw-group-head">${esc(g.title)}<span class="note">${esc(g.note)}</span></div>`
+        + rows + `</div>`;
+    }).join('');
+    // Die Zahlen hier kommen aus derselben Zaehlung wie die Abzeichen in der
+    // Tabelle — sie koennen deshalb nicht davon abweichen.
+    const alleRows = groups.flatMap((g) => g.rows);
+    const z = T.zaehleSicherheit(alleRows);
+    // Legende der Sicherheitsstufen, mit den Zaehlern direkt IN ihr. Der
+    // Panel-Titel traegt nur noch "22 Werte": die volle Aufschluesselung
+    // dort quetschte sich zweizeilig in die 30-px-Titelleiste.
+    kennwerteEl.insertAdjacentHTML('afterbegin',
+      `<div class="sich-legende">`
+      + T.SICHERHEIT_STUFEN_NACH_RANG.map((st) =>
+        `<span title="${esc(st.erklaerung)}"><i class="sich s-${st.key}">${esc(st.zeichen)}</i>${z[st.key]} ${esc(st.kurz)}</span>`).join('')
+      + `</div>`);
+    wireProvButtons(kennwerteEl);
+    kennwerteEl.querySelectorAll('.kw-row').forEach((el) => {
+      el.addEventListener('mouseenter', () => {
+        const f = el.dataset.formula || 'keine Herleitung hinterlegt';
+        const s = el.dataset.sicher;
+        // Die Quelle steht ZUERST — wer hovert, fragt als Erstes "sagt wer?"
+        // (Artikel, BZO, Dienst), erst danach kommt der Rechenweg.
+        const src = el.dataset.source;
+        showKwTip(el, [src ? `Quelle: ${src}` : null, f, s].filter(Boolean).join('\n'));
+      });
+    });
+    kwNoteEl.textContent = `${alleRows.length} Werte`;
+  }
+  kennwerteEl.addEventListener('mouseleave', () => {
+    kwTip.hidden = true;
+  });
+
+  // ---- Kopfzahlen -----------------------------------------------------
+  // Fuenf Zahlen, die die Studie beantwortet. Alle stammen aus demselben
+  // Ergebnisobjekt wie die Tafel rechts; keine wird hier nachgerechnet.
+  function renderKpis(r) {
+    const { reconciled, rules } = r;
+    const mm = r.massingModel;
+    const set = (k, v, sub) => { KPI[k].v.textContent = v; KPI[k].s.textContent = sub; };
+    set('volumen',
+      mm ? `${fmt(mm.volumeM3)} m³` : '—',
+      mm && mm.hullVolumeM3 > mm.volumeM3 * 1.02 ? `max. Hülle ${fmt(mm.hullVolumeM3)} m³` : 'gebautes Volumen');
+    set('gfa', `${fmt(reconciled.maxGfaM2)} m²`,
+      `AZ ${rules.ausnuetzungsziffer_max_pct} % von ${fmt(reconciled.anrechenbareFlaecheM2)} m²`);
+    set('fuss', `${fmt(reconciled.usableFootprintAreaM2)} m²`,
+      `bindend: ${BINDING_LABELS[reconciled.bindingConstraint] || reconciled.bindingConstraint}`);
+    set('hoehe', mm ? `${fmt(mm.buildingHeightM)} m` : '—',
+      `${rules.heightMetric} max. ${rules.heightM} m`);
+    set('nutz', mm ? `${fmt(mm.nutzflaecheTotalM2)} m²` : '—',
+      mm && mm.nutzflaecheTotalM2 > mm.gfaUsedM2 + 0.5 ? 'inkl. anrechnungsfreier Geschosse' : 'nur Vollgeschosse');
+  }
+
+  // ---- Regelfahnen auf den Zeichnungen --------------------------------
+  // REGELN IM MODELL ueber der Isometrie, ABSTAENDE & ABZUEGE ueber dem
+  // Plan. Jede Zeile stammt aus einem Wert, der in diesem Lauf gegriffen
+  // hat; nicht anwendbare Regeln stehen ausdrücklich als solche da, statt zu
+  // fehlen -- eine fehlende Zeile liest sich wie eine vergessene Pruefung.
+  // Warum keine Attika steht, in einer Zeile MIT den Zahlen. Die lange
+  // Fassung steht unter Hinweise & Vorbehalte — aber die Frage "wieso
+  // nicht?" muss die Zeichnung selbst beantworten, nicht ein zweiter
+  // Bildschirm.
+  function attikaSuppressReason(mm) {
+    const d = (mm.attikaDiagnostics || [])[0];
+    if (!d) return 'Attika zonenrechtlich zulässig, geometrisch nicht darstellbar';
+    const rest = Math.max(0, d.narrowestM);
+    return d.bergseite
+      ? `Attika zulässig, aber nicht darstellbar: bergseitig fassadenbündig, übrige Seiten ${fmt(mm.attikaSetbackM)} m Rücksprung — bleiben ${fmt(rest)} m, min. ${T.MIN_PRIMITIVE_WIDTH_M} m nötig`
+      : `Attika zulässig, aber nicht darstellbar: 45°-Rücksprung ${fmt(mm.attikaSetbackM)} m je Seite lässt von ${fmt(d.belowWidthM)} m Baukörpertiefe nur ${fmt(rest)} m — min. ${T.MIN_PRIMITIVE_WIDTH_M} m nötig`;
+  }
+  function attikaSuppressShort(mm) {
+    const d = (mm.attikaDiagnostics || [])[0];
+    if (!d) return 'geometrisch nicht darstellbar';
+    return `45°-Profil lässt nur ${fmt(Math.max(0, d.narrowestM))} m Tiefe — min. ${T.MIN_PRIMITIVE_WIDTH_M} m nötig`;
+  }
+  function ovlRow(state, text, cite) {
+    const glyph = state === 'ok' ? '✓' : (state === 'assume' ? '!' : '·');
+    return `<div class="o-row is-${state}"><span class="g">${glyph}</span>`
+      + `<span>${esc(text)}</span>`
+      + (cite ? `<span class="p">${esc(cite)}</span>` : '') + `</div>`;
+  }
+  function renderOverlays(r) {
+    const { rules, reconciled } = r;
+    const mm = r.massingModel;
+    const artOf = (...keys) => { const p = provFor(rules, ...keys); return p && p.article ? p.article : ''; };
+
+    const modell = [
+      ovlRow('ok', `${rules.heightMetric} ${fmt(rules.heightM)} m`,
+        artOf(rules.heightRegime ? 'gebaeudehoehe_max_m_bzo2016'
+          : (rules.traufseitige_fassadenhoehe_max_m != null ? 'traufseitige_fassadenhoehe_max_m' : 'gebaeudehoehe_max_m'))),
+      ...(mm ? [ovlRow('ok',
+        mm.attikaStoreys > 0
+          ? `gebaut ${fmt(mm.buildingHeightM)} m inkl. Attika über der Schnittlinie`
+          : `gebaut ${fmt(mm.buildingHeightM)} m`, '')] : []),
+      ...(mm && mm.attikaStoreys > 0
+        ? [ovlRow(mm.attikaHeightIsModelled ? 'ok' : 'assume',
+            `45°-Profil Attika, Rücksprung ${fmt(mm.attikaSetbackM)} m`,
+            artOf('attika_profil_ueberhoehung_m'))]
+        : (mm && mm.attikaSuppressed
+            ? [ovlRow('assume', attikaSuppressReason(mm), artOf('attika_profil_ueberhoehung_m'))]
+            : [])),
+      ovlRow('ok', `Ausnützungsziffer ${(rules.ausnuetzungsziffer_max_pct / 100).toFixed(2)}`,
+        artOf('ausnuetzungsziffer_max_pct')),
+      ...(mm && (mm.attikaStoreys > 0 || mm.ugStoreys > 0)
+        ? [ovlRow('ok', `Freibetrag Dach/Attika/UG ${fmt(mm.perStoreyFreeM2)} m²`,
+            artOf('dach_attika_ug_freibetrag') || '§ 255 Abs. 3 PBG')]
+        : []),
+      // Ausdruecklich als nicht anwendbar ausgewiesen: die Zuercher BZOs
+      // dieses Datenbestands kennen keine Baumassenziffer. Weglassen liesse
+      // offen, ob sie geprueft wurde.
+      ovlRow('na', 'Baumassenziffer — in dieser Zone keine', ''),
+    ];
+    ovlModellEl.innerHTML = '<span class="o-k">Regeln im Modell</span>' + modell.join('');
+    ovlModellEl.hidden = false;
+
+    const grundabstandM = r.grundabstandUsedM ?? rules.grundabstand_min_m;
+    const plan = [
+      ovlRow('ok', `Grundabstand ${fmt(grundabstandM)} m`, artOf('grundabstand_min_m')),
+      ...(r.hasDirectional && rules.grosser_grenzabstand_min_m != null
+        ? [ovlRow(r.grenzabstandDegraded ? 'assume' : 'ok',
+            `Grenzabstand gross ${fmt(rules.grosser_grenzabstand_min_m)} m`
+            + (r.grenzabstandDegraded ? ' — ersatzweise ringsum' : ''),
+            artOf('grosser_grenzabstand_min_m'))]
+        : []),
+      ...(r.mehrlaengen
+        ? [ovlRow('ok', `Mehrlängenzuschlag +${fmt(r.mehrlaengen.requiredM - rules.grundabstand_min_m)} m`, artOf('mehrlaengenzuschlag'))]
+        : []),
+      ...(r.baulinienLossM2 > 0.5
+        ? [ovlRow('ok', `Baulinie − ${fmt(r.baulinienLossM2)} m²`, '§ 265 PBG')]
+        : [ovlRow('na', 'Baulinie — keine auf dieser Parzelle', '')]),
+      ...(r.massing && !r.massing.impossible
+        ? [ovlRow('ok', `Gebäudeabstand ${fmt(r.gebaeudeabstandM)} m`, '§ 271 PBG')]
+        : []),
+      ...(r.waldLossInFootprintM2 > 0.5
+        ? [ovlRow('assume', `Waldabstand − ${fmt(r.waldLossInFootprintM2)} m²`, artOf('waldabstand') || 'WaG 17')]
+        : [ovlRow('na', 'Waldabstand — keine Linie auf der Parzelle', '')]),
+      ...(r.lengthLimitM != null && r.footprintRect
+        ? [ovlRow(r.lengthExceeded ? 'assume' : 'ok',
+            `Gebäudelänge ${fmt(r.lengthExceeded && r.areaRect ? r.areaRect.lengthM : r.footprintRect.lengthM)} / ${r.lengthLimitM} m`,
+            artOf('gesamtlaenge_max_m', 'gebaeudelaenge_inkl_klein_anbauten_max_m'))]
+        : []),
+    ];
+    ovlPlanEl.innerHTML = '<span class="o-k">Abstände &amp; Abzüge</span>' + plan.join('');
+    ovlPlanEl.hidden = false;
+
+    planNoteEl.textContent = `${fmt(r.footprintAfterWaldM2)} m² bebaubar`;
+    isoNoteEl.textContent = mm
+      ? `${storeyCountLabel(mm.ordinaryStoreys, mm.attikaStoreys)} · ${fmt(mm.volumeM3)} m³`
+      : 'kein Volumen darstellbar';
+  }
+
   function render(r) {
     // Parkierung haengt an der GEBAUTEN Geschossflaeche, also am Ergebnis der
     // Kette, nicht an ihren Zwischenschritten -- deshalb hier und nicht in
@@ -1552,16 +1933,12 @@
         : '') +
       `</div>`;
     wireProvButtons(zoneHeadlineEl);
-    // "Zonen-Beleg" jumps to the Steckbrief rather than opening a second kind
-    // of modal: the derivation, the Grundmasse and the map belong together,
-    // and that is what the Zonenplan tab now holds.
+    // "Zonen-Beleg" fuehrt zum Steckbrief statt eine zweite Art von Fenster
+    // zu oeffnen: die Herleitung, die Grundmasse und der Plan gehoeren
+    // zusammen, und das ist der Detailbildschirm.
     const zoneProofBtn = document.getElementById('zone-proof-btn');
     if (zoneProofBtn) {
-      zoneProofBtn.addEventListener('click', () => {
-        const tabBtn = document.querySelector('.tab[data-tab="zoning-map"]');
-        if (tabBtn) tabBtn.click();
-        zoningMapEl.scrollIntoView({ block: 'nearest' });
-      });
+      zoneProofBtn.addEventListener('click', () => zoningMapEl.scrollIntoView({ block: 'nearest' }));
     }
 
     bindingSummaryEl.className = reconciled.usableFootprintAreaM2 <= 0 ? 'binding zero' : 'binding';
@@ -1571,45 +1948,44 @@
       : `${storeyCountLabel(mm.ordinaryStoreys, mm.attikaStoreys)} à ${fmt(mm.floorplateM2)} m² — `
         + `${fmt(mm.gfaUsedM2)} m² Geschossfläche. Bindend: ${BINDING_LABELS[reconciled.bindingConstraint]}.`;
 
-    const storeySelEl = document.getElementById('storey-select');
+    // ---- Geschossvarianten, unter der Isometrie ------------------------
+    // Die Geschosszahl ist eine Entwurfsentscheidung: jede Zahl zwischen dem
+    // Minimum, das die zulaessige Geschossflaeche noch fasst, und dem
+    // Zonenmaximum ist gleich zulaessig -- nur die Ueberbauung unterscheidet
+    // sich. Deshalb steht die Reihe unter dem Modell, das sich beim Klick
+    // aendert, und nicht in der Zahlentafel, die Ergebnisse zeigt.
     if (mm && mm.storeyOptions.length > 1) {
-      storeySelEl.style.display = 'block';
-      const attikaNote = mm.attikaMax > 0
-        ? ` Ein zusätzliches Attikageschoss ist zonenrechtlich möglich (max. 1 pro Gebäude als Attika dargestellt) — mit Rücksprung nach dem 45°-Profil von Art. 31 BZO, siehe Hinweis unten sobald gewählt. Nach § 255 Abs. 3 PBG bleibt es bis zur anteiligen Geschossfläche ohne Anrechnung an die Ausnützung.`
-        : '';
-      storeySelEl.innerHTML =
-        `<div class="choice-label">Geschosse — freie Entwurfsentscheidung, die Ausnützungsziffer begrenzt nur die Geschossfläche (${fmt(mm.gfaUsedM2)} m²), nicht die Geschosszahl.${attikaNote}</div>` +
-        `<div class="choice-row">` +
-        mm.storeyOptions.map((n) => {
-          const ordinary = Math.min(n, mm.ordinaryMax);
-          const attika = Math.max(0, n - mm.ordinaryMax);
-          // Same arithmetic buildMassingModel does for the chosen option: the
-          // AZ is spent by the ORDINARY storeys only (§ 255 Abs. 2/3 PBG).
-          // Dividing the permitted GFA by the TOTAL storey count sold the
-          // Attika variant short -- the card advertised 74.3 m² je Geschoss
-          // for a building the tool then drew with 111.5 m² plates.
-          const plate = Math.min(reconciled.maxGfaM2, reconciled.usableFootprintAreaM2 * ordinary) / ordinary;
-          const cov = plate / reconciled.parcelAreaM2 * 100;
-          // Whether an Attika survives the 45° profile is only known for the
-          // option that was actually built (its footprint decides it), so the
-          // active card is the one that can carry the verdict.
-          const suppressedHere = !!mm.attikaSuppressed && n === mm.requestedStoreys;
-          const heightM = ordinary * mm.ordinaryStoreyHeightM
-            + (suppressedHere ? 0 : attika) * mm.attikaStoreyHeightM;
-          const active = n === (mm.requestedStoreys != null ? mm.requestedStoreys : mm.storeys);
-          return `<button type="button" class="choice${active ? ' active' : ''}${suppressedHere ? ' unavailable' : ''}" data-storeys="${n}">`
-            + `<b>${storeyCountLabel(ordinary, attika)}</b><span>${fmt(plate)} m² je Geschoss</span>`
-            + `<span>${fmt(cov, 0)} % überbaut · ${fmt(heightM)} m hoch</span>`
-            + (suppressedHere ? `<span class="choice-warn">Attika hier nicht darstellbar — gerechnet mit ${storeyCountLabel(ordinary, 0)}</span>` : '')
-            + `</button>`;
-        }).join('') +
-        `</div>`;
-      storeySelEl.querySelectorAll('.choice').forEach((b) => b.addEventListener('click', () => {
-        storeyChoice = Number(b.dataset.storeys);
+      variantsEl.innerHTML = mm.storeyOptions.map((n) => {
+        const ordinary = Math.min(n, mm.ordinaryMax);
+        const attika = Math.max(0, n - mm.ordinaryMax);
+        // Same arithmetic buildMassingModel does for the chosen option: the
+        // AZ is spent by the ORDINARY storeys only (§ 255 Abs. 2/3 PBG).
+        // Dividing the permitted GFA by the TOTAL storey count sold the
+        // Attika variant short -- the card advertised 74.3 m² je Geschoss
+        // for a building the tool then drew with 111.5 m² plates.
+        const plate = Math.min(reconciled.maxGfaM2, reconciled.usableFootprintAreaM2 * ordinary) / ordinary;
+        const cov = plate / reconciled.parcelAreaM2 * 100;
+        // Whether an Attika survives the 45° profile is only known for the
+        // option that was actually built (its footprint decides it), so the
+        // active card is the one that can carry the verdict.
+        const suppressedHere = !!mm.attikaSuppressed && n === mm.requestedStoreys;
+        const heightM = ordinary * mm.ordinaryStoreyHeightM
+          + (suppressedHere ? 0 : attika) * mm.attikaStoreyHeightM;
+        const active = n === (mm.requestedStoreys != null ? mm.requestedStoreys : mm.storeys);
+        return `<button type="button" class="variant${active ? ' active' : ''}${suppressedHere ? ' unavailable' : ''}" data-storeys="${n}"`
+          + ` title="${esc(suppressedHere ? `${attikaSuppressReason(mm)} — gerechnet mit ${storeyCountLabel(ordinary, 0)}` : 'Freie Entwurfsentscheidung — die Ausnützungsziffer begrenzt die Geschossfläche, nicht die Geschosszahl.')}">`
+          + `<span class="n">${esc(storeyCountLabel(ordinary, attika))}</span>`
+          // Der gesperrten Karte gehoert ihre Begruendung, nicht dieselben
+          // Zahlen wie der Nachbarkarte — die erklaeren das Verbot nicht.
+          + `<span class="d">${esc(suppressedHere ? attikaSuppressShort(mm) : `${fmt(plate)} m²/G · ${fmt(cov, 0)} % üb. · ${fmt(heightM)} m`)}</span>`
+          + `</button>`;
+      }).join('');
+      variantsEl.querySelectorAll('.variant').forEach((btn) => btn.addEventListener('click', () => {
+        storeyChoice = Number(btn.dataset.storeys);
         rerenderWithChoices();
       }));
     } else {
-      storeySelEl.style.display = 'none';
+      variantsEl.innerHTML = '';
     }
 
     // NOT reset here: the zone headline above already registered its § button
@@ -1617,71 +1993,13 @@
     // at a citation that no longer existed.
     const regimeTag = (key) => (rules.regimeOverrides && rules.regimeOverrides[key]
       ? ' <span class="regime-tag" title="Strengerer Wert der in Kraft stehenden BZO 2016 (negative Vorwirkung, § 234 PBG)">BZO 2016</span>' : '');
-    const mm2 = r.massingModel;
-    const abz = r.flaechenAbzuege || {};
-    const rows = [
-      ['Adresse', esc(anchor.address || anchor.parcelNumber)],
-      ['Gemeinde', esc(rules.gemeinde)],
-      [multi ? 'Parzellen' : 'Parzelle', esc(selection.map((p) => p.parcelNumber).join(' + '))],
-      ['EGRID', esc(multi ? selection.map((p) => p.egrid).join(', ') : anchor.egrid)],
-      ['Zone', esc(`${anchor.zone}${anchor.zoneLabel ? ` — ${anchor.zoneLabel}` : ''} (${anchor.zoneSource ? anchor.zoneSource.rechtsstatus : 'inKraft'})`)],
-      [multi ? 'Fläche (zusammengefasst)' : 'Parzellenfläche', `${fmt(reconciled.parcelAreaM2)} m²`],
-      ['Anrechenbare Grundstücksfläche',
-        withProv(
-          (abz.waldM2 > 0.5
-            ? `${fmt(reconciled.anrechenbareFlaecheM2)} m² (− ${fmt(abz.waldM2)} m² Wald)`
-            : `${fmt(reconciled.anrechenbareFlaecheM2)} m²`),
-          provFor(rules, 'massgebliche_grundflaeche', 'anrechenbare_grundstuecksflaeche', 'massgebliche_grundflaeche_altrecht'))],
-      ['Fussabdruck nach Grundabstand',
-        withProv(`${fmt(r.footprintBeforeWaldM2)} m² (Grundabstand ${fmt(r.grundabstandUsedM ?? rules.grundabstand_min_m)} m)`,
-          provFor(rules, 'grundabstand_min_m'))],
-      ...(r.waldLossInFootprintM2 > 0.5
-        ? [['davon Abzug Waldabstand', withProv(`− ${fmt(r.waldLossInFootprintM2)} m²`, provFor(rules, 'waldabstand'))]]
-        : []),
-      ...(r.baulinienLossM2 > 0.5 ? [['davon Abzug Baulinie', `− ${fmt(r.baulinienLossM2)} m²`]] : []),
-      ['Bebaubarer Bereich nach Abzügen', `${fmt(r.footprintAfterWaldM2)} m²`],
-      ['Fussabdruck nach Grünflächenziffer-Deckel',
-        reconciled.hasGreenCap
-          ? withProv(`${fmt(reconciled.footprintAfterGreenCapAreaM2)} m²${regimeTag('gruenflaechenziffer_min_pct')}`, provFor(rules, 'gruenflaechenziffer_min_pct'))
-          : '— (keine Grünflächenziffer in dieser Gemeinde)'],
-      ...(reconciled.hasUeberbauungsCap ? [[
-        'Fussabdruck nach Überbauungsziffer',
-        withProv(`${fmt(reconciled.footprintAfterUeberbauungsCapM2)} m² (max. ${rules.ueberbauungsziffer_hauptgebaeude_max_pct} %)${regimeTag('ueberbauungsziffer_hauptgebaeude_max_pct')}`,
-          provFor(rules, 'ueberbauungsziffer_hauptgebaeude_max_pct'))]] : []),
-      ['Nutzbarer Fussabdruck', `${fmt(reconciled.usableFootprintAreaM2)} m²`],
-      ['Maximale anrechenbare Geschossfläche (Ausnützungsziffer)',
-        withProv(`${fmt(reconciled.maxGfaM2)} m² (${rules.ausnuetzungsziffer_max_pct} % von ${fmt(reconciled.anrechenbareFlaecheM2)} m²)${regimeTag('ausnuetzungsziffer_max_pct')}`,
-          provFor(rules, 'ausnuetzungsziffer_max_pct'))],
-      ...(mm2 ? [
-        ['Bebaubar als', withProv(`${storeyCountLabel(mm2.ordinaryStoreys, mm2.attikaStoreys)} à ${fmt(mm2.floorplateM2)} m² Grundfläche${regimeTag('vollgeschosse_max')}`, provFor(rules, 'vollgeschosse_max'))],
-        ...(mm2.attikaStoreys > 0 || mm2.ugStoreys > 0 || mm2.extraDachCreditM2 > 0 ? [[
-          'Freibetrag Dach-/Attika-/Untergeschosse (§ 255 Abs. 3 PBG)',
-          withProv(`je Geschoss bis ${fmt(mm2.perStoreyFreeM2)} m² NICHT an die AZ angerechnet` +
-            (mm2.attikaStoreys > 0 ? ` — Attika ${fmt(mm2.attikaFloorplateM2)} m²` : '') +
-            (mm2.ugStoreys > 0 ? ` — ${mm2.ugStoreys} Untergeschoss ${fmt(mm2.ugFloorplateM2)} m²` : '') +
-            (mm2.extraDachCreditM2 > 0 ? ` — 2. Dachgeschoss möglich (+${fmt(mm2.extraDachCreditM2)} m², nicht dargestellt)` : ''),
-            provFor(rules, 'dach_attika_ug_freibetrag', 'anrechenbares_untergeschoss_max'))]] : []),
-        ['Nutzbare Geschossfläche total (inkl. freie Geschosse)', `${fmt(mm2.nutzflaecheTotalM2)} m²`],
-        ['Gebäudehöhe der Baukörper', `${fmt(mm2.buildingHeightM)} m (${fmt(mm2.storeyHeightM)} m pro Vollgeschoss)`],
-        ['Umbauter Raum (gebaut)', `${fmt(mm2.volumeM3)} m³` + (mm2.hullVolumeM3 > mm2.volumeM3 * 1.02 ? ` — max. Hülle wäre ${fmt(mm2.hullVolumeM3)} m³` : '')],
-      ] : []),
-      [`${esc(rules.heightMetric)} max.`,
-        withProv(`${rules.heightM} m${rules.heightRegime ? ` <span class="regime-tag" title="Strengeres Mass der in Kraft stehenden BZO 2016 (negative Vorwirkung, § 234 PBG)">BZO 2016</span>` : ''}`,
-          provFor(rules, rules.heightRegime ? 'gebaeudehoehe_max_m_bzo2016' : (rules.traufseitige_fassadenhoehe_max_m != null ? 'traufseitige_fassadenhoehe_max_m' : 'gebaeudehoehe_max_m')))],
-      ...(r.lengthLimitM != null ? [['Max. Gebäudelänge',
-        withProv(`${r.lengthLimitM} m${regimeTag('gesamtlaenge_max_m')}${regimeTag('gebaeudelaenge_inkl_klein_anbauten_max_m')}`,
-          provFor(rules, 'gesamtlaenge_max_m', 'gebaeudelaenge_inkl_klein_anbauten_max_m'))]] : []),
-      ...(r.massing && !r.massing.impossible ? [
-        ['Länge dieses Bereichs', `${fmt(r.areaRect.lengthM)} m — zu lang für einen Baukörper`],
-        ['Aufteilung in Baukörper', `${r.massing.count} Baukörper (längster ${fmt(r.massing.longestBlockM)} m), Gebäudeabstand ${r.gebaeudeabstandM} m`],
-        ['davon Abzug Gebäudeabstände (nur Platzierung, nicht Ausnützung)', `− ${fmt(r.lengthLossM2)} m²`],
-      ] : (r.footprintRect ? [['Länge × Breite (kleinstes Rechteck)',
-        `${fmt(r.footprintRect.lengthM)} × ${fmt(r.footprintRect.widthM)} m` + (r.lengthLimitM != null ? ' — eingehalten' : '')]] : [])),
-      ['Gewachsenes Terrain (Referenzpunkt)', terrainHeight != null ? `${fmt(terrainHeight)} m ü. M.` : '— (Höhendienst nicht erreichbar)'],
-      ...(r.hang ? [['Terrainneigung', `${fmt(r.hang.slopePercent, 0)} % Richtung ${compassLabel(r.hang.uphillBearingDeg)}`]] : []),
-    ];
-    numbersTableEl.innerHTML = rows.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('');
-    wireProvButtons(numbersTableEl);
+
+    // ---- Kennwerte, Kopfzahlen, Regelfahnen ----------------------------
+    r.kennwerte = T.buildKennwerte(r, { provFor, storeyCountLabel, compassLabel });
+    renderKennwerte(r.kennwerte);
+    renderKpis(r);
+    renderOverlays(r);
+
     renderParkierung(r);
 
     const flags = [];
@@ -1722,7 +2040,7 @@
     }
     if (mmForFlags && mmForFlags.droppedBlockCount > 0) {
       const totalBlocks = (r.massing && r.massing.count) || mmForFlags.droppedBlockCount;
-      flags.push(`${mmForFlags.droppedBlockCount} von ${totalBlocks} Baukörpern aus der Längenaufteilung ${mmForFlags.droppedBlockCount > 1 ? 'waren' : 'war'} an dieser Stelle der Parzelle zu schmal (unter ${T.MIN_PRIMITIVE_WIDTH_M} m) für ein eigenständiges Gebäude und ${mmForFlags.droppedBlockCount > 1 ? 'wurden' : 'wurde'} nicht dargestellt. Die entsprechende Fläche fehlt in der unten ausgewiesenen Differenz zur rechnerischen Geschossfläche.`);
+      flags.push(`${mmForFlags.droppedBlockCount} von ${totalBlocks} Baukörpern aus der Längenaufteilung ${mmForFlags.droppedBlockCount > 1 ? 'waren' : 'war'} an dieser Stelle der Parzelle zu schmal (unter ${T.MIN_PRIMITIVE_WIDTH_M} m) für ein eigenständiges Gebäude und ${mmForFlags.droppedBlockCount > 1 ? 'wurden' : 'wurde'} nicht dargestellt. Das ist eine Folge der schematischen Gleichteilung mit festem Gebäudeabstand, keine Rechtsaussage: ein anders platzierter oder schmalerer Baukörper kann an dieser Stelle zulässig sein — die Anordnung der Gebäude ist Sache des Entwurfs. Die entsprechende Fläche fehlt in der unten ausgewiesenen Differenz zur rechnerischen Geschossfläche.`);
     } else if (mmForFlags && mmForFlags.cuboidNotPrimitive) {
       flags.push(`Für ${storeyCountLabel(mmForFlags.ordinaryStoreys, mmForFlags.attikaStoreys)} liess sich in dieser Form der Parzelle kein Rechteck mit der vollen benötigten Fläche (${fmt(mmForFlags.floorplateM2)} m² je Geschoss) platzieren. Der dargestellte Baukörper folgt daher ausnahmsweise dem unregelmässigen Umriss des bebaubaren Bereichs statt einer einfachen Box.`);
     } else if (mmForFlags && mmForFlags.cuboidAreaShortfallM2 > mmForFlags.floorplateM2 * 0.03) {
@@ -1778,7 +2096,7 @@
     // What the anrechenbare Fläche could NOT check automatically.
     const abzInfo = r.flaechenAbzuege || {};
     if (!abzInfo.gewaesserChecked || !abzInfo.andereZoneChecked) {
-      flags.push(`Anrechenbare Grundstücksfläche: automatisch abgezogen wurde nur Wald innerhalb der Parzelle${abzInfo.waldM2 > 0.5 ? ` (${fmt(abzInfo.waldM2)} m²)` : ' (hier: keiner)'}. Offene Gewässer und allfällige Flächenanteile ausserhalb der Bauzone werden nicht automatisch erkannt und wären zusätzlich abzuziehen (§ 259 PBG bzw. § 259 aPBG) — bei Gewässernähe oder Zonengrenzlage manuell prüfen.`);
+      flags.push(`Anrechenbare Grundstücksfläche: automatisch abgezogen wurden Wald innerhalb der Parzelle${abzInfo.waldM2 > 0.5 ? ` (${fmt(abzInfo.waldM2)} m²)` : ' (hier: keiner)'} und Waldabstandsflächen mehr als 15 m hinter der Waldabstandslinie${abzInfo.waldAbstand15M2 > 0.5 ? ` (${fmt(abzInfo.waldAbstand15M2)} m², § 259 aPBG)` : abzInfo.waldAbstand15M2 == null ? ' (nicht ermittelbar — Waldquelle oder Seitenbestimmung fehlt, manuell prüfen)' : ' (hier: keine)'}. Offene Gewässer und allfällige Flächenanteile ausserhalb der Bauzone werden nicht automatisch erkannt und wären zusätzlich abzuziehen (§ 259 PBG bzw. § 259 aPBG) — bei Gewässernähe oder Zonengrenzlage manuell prüfen.`);
     }
     // Arealüberbauung potential (Art. 6/7 E-BZO): not computed, but too much
     // money to leave silently on the table.
@@ -1812,8 +2130,20 @@
       `<div class="checklist-tier tier-a"><h3>Tier A — automatisch berechnet (eindeutig)</h3>${renderChecklistTier(checklist.tierA)}</div>` +
       `<div class="checklist-tier tier-b"><h3>Tier B — Vorhandensein automatisch erkannt, Inhalt manuell zu prüfen</h3>${renderChecklistTier(checklist.tierB)}</div>`;
 
-    renderViewer(r);
-    renderFloorPlan(r);
+    // Eine Zeichnung, die nicht zustande kommt, darf die Zahlen nicht
+    // mitnehmen. Beobachtet an einem Rechner ohne WebGL-Kontext: der Fehler
+    // aus three.js flog durch render() hindurch, und die fertig berechnete
+    // Studie endete als rote Statuszeile mit leeren Tafeln. Die Zahlen sind
+    // das Ergebnis; das Modell ist ihre Darstellung. Also: Grund anzeigen,
+    // Warnung ins Protokoll, weiterrendern.
+    for (const [what, fn, host] of [['Isometrie', renderViewer, viewerEl], ['Situationsplan', renderFloorPlan, floorplanEl]]) {
+      try {
+        fn(r);
+      } catch (e) {
+        host.innerHTML = `<p class="pane-empty">${what} nicht darstellbar — ${esc(e.message || e)}<br>Die Zahlen rechts sind davon unberührt.</p>`;
+        if (protokoll) protokoll.warn(`${what} nicht darstellbar: ${e.message || e}`);
+      }
+    }
 
     // Full provenance list: every legal parameter that fed the calculation,
     // with its article, the quoted passage, and a link that opens the source
@@ -1909,19 +2239,77 @@
       `Bitte Zonenzuordnung an der Grundstücksgrenze zusätzlich prüfen. Kein Ersatz für eine unterschriebene Machbarkeitsstudie oder ein Baugesuch.`;
 
     refreshGrundbuchFootnote();
-    resultsEl.style.display = 'block';
+    flagsNoteEl.textContent = flags.length
+      ? `${flags.length} Hinweis${flags.length === 1 ? '' : 'e'}`
+      : 'keine Vorbehalte';
+    statusStandEl.textContent = `${rulesData.version} · Stand ${formatDateCH(rulesData.data_last_verified)}`;
     previewPdfBtn.disabled = false;
-    logBtn.disabled = false;
+    detailBtn.disabled = false;
+
+    // Die Laufzusammenfassung wird jetzt gezaehlt -- die Kennwerte stehen,
+    // also sind Annahmen und geprüfte Regeln zaehlbar. Konflikte sind die
+    // ausgefallenen Quellen: eine Quelle, die nicht antwortet, ist kein
+    // bestandener Test (REGELN.md §2).
+    if (protokoll) {
+      const sum = protokoll.summary({ kennwerte: r.kennwerte, conflicts: (r.degraded || []).length });
+      protokoll.ok(`fertig · ${(sum.durationMs / 1000).toFixed(2)} s · ${sum.rulesChecked} Regeln · ${sum.assumptions} Annahmen · ${sum.conflicts} Konflikte`);
+      renderLogSummary(sum);
+      renderLogSources(r);
+    }
   }
 
+  // Fuss der Kartentafel: was unter dem Zeiger liegt. Nur die gewaehlten
+  // Polygone melden das (siehe parcel-selector.js) -- fuer die uebrigen
+  // Parzellen gibt es hier keine Geometrie, nur Katasterkacheln.
+  const MAP_HINT_IDLE = 'klicken zum Hinzufügen / Entfernen';
+  function onParcelHover(parcelNumber) {
+    mapHoverEl.textContent = parcelNumber
+      ? `Parzelle ${parcelNumber} — klicken zum Entfernen`
+      : MAP_HINT_IDLE;
+  }
+  mapHoverEl.textContent = MAP_HINT_IDLE;
+
+  // Alles, was ein Ergebnis zeigt, auf einmal leeren. Ohne das blieben nach
+  // einer neuen Suche die Kopfzahlen und die Zahlentafel der VORIGEN
+  // Parzelle stehen, waehrend Karte und Modell schon die neue zeigten --
+  // die gefaehrlichste Art von Fehler in einem Werkzeug, dessen Zweck es
+  // ist, Zahlen einer bestimmten Parzelle zuzuordnen.
+  function clearResultPanels() {
+    kennwerteEl.innerHTML = '';
+    kwNoteEl.textContent = '';
+    variantsEl.innerHTML = '';
+    logEl.innerHTML = '';
+    logFilterEl.innerHTML = '';
+    logSourcesEl.innerHTML = '';
+    logNoteEl.textContent = '';
+    statusTimingsEl.textContent = '';
+    statusStandEl.textContent = '';
+    flagsNoteEl.textContent = '';
+    ovlModellEl.hidden = true;
+    ovlPlanEl.hidden = true;
+    isoControlsEl.hidden = true;
+    isoReadoutEl.hidden = true;
+    isoNoteEl.textContent = '';
+    planNoteEl.textContent = '';
+    viewerEl.innerHTML = '';
+    floorplanEl.innerHTML = '';
+    for (const k of Object.keys(KPI)) { KPI[k].v.textContent = '—'; KPI[k].s.textContent = ''; }
+  }
+
+  // Die Auswahl steht an zwei Stellen: in der Kopfzeile (AUSWAHL) und im
+  // Fuss der Kartentafel. Beide aus derselben Quelle, sonst driften sie.
   function renderSelectionList(selection) {
     if (!selection.length) {
-      selectionListEl.innerHTML = '<li class="empty">Keine Parzelle gewählt — auf der Karte eine anklicken.</li>';
+      auswahlValueEl.innerHTML = '<span style="color:var(--faint)">—</span>';
+      mapSelEl.innerHTML = '<span class="sel-empty">keine Parzelle gewählt</span>';
       return;
     }
-    selectionListEl.innerHTML = selection
-      .map((p, i) => `<li class="${i === 0 ? 'anchor' : ''}">${p.parcelNumber} — Zone ${p.zone}${i === 0 ? ' (Ausgangsparzelle)' : ''}</li>`)
-      .join('');
+    const totalM2 = selection.reduce((sum, p) => {
+      try { return sum + T.planarAreaAnyLV95(T.parcelToTurfPolygon(p.geometryLV95)); } catch (e) { return sum; }
+    }, 0);
+    const ids = selection.map((p) => p.parcelNumber).join(' + ');
+    auswahlValueEl.innerHTML = `<span class="acc">${esc(ids)}</span> · ${fmt(totalM2, 0)} m²`;
+    mapSelEl.textContent = `${selection.length} Parzelle${selection.length === 1 ? '' : 'n'} · ${fmt(totalM2, 0)} m²`;
   }
 
   // Recompute whenever the map selection changes. Guarded so a slow run
@@ -1937,9 +2325,9 @@
       // anything on screen.
       runToken++; // and any run still in flight is now stale
       ablaufPanel.reset();
-      resultsEl.style.display = 'none';
       previewPdfBtn.disabled = true;
-      logBtn.disabled = true;
+      detailBtn.disabled = true;
+      clearResultPanels();
       lastResult = null;
       lastFlags = [];
       storeyChoice = null;
@@ -1950,23 +2338,36 @@
     }
     const myToken = ++runToken;
     ablaufPanel.reset();
+    const P = startProtokoll();
+    P.step(`selection ${selection.map((p) => p.parcelNumber).join(' + ')} → Analyse startet`);
     setStatus('Berechne…');
     try {
-      const result = await analyse(selection);
+      const result = await analyse(selection, P);
       if (myToken !== runToken) return;
       setStatus('');
       render(result);
     } catch (err) {
       if (myToken !== runToken) return;
-      setStatus('Fehler: ' + (err.message || err), true);
+      // Ein Abbruch ist ein Ergebnis des Laufs und gehoert ins Protokoll,
+      // nicht nur in die Statuszeile.
+      P.warn(`Abbruch — ${err.message || err}`);
+      logNoteEl.textContent = 'abgebrochen';
+      // Der Abbruch wegen fehlender BZO ist kein Programmfehler, sondern ein
+      // Ergebnis: er sagt, welche Norm fehlt. Deshalb Tafel statt Popup.
+      if (err && err.name === 'GemeindeNichtHinterlegtError') {
+        renderNichtGerechnet(err);
+        setStatus(`Nicht gerechnet — für ${err.gemeinde} ist keine BZO hinterlegt.`, true);
+      } else {
+        setStatus('Fehler: ' + (err.message || err), true);
+      }
     }
   }
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    resultsEl.style.display = 'none';
     previewPdfBtn.disabled = true;
-    mapSectionEl.style.display = 'none';
+    detailBtn.disabled = true;
+    clearResultPanels();
     closeOptions();
     const typed = addressInput.value.trim();
     if (!typed) return;
@@ -1997,8 +2398,7 @@
         rules,
       };
 
-      mapSectionEl.style.display = 'flex';
-      T.parcelMap = T.initParcelMap('map', firstParcel, refresh, gemeindeSelect.value || null);
+      T.parcelMap = T.initParcelMap('map', firstParcel, refresh, gemeindeSelect.value || null, onParcelHover);
     } catch (err) {
       setStatus('Fehler: ' + (err.message || err), true);
     }

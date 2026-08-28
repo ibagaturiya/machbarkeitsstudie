@@ -74,7 +74,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     const kicker = (sourceSheet.querySelector('.kicker') || {}).textContent || '';
     const el = document.createElement('div');
     el.innerHTML = sheet(
-      `${title} (Fortsetzung)`, kicker,
+      `${title} (Fortsetzung)`, kicker, '',
       '<div class="flags-cols" data-flow></div>', foot, ''
     );
     return el.firstElementChild;
@@ -218,11 +218,39 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   }
 
 
-  function sheet(title, kicker, bodyHtml, footerHtml, sourcesHtml) {
+  // ---- Titelblatt --------------------------------------------------------
+  // Erste Seite des Exports: Adresse, zwei Saetze dazu, was das Dokument ist,
+  // Absender und Stand. Bewusst fast leer — die Dichte kommt auf den
+  // Folgeblaettern.
+  function titleSheet(r, foot) {
+    const { selection, anchor, rules } = r;
+    const multi = selection.length > 1;
+    const subject = anchor.address || selection.map((p) => `Parzelle ${p.parcelNumber}`).join(' + ');
+    const dateStr = new Date().toLocaleDateString('de-CH');
+    return `<section class="sheet sheet-title">
+      <div class="titel-mitte">
+        <div class="titel-kicker">Baurechtliche Machbarkeitsstudie</div>
+        <h1 class="titel-adresse">${esc(subject)}</h1>
+        <div class="titel-meta">Gemeinde ${esc(rules.gemeinde)} · ${multi ? 'Parzellen' : 'Parzelle'} ${esc(selection.map((p) => p.parcelNumber).join(' + '))} · Zone ${esc(anchor.zone)}${anchor.zoneLabel ? ` (${esc(anchor.zoneLabel)})` : ''}</div>
+        <p class="titel-text">Diese Studie zeigt, was auf ${multi ? 'den gewählten Parzellen' : 'der gewählten Parzelle'} nach geltendem Baurecht gebaut werden darf: Fläche, Geschosse, Volumen und eine erste Kostenschätzung. Grundlage sind die amtliche Vermessung, die kantonalen Geodaten sowie die Bau- und Zonenordnung der Gemeinde — jede Zahl nennt ihre Quelle.</p>
+      </div>
+      <div class="titel-unten">
+        <div class="titel-autor">exportiert von ivan bagaturiya</div>
+        <div class="titel-stand">erstellt am ${esc(dateStr)} · Werkzeug ${esc(T.WERKZEUG_VERSION)} · ${esc(rules.source.version)}</div>
+      </div>
+      <footer class="sheet-foot">${foot}</footer>
+    </section>`;
+  }
+
+  // Jedes Blatt beginnt unter dem Titel mit ein bis zwei Saetzen, die sagen,
+  // was die Seite zeigt und worauf sie sich stuetzt — der Leser soll nicht
+  // aus der Tabelle erraten muessen, was er vor sich hat.
+  function sheet(title, kicker, intro, bodyHtml, footerHtml, sourcesHtml) {
     return `<section class="sheet">
       <header class="sheet-head">
         <div class="kicker">${esc(kicker)}</div>
         <h2>${esc(title)}</h2>
+        ${intro ? `<p class="sheet-intro">${esc(intro)}</p>` : ''}
       </header>
       <div class="sheet-body">${bodyHtml}</div>
       ${sourcesHtml ? `<div class="sheet-sources">${sourcesHtml}</div>` : ''}
@@ -389,6 +417,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       // hier der baurechtliche Teil — der Kicker sagt jetzt das, und das Blatt
       // "Nicht Gegenstand dieser Auswertung" fuehrt den Rest als offene Punkte.
       `Baurechtliche Machbarkeit — Ausnützungs- und Volumenanalyse · Zone ${anchor.zone}${anchor.zoneLabel ? ` (${anchor.zoneLabel})` : ''}`,
+      'Das Wichtigste in Kürze: was hier gebaut werden darf, auf welcher Fläche und mit welchen Grenzen — nach amtlicher Vermessung und den Bauvorschriften von Kanton und Gemeinde.',
       `<div class="cols c-6040">
         <div>
           <div class="hero">
@@ -438,6 +467,9 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     if (abz.waldM2 > 0.5) {
       derivation.push(['Abzug Wald (§ 259 PBG: fällt ausser Ansatz)', '− ' + fmt(abz.waldM2) + ' m²', 'minus']);
     }
+    if (abz.waldAbstand15M2 > 0.5) {
+      derivation.push(['Abzug Waldabstandsfläche > 15 m hinter der Linie (§ 259 aPBG)', '− ' + fmt(abz.waldAbstand15M2) + ' m²', 'minus']);
+    }
     derivation.push(['Anrechenbare Grundstücksfläche', fmt(reconciled.anrechenbareFlaecheM2) + ' m²', '']);
     derivation.push([`Fussabdruck nach Grundabstand (${fmt(r.grundabstandUsedM ?? rules.grundabstand_min_m)} m)`, fmt(footprintBeforeWaldM2) + ' m²', 'minus']);
     if (waldLossInFootprintM2 > 0.5) {
@@ -462,6 +494,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     }
 
     const s2 = sheet('Volumetrie', 'Wie die Zahl zustande kommt',
+      'Schritt für Schritt von der Parzellenfläche zur zulässigen Geschossfläche — jede Zeile stützt sich auf eine unten genannte Bestimmung, Abzüge sind rot ausgewiesen.',
       `<div class="cols c-4555">
         <div>
           <table class="derive">
@@ -496,6 +529,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     })();
 
     const s2b = sheet('Grundriss Erdgeschoss', 'Bebaubare Grundfläche, massstäblich',
+      'Die bebaubare Grundfläche im Erdgeschoss, massstäblich und nordorientiert gezeichnet — nach Abzug von Grenzabständen, Gebäudeabständen und Waldabstand.',
       `<div class="cols c-6040">
         <div>${setbackFootprint
           ? T.buildFloorPlanSvg({ parcelFeature: merged,
@@ -543,6 +577,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
 
     // ---- Sheet 3: Zonenplan ------------------------------------------------
     const s3 = sheet('Zonenplan', 'Grundlage der Zonenzuordnung',
+      'Ausschnitt aus der kantonalen Nutzungsplanung: die Zone, in der diese Auswertung rechnet, mit ihren Grundmassen aus der Bau- und Zonenordnung der Gemeinde.',
       `<div class="cols c-6040">
         <div>${mapBlock(rings, centerE, centerN, halfSpan * 1.8, ['zoning', 'cadastre'], zoneFeatures, 1200, 980)}
           <div class="caption">Zonenplan-Ausschnitt mit Parzellengrenzen. ${multi ? 'Gewählte Parzellen' : 'Parzelle'} rot markiert.</div>
@@ -593,6 +628,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
          <div class="caption">Situationsplan. Für diese Parzelle wurde keine einschneidende Waldabstandslinie gefunden.</div>`;
 
     const s4 = sheet('Einschränkungen', 'Was geprüft wurde — und was nicht',
+      'Welche öffentlich-rechtlichen Einschränkungen automatisch geprüft wurden — und welche Punkte vor einem Bauprojekt manuell zu klären bleiben.',
       `<div class="cols c-5545">
         <div data-flow>
           <h3>Automatisch berechnet</h3>
@@ -616,6 +652,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     // line. They get their own sheet, two columns.
     const s4b = flags.length
       ? sheet('Hinweise und Vorbehalte der Berechnung', 'Jede Vereinfachung, ausgeschrieben',
+          'Jede Vereinfachung und Annahme dieser Berechnung, einzeln ausgewiesen — wer eine Zahl weiterverwendet, sollte den zugehörigen Hinweis kennen.',
           `<div class="flags-cols" data-flow>${flags.map((f) => `<div class="flagline">${esc(f)}</div>`).join('')}</div>`,
           foot,
           '<b>Quellen:</b> je Hinweis im Text genannt (Artikel/Paragraph); Wortlaut der zitierten Bestimmungen auf dem Blatt «Quellen und Vorbehalte».')
@@ -630,6 +667,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       ? sheet('Parkierung', pk.erfasst && pk.bindet
           ? 'Wann die Garage das Volumen begrenzt — nicht die Ausnützungsziffer'
           : 'Pflichtplätze und ihr Flächenbedarf',
+          'Wie viele Parkplätze die Bauordnung verlangt, wie viel Fläche sie brauchen — und ab wann die Garage statt der Ausnützungsziffer das Volumen begrenzt.',
           parkierungSheetBody(pk, rules), foot,
           pk.erfasst
             ? sourcesLine(rules, [['Parkierung', 'parkierung']])
@@ -639,6 +677,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
 
     // ---- Sheet 5: Kosten ---------------------------------------------------
     const s5 = sheet('Grobe Kostenschätzung', 'Sehr grob — keine Kostenplanung',
+      'Überschlägige Gebäudekosten (BKP 2) aus dem hergeleiteten Volumen und einem Erfahrungskennwert für den Raum Zürich — eine Grössenordnung, keine Kostenplanung.',
       `<div class="cols c-5050">
         <div>
           <div class="hero">
@@ -666,9 +705,60 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       </div>`, foot,
       '<b>Quellen:</b> Kostenkennwert ist eine Werkzeug-Annahme (Bandbreite CHF 800–1000/m³ BKP 2), kein Gesetzeswert. Volumen aus dem oben hergeleiteten Baukörper.');
 
+    // ---- Sheet 5a: Belastbarkeit ------------------------------------------
+    // Jede Zahl dieses Berichts mit ihrer Sicherheitsstufe. Ohne dieses Blatt
+    // sähe auf dem Papier ein geschätzter Wert aus wie ein belegter — und ein
+    // Wert, der am Bildschirm als unsicher markiert ist, aber gedruckt glatt
+    // erscheint, ist gedruckt eine falsche Zahl (gleiche Begründung wie beim
+    // Parkierungsblatt, REGELN.md §7).
+    const sBel = (r.kennwerte && r.kennwerte.length)
+      ? (() => {
+          const alle = r.kennwerte.flatMap((g) => g.rows);
+          const z = T.zaehleSicherheit(alle);
+          const legende = T.SICHERHEIT_STUFEN_NACH_RANG.map((st) =>
+            `<tr>`
+            + `<td class="bel-z bel-${st.key}">${esc(st.zeichen)}</td>`
+            + `<td><b>${esc(st.label)}</b><br><span class="bel-erk">${esc(st.erklaerung)}</span></td>`
+            + `<td class="bel-n">${z[st.key]}</td></tr>`).join('');
+          const tafel = r.kennwerte.map((g) =>
+            `<tr class="bel-grp"><td colspan="4">${esc(g.title)}</td></tr>`
+            + g.rows.map((row) => {
+              const st = T.SICHERHEIT_STUFEN[row.sicherheit];
+              return `<tr class="bel-r bel-r-${row.sicherheit}">`
+                + `<td class="bel-z bel-${row.sicherheit}">${esc(st.zeichen)}</td>`
+                + `<td>${esc(row.label)}</td>`
+                + `<td class="bel-v">${esc(row.value)}</td>`
+                + `<td class="bel-g">${esc(row.sicherheitGrund || st.kurz)}${row.sicherheitVererbt ? ' <i>(geerbt)</i>' : ''}</td>`
+                + `</tr>`;
+            }).join('')).join('');
+          return sheet('Belastbarkeit der Zahlen', 'Was belegt ist — und was nicht',
+            'Nicht jede Zahl ist gleich gut abgestützt — diese Seite stuft jeden Wert ein: belegt, vereinfacht angewandt, Annahme des Werkzeugs oder nicht ermittelbar.',
+            `<div class="cols c-3565">
+              <div>
+                <div class="hero">
+                  <div class="hero-label">Von ${alle.length} Werten belegt</div>
+                  <div class="hero-value">${z.BELEGT} von ${alle.length}</div>
+                  <div class="hero-sub">${z.VEREINFACHT} vereinfacht · ${z.ANNAHME} Annahme · ${z.NICHT_ERMITTELBAR} nicht ermittelbar</div>
+                </div>
+                <table class="facts">${legende}</table>
+                <div class="note-box small">
+                  Ein abgeleiteter Wert trägt die schwächste Stufe seiner Eingänge.
+                  «Geerbt» heisst: der Wert selbst wäre besser belegt, einer seiner
+                  Eingänge ist es nicht. Kein Wert unterhalb von «belegt» ist eine
+                  bestandene Prüfung.
+                </div>
+              </div>
+              <div><table class="derive bel-tafel" data-flow>${tafel}</table></div>
+            </div>`, foot,
+            '<b>Quellen:</b> die Einstufung selbst rechnet nichts. Sie liest die Belegstellen der Datendateien '
+            + '(Artikel, Seite, Wortlaut) und das Register der Werkzeug-Annahmen — Wortlaut auf dem Blatt «Quellen und Vorbehalte».');
+        })()
+      : '';
+
     // ---- Sheet 5b: Abgrenzung ---------------------------------------------
     // Direkt vor den Quellen: das Dokument schliesst mit Umfang und Grundlage.
     const sAbg = sheet('Nicht Gegenstand dieser Auswertung', 'Was offen bleibt — benannt statt weggelassen',
+      'Eine vollständige Machbarkeitsstudie beantwortet mehr als das Baurecht — diese Seite nennt, was hier bewusst offen bleibt, damit nichts davon als geprüft gilt.',
       abgrenzungSheetBody(), foot,
       '<b>Quellen:</b> auf diesem Blatt wird nichts gerechnet. Der Umfang der Phase Machbarkeit folgt der Norm SIA 112, Modell Bauplanung, 2014, Teilphase 21.');
 
@@ -713,6 +803,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     }
 
     const s6 = sheet('Quellen und Vorbehalte', 'Grundlage und Grenzen dieser Auswertung — mit Wortlaut',
+      'Die verwendeten Datenquellen, die Vorbehalte dieser Auswertung und der Wortlaut jeder zitierten Bestimmung.',
       `<div class="cols c-5050" style="margin-bottom:5mm">
         <div>
           <h3>Quellen</h3>
@@ -739,7 +830,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       <h3>Zitierte Bestimmungen (Wortlaut)</h3>
       <div class="quote-list" data-flow>${quoteItems.join('')}</div>`, foot);
 
-    const html = [s1, s2, s2b, s3, s4, s4b, sPk, s5, sAbg, s6].join('');
+    const html = [titleSheet(r, foot), s1, s2, s2b, s3, s4, s4b, sPk, s5, sBel, sAbg, s6].join('');
     const host = document.getElementById('print-doc');
     host.innerHTML = html;
 
