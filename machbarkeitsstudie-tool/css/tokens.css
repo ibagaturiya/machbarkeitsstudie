@@ -1,46 +1,109 @@
 /* tokens.css — the colour and spacing vocabulary. Loaded first; nothing
-   else in css/ may hardcode a UI colour. Dark theme overrides every token
-   defined here. Extracted verbatim from the <style> block that used to
-   live in index.html; load order (tokens → components → layout → print)
-   reproduces the original cascade exactly. */
+   else in css/ may hardcode a UI colour.
 
-/* ---- theme tokens ---------------------------------------------------
-   Accent is a transparent orange throughout: solid for borders/icons,
-   --accent-soft for fills. Dark theme overrides every token below;
-   nothing outside this block should hardcode a UI colour. The print
-   document (#print-doc, further down) is deliberately NOT themed -- it
-   is a document meant to be read on paper, always light. */
+   Single dark theme (design 3a): dark architect millimetre paper, iOS-style
+   glass panels, one orange accent. The light/dark toggle is gone -- the
+   glass, the paper grid and every accent tint are calibrated for #0e0f10,
+   and a light counterpart would be a second design, not a variable swap.
+   The print document (#print-doc) is deliberately NOT themed: it is a
+   document meant to be read on paper, always light. */
+
 :root {
-  --bg: #f7f6f3; --bg-pane: #ffffff; --bg-raised: #fafafa; --bg-sunken: #f0efec;
-  --text: #1a1a1a; --text-muted: #666666; --text-faint: #999999;
-  --border: #dddddd; --border-soft: #ececec;
-  --accent: #e8792e; --accent-soft: rgba(232, 121, 46, 0.14); --accent-text: #ffffff;
-  --pass-bg: #f1f8f1; --pass-badge: #2e7d32;
-  --flag-bg: #fff0f0; --flag-badge: #c62828;
-  --review-bg: #fff8e1; --review-badge: #f9a825;
-  --warn-bg: #fff3cd; --warn-border: #ffe08a; --warn-text: #6a5330;
-  --shadow: rgba(0,0,0,0.08);
-  --map-filter: none;
-}
-:root[data-theme="dark"] {
-  --bg: #17171a; --bg-pane: #1e1e22; --bg-raised: #232327; --bg-sunken: #131315;
-  --text: #ececec; --text-muted: #a5a3a0; --text-faint: #77746f;
-  --border: #38373d; --border-soft: #2a2a2e;
-  --accent: #ff9d52; --accent-soft: rgba(255, 157, 82, 0.16); --accent-text: #171717;
-  --pass-bg: #16261a; --pass-badge: #4caf50;
-  --flag-bg: #2c1717; --flag-badge: #ef5350;
-  --review-bg: #2b2312; --review-badge: #ffca28;
-  --warn-bg: #2b2313; --warn-border: #5a4a1f; --warn-text: #e8cf8a;
-  --shadow: rgba(0,0,0,0.4);
-  /* Inverts the raster cadastral tiles into a dark, low-glare basemap
-     instead of a bright white rectangle sitting in a dark page. */
-  /* invert(0.92), not 1: a full invert makes tiny antialiasing differences
-     between two independently-rasterised adjacent WMTS tiles (each tile is
-     rendered server-side on its own, so a line crossing a tile boundary can
-     legitimately differ by a pixel or two of antialiasing between the two
-     tiles) swing all the way to near-black vs near-white, which reads as a
-     seam along the tile edge. A partial invert plus a touch of blur damps
-     that swing instead of amplifying it. */
+  /* ---- the accent, in ONE place ----------------------------------------
+     Everything orange in the UI -- including SVG fills and strokes, which
+     use style="fill:var(--acc)" rather than the fill attribute so this
+     cascade reaches them -- resolves to these two. Alternates that were
+     designed alongside: #ffb700/#ffd257, #ff7a1a/#ff9f5c, #f2542d/#f78a63,
+     #d9a021/#eec25a. Change the pair, the whole tool follows. */
+  --acc: #ff9d2e;
+  --acc2: #ffbe63;
+
+  /* ---- grounds ---------------------------------------------------------
+     --canvas is the millimetre paper. --draw is opaque, for panels holding
+     a drawing: glass behind a map or a 3D scene turns to mud. */
+  --canvas: #0e0f10;
+  --draw: #141516;
+  --glass: rgba(20, 20, 20, .72);
+  --bar-glass: rgba(30, 27, 24, .74);
+  --status-glass: rgba(18, 18, 18, .62);
+  --overlay-box: rgba(28, 28, 28, .6);
+
+  /* ---- text, five steps ------------------------------------------------ */
+  --txt: #eceae8;
+  --txt2: #a9a7a4;
+  --txt3: #8c8a88;
+  --lbl: #6e6c6a;
+  --faint: #5a5856;
+
+  /* ---- semantic --------------------------------------------------------
+     ok green and assumption amber. Both are readable on --glass at 11px,
+     which is the smallest they are ever set. */
+  --ok: #9ec98c;
+  --assume: #e9c78d;
+  --log-ok: #d2ded0;
+  --log-cite: #ffd3a1;
+  --log-warn: #f0dcc0;
+
+  /* ---- lines ----------------------------------------------------------- */
+  --hair: rgba(255, 255, 255, .09);
+  --hair-soft: rgba(255, 255, 255, .07);
+  --row-rule: rgba(255, 255, 255, .045);
+
+  /* ---- geometry -------------------------------------------------------- */
+  --r-frame: 24px;
+  --r-panel: 18px;
+  --r-inner: 17px;
+  --r-overlay: 16px;
+  --r-brand: 12px;
+  --r-row: 10px;
+  --gutter: 12px;
+  --pad-canvas: 14px;
+
+  --shadow-frame: 0 24px 60px rgba(0, 0, 0, .55);
+  --shadow-panel: 0 12px 34px rgba(0, 0, 0, .55);
+  --blur-glass: blur(18px) saturate(150%);
+  --blur-overlay: blur(20px);
+
+  /* ---- type ------------------------------------------------------------
+     Archivo for labels and headings; IBM Plex Mono for EVERY number, id,
+     timestamp and log line. A number set in Archivo is a bug. */
+  --font-ui: 'Archivo', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-num: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* ---- legacy token names ----------------------------------------------
+     css/components.css, css/print.css and the evidence overlay were written
+     against the old two-theme vocabulary. Rather than rewrite 400 lines of
+     working component CSS for a rename, the old names are kept and pointed
+     at the palette above. Nothing new should use them -- but nothing is
+     served by breaking the Zonen-Steckbrief, the Prüfliste, the Grundbuch
+     form or the § evidence viewer to prove a point about naming. */
+  --bg: var(--canvas);
+  --bg-pane: var(--glass);
+  --bg-raised: rgba(255, 255, 255, .04);
+  --bg-sunken: rgba(0, 0, 0, .25);
+  --text: var(--txt);
+  --text-muted: var(--txt2);
+  --text-faint: var(--txt3);
+  --border: var(--hair);
+  --border-soft: var(--row-rule);
+  --accent: var(--acc);
+  --accent-soft: color-mix(in srgb, var(--acc) 14%, transparent);
+  --accent-text: #0c0c0c;
+  --pass-bg: color-mix(in srgb, var(--ok) 12%, transparent);
+  --pass-badge: var(--ok);
+  --flag-bg: rgba(198, 40, 40, .16);
+  --flag-badge: #e57373;
+  --review-bg: color-mix(in srgb, var(--assume) 12%, transparent);
+  --review-badge: var(--assume);
+  --warn-bg: color-mix(in srgb, var(--assume) 10%, transparent);
+  --warn-border: color-mix(in srgb, var(--assume) 30%, transparent);
+  --warn-text: var(--log-warn);
+  --shadow: rgba(0, 0, 0, .5);
+
+  /* Inverts the raster cadastral tiles into a dark, low-glare basemap.
+     invert(0.92), not 1: a full invert makes tiny antialiasing differences
+     between two independently-rasterised adjacent WMTS tiles swing all the
+     way to near-black vs near-white, which reads as a seam along the tile
+     edge. A partial invert plus a touch of blur damps that swing. */
   --map-filter: invert(0.92) hue-rotate(180deg) brightness(0.9) contrast(0.8) saturate(0.9);
 }
-

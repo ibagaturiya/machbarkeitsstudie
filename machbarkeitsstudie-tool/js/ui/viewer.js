@@ -154,7 +154,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     },
   };
 
-  function renderEnvelope(container, { footprintFeature, parcelFeature, heightM, removedFeature, massing = null, interactive = false, dark = false, draggable = false, buildableArea = null, blockGapM = 0, onMove = null }) {
+  function renderEnvelope(container, { footprintFeature, parcelFeature, heightM, removedFeature, massing = null, interactive = false, dark = false, draggable = false, buildableArea = null, blockGapM = 0, onMove = null, onCamera = null }) {
     const pal = dark ? PALETTE.dark : PALETTE.light;
     const footprintRings = exteriorRingsOf(footprintFeature);
     const parcelRings = exteriorRingsOf(parcelFeature);
@@ -406,9 +406,23 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     // in this scene's local frame), but Shift+drag pans it, which is just
     // moving this point in the view plane and re-orbiting around the new one.
     const dist = viewSize * 1.5;
-    let azimuth = Math.PI / 4;              // around the vertical axis
-    let polar = Math.atan(1 / Math.SQRT2);  // ~35.26°, true isometric elevation
+    const AZIMUTH_0 = Math.PI / 4;               // 45°, the classic isometric plan angle
+    const POLAR_0 = Math.atan(1 / Math.SQRT2);   // ~35.26°, true isometric elevation
+    let azimuth = AZIMUTH_0;                     // around the vertical axis
+    let polar = POLAR_0;
     const target = new THREE.Vector3(0, 0, 0);
+
+    // The camera's own numbers, handed back so the panel can print them.
+    // Reported as they really are -- azimuth and elevation in degrees, zoom
+    // as a factor -- rather than as the mock's scaleY percentage, which was
+    // a property of a flattened SVG and has no counterpart on a real camera.
+    const cameraState = () => ({
+      azimuthDeg: ((Math.round((azimuth * 180) / Math.PI) % 360) + 360) % 360,
+      polarDeg: Math.round((polar * 180) / Math.PI),
+      zoom,
+    });
+    const reportCamera = () => { if (onCamera) onCamera(cameraState()); };
+
     function applyCamera() {
       const r = dist * Math.cos(polar);
       camera.position.set(target.x + r * Math.sin(azimuth), target.y + dist * Math.sin(polar), target.z + r * Math.cos(azimuth));
@@ -418,6 +432,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       camera.top = viewSize / 2 / zoom;
       camera.bottom = -viewSize / 2 / zoom;
       camera.updateProjectionMatrix();
+      reportCamera();
     }
     applyCamera();
 
@@ -596,7 +611,22 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       }, { passive: false });
     }
 
-    return { scene, camera, renderer, draw };
+    // The same orbit the pointer drives, exposed for the panel's ⟲ / ⟳ and
+    // RESET buttons. One code path for both -- a second, button-only
+    // rotation would drift out of step with the drag the first time either
+    // side gained a clamp.
+    const orbit = {
+      state: cameraState,
+      stepAzimuth(deg) { azimuth += (deg * Math.PI) / 180; applyCamera(); draw(); },
+      zoomBy(factor) { zoom = Math.max(0.4, Math.min(6, zoom * factor)); applyCamera(); draw(); },
+      reset() {
+        azimuth = AZIMUTH_0; polar = POLAR_0; zoom = 1;
+        target.set(0, 0, 0);
+        applyCamera(); draw();
+      },
+    };
+
+    return { scene, camera, renderer, draw, orbit };
   }
 
   // Renders the same envelope off-screen at an arbitrary size and returns a

@@ -3,27 +3,22 @@
 <head>
 <meta charset="UTF-8">
 <title>Machbarkeitsstudie — Kanton Zürich</title>
-<!-- Stylesheets. Order IS the cascade: vendor first, then the design
-     tokens, then the components, then the layout shell that deliberately
-     overrides component geometry, then print. Extracted from the 571-line
-     <style> block that used to sit here. -->
+
+<!-- Stylesheets. Order IS the cascade:
+     vendor  → Leaflet's own
+     fonts   → Archivo + IBM Plex Mono, vendored (no CDN, see vendor/fonts)
+     tokens  → the colour and spacing vocabulary, one dark theme
+     components → the widgets of the DETAIL screen
+     panels  → the contents of the analysis panels (log, Kennwerte, overlays)
+     shell   → the chrome: paper, panels, header, KPI strip, bars
+     print   → the A3 export document, deliberately light -->
 <link rel="stylesheet" href="vendor/leaflet-1.9.4/leaflet.css">
+<link rel="stylesheet" href="vendor/fonts/fonts.css">
 <link rel="stylesheet" href="css/tokens.css">
 <link rel="stylesheet" href="css/components.css">
-<link rel="stylesheet" href="css/layout.css">
+<link rel="stylesheet" href="css/panels.css">
+<link rel="stylesheet" href="css/shell.css">
 <link rel="stylesheet" href="css/print.css">
-
-<script>
-  // Applied before first paint so there is no light-mode flash on a dark-mode
-  // reload. Kept inline and tiny on purpose -- everything else about the
-  // toggle (the button, re-rendering the 3D view) lives in app.js, which
-  // loads after the DOM and can afford to wait.
-  (function () {
-    const saved = localStorage.getItem('machbarkeit-theme');
-    const theme = saved || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-    document.documentElement.dataset.theme = theme;
-  })();
-</script>
 
 <!-- Third-party, pinned and served from this repo -- see vendor/README.md
      for versions, checksums and the Three.js upgrade cliff. -->
@@ -32,160 +27,242 @@
 <script src="vendor/three-0.160.0/three.min.js"></script>
 </head>
 <body>
-<header id="topbar">
-<h1>Machbarkeitsstudie — Kanton Zürich</h1>
-<form id="address-form" autocomplete="off">
-  <div class="combo" id="address-combo">
-    <input type="text" id="address-input" role="combobox" aria-expanded="false" aria-controls="address-options"
-           aria-autocomplete="list" autocomplete="off" spellcheck="false"
-           placeholder="Adresse oder Parzellennummer, z.B. Haldenstrasse 5, 8126 Zumikon — oder Zumikon 1207"
-           value="Haldenstrasse 5, 8126 Zumikon">
-    <ul id="address-options" class="combo-list" role="listbox" hidden></ul>
+
+<!-- The tool is a desktop instrument: three columns of numbers at a design
+     width of 1720 px. Below ~1180 it says so rather than reflowing into a
+     layout the figures were never set for. -->
+<div id="too-narrow">
+  Diese Auswertung braucht ein breites Fenster —<br>drei Spalten, Entwurfsbreite 1720&nbsp;px.<br>
+  Bitte das Fenster vergrössern.
+</div>
+
+<!-- ======================= header ======================= -->
+<header id="topbar" class="panel">
+  <div id="brand">
+    <span class="b-name">MACHBARKEIT</span>
+    <span class="b-sub">MAX. VOLUMEN · KT. ZÜRICH</span>
   </div>
-  <div class="select-wrap">
-    <select id="gemeinde-select" title="Gemeinde — wird automatisch erkannt, hier nur bei Bedarf überschreiben. Gesetzt lässt sich auch eine blosse Parzellennummer suchen.">
-      <option value="">Gemeinde automatisch</option>
-    </select>
-  </div>
-  <button type="submit">Analysieren</button>
-  <!-- Der Export steht neben "Analysieren", weil er die zweite Handlung am
-       selben Gegenstand ist: erst rechnen, dann ausgeben. Unten im
-       Ergebnispanel war er zwar naeher am Resultat, aber erst nach dem
-       Scrollen zu sehen. -->
-  <button type="button" id="preview-pdf-btn" class="secondary">PDF exportieren</button>
-  <button type="button" id="log-btn" class="ghost" title="Berechnungslog in eigenem Fenster">Log</button>
-</form>
-<div id="status"></div>
+
+  <form id="address-form" autocomplete="off">
+    <div class="hcell" id="hcell-adresse">
+      <span class="k">
+        Adresse
+        <select id="gemeinde-select" title="Gemeinde — wird automatisch erkannt, hier nur bei Bedarf überschreiben. Gesetzt lässt sich auch eine blosse Parzellennummer suchen.">
+          <option value="">Gemeinde automatisch</option>
+        </select>
+      </span>
+      <div class="combo" id="address-combo">
+        <input type="text" id="address-input" role="combobox" aria-expanded="false" aria-controls="address-options"
+               aria-autocomplete="list" autocomplete="off" spellcheck="false"
+               placeholder="Adresse oder Parzellennummer"
+               value="Haldenstrasse 5, 8126 Zumikon">
+        <ul id="address-options" class="combo-list" role="listbox" hidden></ul>
+      </div>
+    </div>
+
+    <div class="hcell" id="hcell-auswahl">
+      <span class="k">Auswahl</span>
+      <span class="v" id="auswahl-value">—</span>
+    </div>
+
+    <button type="submit" id="analyse-btn" class="btn-capsule">ANALYSIEREN</button>
+    <button type="button" id="pdf-btn" class="btn-capsule" disabled>PDF EXPORT</button>
+    <button type="button" id="detail-btn" class="btn-capsule" disabled>DETAILS</button>
+  </form>
 </header>
 
-<main id="dash">
-  <!-- left column, stacked: parcels on top, results below -->
-  <div id="left-col">
-    <section class="pane" id="pane-map">
-      <h2 class="pane-title">Parzellen<span class="pane-hint">anklicken zum Hinzufügen / Entfernen</span></h2>
-      <div id="map-section">
-        <div id="map"></div>
-        <ul id="selection-list"></ul>
-      </div>
-    </section>
+<!-- ======================= analysis screen =======================
+     Everything visible at once. No tabs, no accordions, no modals: the
+     whole point of this layout is that a feasibility study can be read
+     without opening anything. -->
+<div id="screen-analyse">
 
-    <section class="pane" id="pane-numbers">
-      <h2 class="pane-title">Ergebnis</h2>
-      <div id="results">
-        <div class="zone-headline" id="zone-headline"></div>
-        <div class="binding" id="binding-summary"></div>
-        <div id="storey-select"></div>
-        <table class="numbers" id="numbers-table"></table>
-        <div id="parkierung"></div>
-        <div class="version-banner" id="version-banner"></div>
-        <div id="flags"></div>
-      </div>
-    </section>
-
-    <!-- Ablauf & Normkette: das Protokoll des laufenden Durchgangs und
-         danach die Rangordnung der angewandten Vorschriften. Eingeklappt
-         kostet es eine Zeile, aufgeklappt zeigt es links die Schicht fuer
-         Schicht schrumpfende Flaeche, rechts die Kette. -->
-    <details id="pane-ablauf">
-      <summary>Ablauf &amp; Normkette
-        <span class="pane-hint">Bund &rsaquo; Kanton &rsaquo; Gemeinde &rsaquo; Privatrecht</span>
-      </summary>
-      <div class="ablauf-body">
-        <div class="nk-side">
-          <div class="nk-stage" id="nk-stage"></div>
-          <div class="nk-caption" id="nk-caption"></div>
-          <button type="button" id="nk-play">&#9654; Abspielen</button>
-          <div class="nk-legend" id="nk-legend"></div>
-        </div>
-        <div class="nk-main">
-          <div class="nk-live" id="nk-live"></div>
-          <ol class="nk-list" id="nk-list"></ol>
-        </div>
-      </div>
-    </details>
+  <div id="kpis" class="panel">
+    <div class="kpi"><span class="k">Max. Volumen legal</span><span class="v" id="kpi-volumen">—</span><span class="s" id="kpi-volumen-s"></span></div>
+    <div class="kpi"><span class="k">Geschossfläche (AZ)</span><span class="v" id="kpi-gfa">—</span><span class="s" id="kpi-gfa-s"></span></div>
+    <div class="kpi"><span class="k">Fussabdruck</span><span class="v" id="kpi-fuss">—</span><span class="s" id="kpi-fuss-s"></span></div>
+    <div class="kpi"><span class="k">Höhe · gebaut</span><span class="v" id="kpi-hoehe">—</span><span class="s" id="kpi-hoehe-s"></span></div>
+    <div class="kpi"><span class="k">Nutzbar total</span><span class="v" id="kpi-nutz">—</span><span class="s" id="kpi-nutz-s"></span></div>
   </div>
 
-  <!-- right half, full height: geometry -->
-  <section class="pane" id="pane-geo">
-    <div class="tabs" role="tablist">
-      <button class="tab active" data-tab="viewer">Modell</button>
-      <button class="tab" data-tab="zoning-map">Zonenplan</button>
-      <button class="tab" data-tab="checklist-wrap">Prüfung</button>
-      <button class="tab" data-tab="more-wrap">Quellen &amp; Kosten</button>
+  <div id="dash">
+
+    <!-- ---- left column: map over log ---- -->
+    <div id="col-left">
+      <section class="panel is-drawing" id="pane-map">
+        <div class="panel-title">Parzellen — klicken zum Wählen</div>
+        <div class="panel-body"><div id="map"></div></div>
+        <div class="panel-foot" id="map-foot">
+          <span class="hover-hint" id="map-hover">über eine Parzelle fahren</span>
+          <span class="f-right" id="map-sel">keine Parzelle gewählt</span>
+        </div>
+      </section>
+
+      <section class="panel" id="pane-log">
+        <div class="panel-title">Protokoll<span class="t-note" id="log-note"></span></div>
+        <div id="log-filter"></div>
+        <div id="log"></div>
+        <div id="log-sources"></div>
+      </section>
     </div>
-    <div class="tab-body">
-      <!-- Isometrie and Grundriss shown together, not as separate tabs --
-           dragging the building in the 3D view needs the plan visible at
-           the same time to make sense of where it ends up. -->
-      <div class="tab-pane active" id="viewer-wrap">
-        <!-- Interaction hints and the plan legend live behind "?" icons
-             (hover/focus popup) instead of permanent caption lines — the
-             text is reference material, not something to read on every
-             glance. app.js keeps writing into the same #viewer-hint /
-             #floorplan-legend ids. -->
-        <div class="canvas-box" id="viewer-box">
+
+    <!-- ---- middle column: isometry over plan ---- -->
+    <div id="col-mid">
+      <section class="panel is-drawing" id="pane-iso">
+        <div class="panel-title">Isometrie<span class="t-note" id="iso-note"></span></div>
+        <div class="panel-body">
           <div id="viewer"></div>
-          <div class="info-tip" tabindex="0" aria-label="Bedienung 3D-Modell">?<div class="tip-pop" id="viewer-hint">Zum Drehen ziehen, zum Zoomen scrollen. Den Baukörper direkt anfassen, um ihn innerhalb der Hülle zu verschieben.</div></div>
+          <div class="ovl" id="ovl-modell" hidden></div>
+          <div id="iso-controls" hidden>
+            <button type="button" id="iso-ccw" title="15° gegen den Uhrzeigersinn" aria-label="15 Grad gegen den Uhrzeigersinn drehen">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
+            </button>
+            <button type="button" id="iso-cw" title="15° im Uhrzeigersinn" aria-label="15 Grad im Uhrzeigersinn drehen">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>
+            </button>
+            <button type="button" id="iso-reset" class="wide" title="Drehung, Neigung, Zoom und Ausschnitt zurücksetzen">RESET</button>
+          </div>
+          <div id="iso-readout" hidden></div>
         </div>
-        <div class="canvas-box" id="floorplan-box">
+        <div id="variants"></div>
+      </section>
+
+      <section class="panel is-drawing" id="pane-plan">
+        <div class="panel-title">Situationsplan 1:500<span class="t-note" id="plan-note"></span></div>
+        <div class="panel-body">
           <div id="floorplan"></div>
-          <div class="info-tip" tabindex="0" aria-label="Legende Grundriss">?<div class="tip-pop" id="floorplan-legend"></div></div>
+          <div class="ovl" id="ovl-plan" hidden></div>
         </div>
-      </div>
-      <div class="tab-pane" id="zoning-map"></div>
-      <div class="tab-pane" id="checklist-wrap"><div id="checklist"></div></div>
-      <div class="tab-pane" id="more-wrap">
-        <div class="sources-section" id="sources-section"></div>
+      </section>
+    </div>
 
+    <!-- ---- right column: the numbers ---- -->
+    <section class="panel" id="pane-kw">
+      <div class="panel-title">Kennwerte<span class="t-note" id="kw-note"></span></div>
+      <div id="kennwerte"></div>
+    </section>
 
-  <div class="grundbuch-form">
-          <h3>Grundbuchauszug — private-rechtliche Einschränkungen</h3>
-          <p class="hint">Manuelle Eingabe. Wird nur als Fussnote angezeigt, nicht in die Berechnung oben einbezogen.</p>
+  </div>
 
-          <div class="field-group">
-            <label><input type="checkbox" id="leitungsrecht-yes"> Durchleitungs-/Leitungsbaurecht vorhanden</label>
-            <div class="sub-fields" id="leitungsrecht-fields">
-              <label for="leitungsrecht-detail">Wo und was?</label>
-              <input type="text" id="leitungsrecht-detail" placeholder="z.B. Abwasserleitung Gemeinde, 3 m Schutzstreifen entlang Ostgrenze">
-            </div>
-          </div>
-          <div class="field-group">
-            <label><input type="checkbox" id="naeherbaurecht-yes"> Näherbaurecht vorhanden</label>
-            <div class="sub-fields" id="naeherbaurecht-fields">
-              <label for="naeherbaurecht-detail">Distanz / betroffene Grenze / Richtung</label>
-              <input type="text" id="naeherbaurecht-detail" placeholder="z.B. 2 m ab Nordgrenze">
-            </div>
-          </div>
+  <div id="herleitung" class="panel">
+    <span class="k">HERLEITUNG</span>
+    <span class="v" id="herleitung-text">über eine Zeile fahren — Herleitung erscheint hier</span>
+  </div>
+</div>
 
-          <div class="field-group">
-            <label><input type="checkbox" id="wegrecht-yes"> Wegrecht vorhanden</label>
-            <div class="sub-fields" id="wegrecht-fields">
-              <label for="wegrecht-detail">Ungefähre Lage / Ausdehnung</label>
-              <input type="text" id="wegrecht-detail" placeholder="z.B. 3 m breiter Streifen entlang Westgrenze">
-            </div>
-          </div>
+<!-- ======================= detail screen =======================
+     What design 3a has no slot for and what nevertheless belongs to a
+     defensible study: the Zonen-Steckbrief and the zoning excerpt, the
+     Prüfliste, the full Quellen list, the cost estimate, the Grundbuch
+     input form, and the Normkette. A named button away, never hiding part
+     of the result on the screen next door. -->
+<div id="screen-detail">
 
-          <div class="field-group">
-            <label for="other-dienstbarkeit">Andere Dienstbarkeit mit Einfluss auf die bebaubare Fläche</label>
-            <textarea id="other-dienstbarkeit" placeholder="Freitext"></textarea>
-          </div>
-
-          <div class="flag" id="grundbuch-footnote-preview" style="display:none;"></div>
-        </div>
-        <div class="cost-estimate" id="cost-estimate"></div>
-        <footer id="footnotes"></footer>
-      </div>
+  <section class="panel">
+    <div class="panel-title">Hinweise &amp; Vorbehalte<span class="t-note" id="flags-note"></span></div>
+    <div class="panel-body">
+      <div class="version-banner" id="version-banner"></div>
+      <div class="binding" id="binding-summary"></div>
+      <div id="flags"></div>
+      <div id="parkierung"></div>
     </div>
   </section>
-</main>
+
+  <section class="panel">
+    <div class="panel-title">Zone &amp; Zonenplan</div>
+    <div class="panel-body">
+      <div class="zone-headline" id="zone-headline"></div>
+      <div id="zoning-map"></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-title">Prüfung</div>
+    <div class="panel-body"><div id="checklist"></div></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-title">Ablauf &amp; Normkette</div>
+    <div class="panel-body">
+      <details id="pane-ablauf" open>
+        <summary>Rangordnung der angewandten Vorschriften
+          <span class="pane-hint">Bund &rsaquo; Kanton &rsaquo; Gemeinde &rsaquo; Privatrecht</span>
+        </summary>
+        <div class="ablauf-body">
+          <div class="nk-side">
+            <div class="nk-stage" id="nk-stage"></div>
+            <div class="nk-caption" id="nk-caption"></div>
+            <button type="button" id="nk-play">&#9654; Abspielen</button>
+            <div class="nk-legend" id="nk-legend"></div>
+          </div>
+          <div class="nk-main">
+            <div class="nk-live" id="nk-live"></div>
+            <ol class="nk-list" id="nk-list"></ol>
+          </div>
+        </div>
+      </details>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-title">Quellen, Grundbuch &amp; Kosten</div>
+    <div class="panel-body">
+      <div class="sources-section" id="sources-section"></div>
+
+      <div class="grundbuch-form">
+        <h3>Grundbuchauszug — privatrechtliche Einschränkungen</h3>
+        <p class="hint">Manuelle Eingabe. Wird nur als Fussnote angezeigt, nicht in die Berechnung einbezogen.</p>
+
+        <div class="field-group">
+          <label><input type="checkbox" id="leitungsrecht-yes"> Durchleitungs-/Leitungsbaurecht vorhanden</label>
+          <div class="sub-fields" id="leitungsrecht-fields">
+            <label for="leitungsrecht-detail">Wo und was?</label>
+            <input type="text" id="leitungsrecht-detail" placeholder="z.B. Abwasserleitung Gemeinde, 3 m Schutzstreifen entlang Ostgrenze">
+          </div>
+        </div>
+        <div class="field-group">
+          <label><input type="checkbox" id="naeherbaurecht-yes"> Näherbaurecht vorhanden</label>
+          <div class="sub-fields" id="naeherbaurecht-fields">
+            <label for="naeherbaurecht-detail">Distanz / betroffene Grenze / Richtung</label>
+            <input type="text" id="naeherbaurecht-detail" placeholder="z.B. 2 m ab Nordgrenze">
+          </div>
+        </div>
+        <div class="field-group">
+          <label><input type="checkbox" id="wegrecht-yes"> Wegrecht vorhanden</label>
+          <div class="sub-fields" id="wegrecht-fields">
+            <label for="wegrecht-detail">Ungefähre Lage / Ausdehnung</label>
+            <input type="text" id="wegrecht-detail" placeholder="z.B. 3 m breiter Streifen entlang Westgrenze">
+          </div>
+        </div>
+        <div class="field-group">
+          <label for="other-dienstbarkeit">Andere Dienstbarkeit mit Einfluss auf die bebaubare Fläche</label>
+          <textarea id="other-dienstbarkeit" placeholder="Freitext"></textarea>
+        </div>
+
+        <div class="flag" id="grundbuch-footnote-preview" style="display:none;"></div>
+      </div>
+
+      <div class="cost-estimate" id="cost-estimate"></div>
+      <footer id="footnotes"></footer>
+    </div>
+  </section>
+</div>
+
+<!-- ======================= status bar ======================= -->
+<footer id="statusbar" class="panel">
+  <span class="live">● lokal · deterministisch</span>
+  <span id="status-stand"></span>
+  <span id="status-timings"></span>
+  <span id="status-msg"></span>
+  <span class="norm">BUND · KANTON · GEMEINDE · PRIVATRECHT</span>
+  <span class="stamp" id="version-stamp">__STAMP__ · <a href="https://bagaturiya.com" target="_blank" rel="noopener">bagaturiya.com</a></span>
+</footer>
 
 <!-- Das Exportdokument wird nie angezeigt: es wird ausserhalb des Bildes
      aufgebaut (Klasse "exporting"), gerastert und als PDF im Viewer-Tab
      geoeffnet. -->
 <div id="print-doc"></div>
 
-<button type="button" id="theme-toggle" title="Hell-/Dunkelmodus" aria-label="Hell-/Dunkelmodus umschalten"></button>
-<div id="version-stamp">version __STAMP__ - ivan bagaturiya <a href="https://bagaturiya.com" target="_blank" rel="noopener">bagaturiya.com</a></div>
 <script>
   // Local run: the placeholder was not replaced by the deploy workflow, so
   // stamp the browser's own clock in the same yyyy.mm.dd..hh.mm.ss shape.
@@ -200,19 +277,18 @@
   })();
 </script>
 
-<!-- Application scripts. The sequence below is exactly the one that ran
-     before js/ was grouped into core/ sources/ ui/ -- these are plain
-     scripts sharing window.MachbarkeitTool, so load order is load-bearing
-     and only the paths changed.
+<!-- Application scripts. These are plain scripts sharing
+     window.MachbarkeitTool, so load order is load-bearing.
 
        js/core/     deterministic: given the same inputs and data/*.json,
-                    the same numbers. Nothing here touches the network or
-                    the DOM. This is what tests/run-tests.mjs guards.
+                    the same numbers. Nothing here touches the network, the
+                    DOM or a clock. This is what tests/run-tests.mjs guards.
        js/sources/  external registries (geo.admin.ch, maps.zh.ch,
                     ogd.stadt-zuerich.ch, OEREB). These can fail, lag or
                     change under us -- and a failed source must surface as
                     a flag, never as a green PASS (REGELN.md 2).
-       js/ui/       DOM, canvas, SVG, Leaflet, the A3 print document.
+       js/ui/       DOM, canvas, SVG, Leaflet, the run protocol, the A3
+                    print document.
        js/app.js    the orchestrator, loaded last. -->
 <script src="js/core/format.js?v=dev"></script>
 <script src="js/core/coordinates.js?v=dev"></script>
@@ -233,6 +309,8 @@
 <script src="js/ui/pdf.js?v=dev"></script>
 <script src="js/ui/parcel-selector.js?v=dev"></script>
 <script src="js/ui/evidence.js?v=dev"></script>
+<script src="js/ui/protokoll.js?v=dev"></script>
+<script src="js/ui/kennwerte.js?v=dev"></script>
 <script src="js/core/parkierung.js?v=dev"></script>
 <script src="js/core/normkette.js?v=dev"></script>
 <script src="js/app.js?v=dev"></script>

@@ -44,7 +44,14 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   // reloading the page.
   let activeMap = null;
 
-  function initParcelMap(containerId, firstParcel, onSelectionChange, gemeindeOverride) {
+  // onHover bekommt die Parzellennummer, ueber der der Zeiger steht, oder
+  // null. Nur fuer die BEREITS gewaehlten Polygone: die uebrigen Parzellen
+  // kommen aus gerasterten Katasterkacheln, unter denen keine Geometrie
+  // liegt -- ein Hover-Effekt auf ihnen hiesse, bei jeder Mausbewegung den
+  // Identify-Dienst zu fragen. Der Entwurf ging von einer Vektor-Parzellen-
+  // ebene aus; die hat diese Karte nicht, und so zu tun als ob waere ein
+  // Effekt ohne Deckung.
+  function initParcelMap(containerId, firstParcel, onSelectionChange, gemeindeOverride, onHover) {
     if (activeMap) {
       activeMap.remove();
       activeMap = null;
@@ -104,8 +111,21 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     // instead of typing a second address to get there.
     let anchorEgrid = null;
 
-    const ANCHOR_STYLE = { color: '#1565c0', weight: 3, fillOpacity: 0.35 };
-    const EXTRA_STYLE = { color: '#c62828', weight: 3, fillOpacity: 0.35 };
+    // Die Auswahl traegt die Akzentfarbe der Oberflaeche, nicht mehr Blau
+    // und Rot: der ganze Bildschirm hat genau einen Akzent, und eine Karte
+    // mit zwei fremden Signalfarben darin liest sich wie ein zweites
+    // Werkzeug. Die Ausgangsparzelle steht voll im Akzent, weitere in der
+    // helleren Stufe -- der Rang bleibt sichtbar, ohne eine dritte Farbe.
+    // Die Werte werden aus den CSS-Variablen gelesen, damit --acc weiterhin
+    // die EINE Stelle ist, an der die Farbe des Werkzeugs steht.
+    const cssVar = (name, fallback) => {
+      const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+      return v || fallback;
+    };
+    const ACC = cssVar('--acc', '#ff9d2e');
+    const ACC2 = cssVar('--acc2', '#ffbe63');
+    const ANCHOR_STYLE = { color: ACC, weight: 2.5, fillColor: ACC, fillOpacity: 0.3 };
+    const EXTRA_STYLE = { color: ACC2, weight: 1.8, fillColor: ACC2, fillOpacity: 0.2 };
 
     function styleFor(egrid) {
       return egrid === anchorEgrid ? ANCHOR_STYLE : EXTRA_STYLE;
@@ -142,6 +162,10 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       if (anchorEgrid === null) anchorEgrid = parcelData.egrid;
       const latlngs = lv95RingToLatLngs(parcelData.geometryLV95[0]);
       const leafletLayer = L.polygon(latlngs, styleFor(parcelData.egrid)).addTo(layerGroup);
+      if (onHover) {
+        leafletLayer.on('mouseover', () => onHover(parcelData.parcelNumber, true));
+        leafletLayer.on('mouseout', () => onHover(null, false));
+      }
       const point = representativePoint(parcelData, clickPoint);
       selection.set(parcelData.egrid, { ...parcelData, ...point, leafletLayer });
       onSelectionChange(Array.from(selection.values()));

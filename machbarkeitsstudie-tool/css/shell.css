@@ -1,0 +1,273 @@
+/* shell.css — the chrome of design 3a: millimetre paper, floating glass
+   panels, header, KPI strip, three-column body, HERLEITUNG bar, status bar.
+   Replaces the old layout.css. Loaded after components.css so it wins on
+   the geometry the components used to set for themselves.
+
+   The one hard rule of this screen: everything visible at once. No tabs, no
+   accordions, no modals on the analysis screen. The § evidence viewer is
+   the single exception -- it is a document reader, not part of the result. */
+
+/* ---- 1. the canvas ---------------------------------------------------- */
+
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  padding: var(--pad-canvas);
+  max-width: none;
+  box-sizing: border-box;
+  font-family: var(--font-ui);
+  color: var(--txt);
+  background-color: var(--canvas);
+  /* Two grids, 48 px and 8 px: architect's millimetre paper. The fine grid
+     sits at .018 alpha so it reads as texture, not as content. */
+  background-image:
+    linear-gradient(rgba(255, 255, 255, .05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, .05) 1px, transparent 1px),
+    linear-gradient(rgba(255, 255, 255, .018) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, .018) 1px, transparent 1px);
+  background-size: 48px 48px, 48px 48px, 8px 8px, 8px 8px;
+  background-attachment: fixed;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gutter);
+  overflow: hidden;
+}
+
+body.detail-open { overflow: auto; }
+
+*, *::before, *::after { box-sizing: border-box; }
+
+/* .panel and several bars set display:flex, which beats the UA's [hidden].
+   Stated once here so a hidden attribute keeps meaning hidden. */
+[hidden] { display: none !important; }
+
+/* Every interactive element gets the same focus ring. Declared once, here,
+   so nothing can quietly ship without one. */
+:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
+
+/* ---- 2. the panel ----------------------------------------------------- */
+
+.panel {
+  border-radius: var(--r-panel);
+  border: 1px solid var(--hair);
+  box-shadow: var(--shadow-panel);
+  background: var(--glass);
+  backdrop-filter: var(--blur-glass);
+  -webkit-backdrop-filter: var(--blur-glass);
+  overflow: hidden;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Panels that hold a drawing: opaque, because glass behind a map or a 3D
+   scene turns the drawing to mud. */
+.panel.is-drawing { background: var(--draw); backdrop-filter: none; -webkit-backdrop-filter: none; }
+
+/* A blurred child ignores the parent's corner clip in WebKit, so the title
+   bar has to carry the radius itself -- 1 px inside the panel's 18. */
+.panel-title {
+  flex: none;
+  border-radius: var(--r-inner) var(--r-inner) 0 0;
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 14px; height: 30px;
+  font: 600 9px/1 var(--font-ui); letter-spacing: .16em; text-transform: uppercase;
+  color: var(--lbl);
+  border-bottom: 1px solid var(--hair-soft);
+  background: rgba(255, 255, 255, .02);
+}
+.panel-title .t-note {
+  margin-left: auto; letter-spacing: .04em; text-transform: none;
+  font: 400 10px/1 var(--font-num); color: var(--txt3);
+}
+.panel-body { flex: 1 1 auto; min-height: 0; position: relative; }
+
+.panel-foot {
+  flex: none; display: flex; align-items: center; gap: 10px;
+  padding: 0 14px; height: 28px;
+  border-top: 1px solid var(--hair-soft);
+  font: 400 10px/1 var(--font-num); color: var(--txt3);
+}
+.panel-foot .f-right { margin-left: auto; color: var(--txt2); }
+.panel-foot .f-acc { color: var(--acc); }
+
+/* ---- 3. header -------------------------------------------------------- */
+
+/* .panel is a column; the header is the one panel laid out across. */
+#topbar {
+  flex: none; height: 60px;
+  flex-direction: row; align-items: stretch; gap: 0;
+}
+
+#brand {
+  flex: none; margin: 7px 0 7px 7px; padding: 0 16px;
+  border-radius: var(--r-brand);
+  background: var(--acc); color: #0c0c0c;
+  display: flex; flex-direction: column; justify-content: center; gap: 2px;
+}
+#brand .b-name { font: 800 13px/1 var(--font-ui); letter-spacing: .1em; }
+#brand .b-sub { font: 600 9px/1 var(--font-num); letter-spacing: .14em; opacity: .82; }
+
+/* Header cells: a kicker over a value, flush left, hairline between. */
+.hcell {
+  display: flex; flex-direction: column; justify-content: center; gap: 3px;
+  padding: 0 16px; min-width: 0;
+  border-left: 1px solid var(--hair-soft);
+}
+.hcell:first-of-type { border-left: none; }
+.hcell .k {
+  display: flex; align-items: baseline; gap: 8px;
+  font: 600 9px/1 var(--font-ui); letter-spacing: .18em; color: var(--lbl); text-transform: uppercase;
+}
+.hcell .v { font: 500 15px/1.2 var(--font-num); color: var(--txt); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hcell .v .acc { color: var(--acc); }
+#hcell-adresse { flex: 1 1 auto; margin-left: 14px; }
+#hcell-auswahl { flex: 0 1 300px; }
+
+/* The address input sits inside its header cell and looks like the value it
+   replaces -- no box, no border, until it is focused. */
+#address-form { display: contents; margin: 0; }
+#address-input {
+  width: 100%; padding: 0; border: none; background: none;
+  font: 500 15px/1.2 var(--font-num); color: var(--txt);
+}
+#address-input::placeholder { color: var(--faint); }
+#address-input:focus { outline: none; }
+#hcell-adresse:focus-within { background: rgba(255, 255, 255, .03); }
+
+.btn-capsule {
+  flex: none; margin: 9px 8px; border: none; cursor: pointer;
+  border-radius: 999px;
+  display: flex; align-items: center; padding: 0 18px;
+  font: 800 13px/1 var(--font-ui); letter-spacing: .1em;
+  transition: background .15s, color .15s;
+}
+#analyse-btn { width: 186px; background: var(--acc); color: #0c0c0c; }
+#analyse-btn:hover:not([disabled]) { background: var(--acc2); }
+#pdf-btn, #detail-btn { background: #212121; color: var(--txt2); }
+#pdf-btn { width: 150px; }
+#detail-btn { width: 116px; font-size: 11px; }
+#pdf-btn:hover:not([disabled]), #detail-btn:hover:not([disabled]) {
+  background: color-mix(in srgb, var(--acc) 16%, transparent); color: var(--acc);
+}
+.btn-capsule[disabled] { opacity: .38; cursor: default; }
+
+/* ---- 4. KPI strip ----------------------------------------------------- */
+
+#kpis { flex: none; flex-direction: row; height: 76px; }
+.kpi {
+  flex: 1 1 0; min-width: 0;
+  display: flex; flex-direction: column; justify-content: center; gap: 2px;
+  padding: 0 18px;
+  border-left: 1px solid var(--hair-soft);
+}
+.kpi:first-child { border-left: none; background: color-mix(in srgb, var(--acc) 10%, transparent); }
+.kpi .k { font: 600 9px/1 var(--font-ui); letter-spacing: .18em; color: var(--lbl); text-transform: uppercase; }
+.kpi .v { font: 500 25px/1.1 var(--font-num); color: var(--txt); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kpi .s { font: 400 10px/1.2 var(--font-num); color: var(--txt3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kpi:first-child .v { color: var(--acc); }
+
+/* ---- 5. body: three columns ------------------------------------------- */
+
+/* The analysis screen is the flex child that takes the remaining height;
+   without this the three columns collapse to their content and the log,
+   the isometry and the Kennwerte panel all end up a few lines tall. */
+#screen-analyse {
+  flex: 1 1 auto; min-height: 0;
+  display: flex; flex-direction: column; gap: var(--gutter);
+}
+
+#dash {
+  flex: 1 1 auto; min-height: 0;
+  display: grid; grid-template-columns: 460px minmax(0, 1fr) 440px; gap: var(--gutter);
+}
+#col-left, #col-mid { display: flex; flex-direction: column; gap: var(--gutter); min-width: 0; min-height: 0; }
+
+#pane-map { flex: 0 0 392px; }
+#pane-log { flex: 1 1 auto; }
+#pane-iso { flex: 1 1 62%; }
+#pane-plan { flex: 1 1 38%; min-height: 190px; }
+
+/* Map, 3D scene and plan all fill their panel body completely. */
+#map, #viewer { position: absolute; inset: 0; }
+#map { background: var(--draw); }
+#floorplan { position: absolute; inset: 0; overflow: hidden; }
+#floorplan svg { width: 100%; height: 100%; display: block; }
+
+/* ---- 6. HERLEITUNG bar ------------------------------------------------ */
+
+#herleitung {
+  flex: none; height: 38px; flex-direction: row; align-items: center; gap: 14px;
+  padding: 0 16px;
+  background: var(--bar-glass);
+}
+#herleitung .k { flex: none; font: 600 9px/1 var(--font-ui); letter-spacing: .16em; color: var(--acc); }
+#herleitung .v {
+  flex: 1 1 auto; min-width: 0;
+  font: 500 11.5px/1 var(--font-num); color: var(--txt2);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* ---- 7. status bar ---------------------------------------------------- */
+
+#statusbar {
+  flex: none; height: 30px; flex-direction: row; align-items: center;
+  gap: 0; padding: 0 14px;
+  background: var(--status-glass);
+  font: 400 10px/1 var(--font-num); color: var(--txt3);
+  overflow: hidden;
+}
+#statusbar > span { flex: none; padding: 0 10px; border-left: 1px solid var(--hair-soft); white-space: nowrap; }
+#statusbar > span:first-child { border-left: none; padding-left: 0; }
+#statusbar .live { color: var(--acc); }
+#statusbar .norm { color: var(--lbl); letter-spacing: .06em; }
+#statusbar #status-msg { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--txt2); }
+#statusbar #status-msg.error { color: #ef9a9a; }
+#statusbar .stamp { margin-left: auto; color: var(--faint); }
+#statusbar .stamp a { color: inherit; text-decoration: none; }
+#statusbar .stamp a:hover { color: var(--acc); }
+
+/* ---- 8. the detail screen --------------------------------------------
+   The four things design 3a has no slot for -- the Zonen-Steckbrief and
+   zoning excerpt, the Prüfliste, Quellen & Kosten, and the Grundbuch input
+   form -- plus the Ablauf & Normkette panel. Same chrome, same paper, one
+   scrolling column. It is deliberately a second SCREEN and not a drawer or
+   a tab: the analysis screen keeps its promise that nothing on it is
+   hidden, and this one is reached by a named button, not by a click that
+   makes part of the result disappear. */
+
+#screen-detail { display: none; }
+body.detail-open #screen-analyse { display: none !important; }
+body.detail-open #screen-detail { display: flex; flex-direction: column; gap: var(--gutter); flex: 1 1 auto; }
+body.detail-open #kpis, body.detail-open #herleitung { display: none; }
+
+#screen-detail .panel { flex: none; }
+#screen-detail .panel-body { padding: 16px 18px 20px; overflow: visible; }
+#screen-detail h2 {
+  font: 600 11px/1.3 var(--font-ui); letter-spacing: .16em; text-transform: uppercase;
+  color: var(--lbl); margin: 1.4rem 0 .5rem;
+}
+#screen-detail .panel-body > h2:first-child { margin-top: 0; }
+#screen-detail h3 { font: 600 12px/1.3 var(--font-ui); color: var(--txt); margin: 1rem 0 .4rem; }
+
+/* ---- 9. the app is a desktop instrument ------------------------------- */
+
+/* Design width is 1720 px. Below ~1400 the three columns stop being
+   readable, so the tool says so instead of reflowing into something the
+   numbers were never laid out for. */
+#too-narrow { display: none; }
+@media (max-width: 1180px) {
+  body > #screen-analyse, body > #screen-detail, body > #topbar { display: none !important; }
+  #too-narrow {
+    display: flex; flex: 1 1 auto; align-items: center; justify-content: center;
+    text-align: center; padding: 40px;
+    font: 500 13px/1.6 var(--font-num); color: var(--txt2);
+  }
+}
+
+@media print {
+  body { display: block; padding: 0; background: #fff; }
+  #topbar, #screen-analyse, #screen-detail, #too-narrow { display: none !important; }
+}

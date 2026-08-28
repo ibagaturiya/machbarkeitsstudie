@@ -12,19 +12,31 @@ no build step, so what you see here is byte-for-byte what the browser gets.
 
 ```
 machbarkeitsstudie-tool/
-├── index.html          ← the main HTML. The only page. ~240 lines of markup.
+├── index.html          ← the main HTML. The only page. Two screens in it:
+│                         the analysis screen (everything visible at once)
+│                         and a detail screen for the material that is not
+│                         part of the result — see "Two screens" below.
 ├── css/                ← all styling. Load order IS the cascade:
 │   ├── tokens.css        colour + spacing vocabulary; nothing else
-│   │                     anywhere may hardcode a UI colour
-│   ├── components.css    Parkierung, Normkette, combobox, Gemeinde picker,
-│   │                     result panels, Quellen, cost estimate
-│   ├── layout.css        the one-page dashboard shell and breakpoints —
-│   │                     deliberately overrides component geometry
+│   │                     anywhere may hardcode a UI colour. ONE accent
+│   │                     (--acc / --acc2) drives everything orange,
+│   │                     SVG fills included
+│   ├── components.css    the widgets of the DETAIL screen: Parkierung,
+│   │                     Normkette, Zonen-Steckbrief, Prüfliste, Quellen,
+│   │                     cost estimate, Grundbuch form
+│   ├── panels.css        the contents of the analysis panels: log window,
+│   │                     Kennwerte table, § rule overlays, isometry
+│   │                     controls, variant picker, map chrome
+│   ├── shell.css         the chrome: millimetre paper, glass panels,
+│   │                     header, KPI strip, three columns, HERLEITUNG bar,
+│   │                     status bar
 │   └── print.css         the A3 document; the only place allowed mm/pt and
 │                         fixed hex colours, because print has no theme
-├── vendor/             ← Leaflet, Turf, Three — pinned and served from here,
-│                         not from a CDN. Versions, checksums and the Three.js
-│                         upgrade cliff are in vendor/README.md
+├── vendor/             ← Leaflet, Turf, Three, Archivo + IBM Plex Mono —
+│                         pinned and served from here, not from a CDN. A
+│                         Google Fonts link would have been the only external
+│                         request the page makes. Versions, checksums and the
+│                         Three.js upgrade cliff are in vendor/README.md
 ├── js/
 │   ├── core/           ← DETERMINISTIC. Same inputs + same data/*.json ⇒ same
 │   │                     numbers. No network, no DOM. This is the layer
@@ -39,9 +51,12 @@ machbarkeitsstudie-tool/
 │   │                     (REGELN.md §2).
 │   │                     geocode · zone-lookup · oereb · parcel-geometry ·
 │   │                     waldabstand · checklist
-│   ├── ui/             ← DOM, canvas, SVG, Leaflet, the print document.
+│   ├── ui/             ← DOM, canvas, SVG, Leaflet, the run protocol, the
+│   │                     print document. protokoll and kennwerte live here
+│   │                     and not in core/ on purpose: one runs a clock, the
+│   │                     other formats for the screen. Neither is law.
 │   │                     viewer · floorplan · parcel-selector · print ·
-│   │                     evidence · output
+│   │                     evidence · output · protokoll · kennwerte
 │   └── app.js          ← the orchestrator; loaded last
 ├── data/               ← legal values as JSON, each with `_provenance`
 ├── source/             ← the statute PDFs the provenance entries cite
@@ -58,6 +73,32 @@ lives in `core/`; everything that can be down at 4pm on a Friday lives in
 Scripts in `index.html` are plain `<script>` tags sharing
 `window.MachbarkeitTool`, so **load order is load-bearing** — it is unchanged
 from before the folders existed, and only the paths moved.
+
+### Two screens, and why there are two
+
+The **analysis screen** answers the one question the tool exists for, and its
+hard rule is that nothing on it is hidden: no tabs, no accordions, no modals.
+Address and selection in the header, five KPIs, the parcel map over the run
+protocol on the left, the isometry over the Situationsplan in the middle, the
+Kennwerte table on the right, the derivation of whatever the pointer is on in
+the bar at the foot. All 22 Kennwerte fit without scrolling; so does the log.
+
+The **detail screen** (button `DETAILS`) holds what a defensible study needs
+but the analysis screen has no slot for: the Zonen-Steckbrief and the zoning
+excerpt, the Prüfliste, the full Quellen list with its § buttons, the cost
+estimate, the Grundbuch input form, and Ablauf & Normkette. It is deliberately
+a second *screen* rather than a drawer or a tab on the first one — that way
+the analysis screen keeps its promise, and this material is reached by a named
+button instead of by a click that makes part of the result disappear.
+
+The tool is a desktop instrument, laid out at 1720 px. Below ~1180 px it says
+so rather than reflowing three columns of figures into a shape they were never
+set for.
+
+There is **one theme**, dark. The light/dark toggle went with the redesign: the
+glass, the millimetre paper and every accent tint are calibrated for `#0e0f10`,
+and a light counterpart would be a second design, not a variable swap. The
+exported PDF is unaffected — it is a paper document and stays light.
 
 ## Running it
 

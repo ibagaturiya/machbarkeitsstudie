@@ -1,7 +1,38 @@
-/* components.css — self-contained widgets: Parkierung, Ablauf & Normkette,
-   the search combobox, the Gemeinde picker, the result panels, Quellen and
-   the cost estimate. Depends on tokens.css; must load before layout.css,
-   which overrides the page shell on top of these. */
+/* components.css — the widgets of the DETAIL screen: Parkierung, Ablauf &
+   Normkette, the Zonen-Steckbrief, the Prüfliste, Quellen, the cost
+   estimate and the Grundbuch form. Depends on tokens.css; loaded before
+   panels.css and shell.css, which own the analysis screen.
+
+   These were written against the old two-theme vocabulary (--bg-pane,
+   --text-muted, --accent…). tokens.css keeps those names and points them at
+   the 3a palette, so the whole detail screen follows the accent without
+   being rewritten.
+
+   ---- base type for the detail screen ---------------------------------- */
+
+#screen-detail, #screen-detail input, #screen-detail select,
+#screen-detail textarea, #screen-detail button {
+  font-family: var(--font-ui);
+}
+#screen-detail { font-size: 12px; line-height: 1.5; color: var(--txt2); }
+#screen-detail table.numbers td:nth-child(2),
+#screen-detail .nk-wert, #screen-detail .nk-verlust {
+  font-family: var(--font-num); font-size: 11.5px; color: var(--txt);
+}
+#screen-detail button {
+  padding: 5px 12px; cursor: pointer; border-radius: 999px;
+  border: 1px solid var(--hair); background: rgba(255,255,255,.05); color: var(--txt2);
+  font: 600 10px/1 var(--font-ui); letter-spacing: .08em;
+}
+#screen-detail button:hover { background: color-mix(in srgb, var(--acc) 16%, transparent); color: var(--acc); }
+#screen-detail input[type=text], #screen-detail input[type=number], #screen-detail textarea {
+  background: rgba(0,0,0,.3); color: var(--txt);
+  border: 1px solid var(--hair); border-radius: 8px; padding: 5px 8px;
+  font: 400 11.5px/1.4 var(--font-num);
+}
+#screen-detail a { color: var(--acc); }
+.pane-hint { font-weight: 400; color: var(--txt3); font-size: 10px; letter-spacing: .04em; }
+#pane-ablauf > summary { color: var(--txt2); }
 
 /* ---- Parkierung -------------------------------------------------------
    Eigener Block statt weiterer Zeilen in der Zahlentabelle: hier steht ein
@@ -73,68 +104,15 @@
 .nk-step.nk-skip { opacity: .62; }
 .nk-step.nk-info .nk-wert { color: var(--text-faint); font-style: italic; }
 
-body { font-family: -apple-system, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem;
-       background: var(--bg); color: var(--text); }
-h1 { font-size: 1.4rem; }
-h2 { font-size: 1.1rem; }
-form { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
-input[type=text] { flex: 1; padding: 0.5rem; font-size: 1rem; background: var(--bg-pane); color: var(--text); border: 1px solid var(--border); border-radius: 4px; }
-select { padding: 0.5rem; font-size: 1rem; background: var(--bg-pane); color: var(--text); border: 1px solid var(--border); border-radius: 4px; }
-button { padding: 0.5rem 1rem; font-size: 1rem; cursor: pointer; background: var(--accent); color: var(--accent-text); border: none; border-radius: 4px; }
-button:hover { filter: brightness(1.08); }
 /* Icon only, and deliberately quiet: a mode switch is a preference, not
    one of the tool's actions, so it shouldn't carry the same weight as
    "Analysieren". Sized to the text next to it, not to a button. */
-#theme-toggle { background: none; border: none; padding: 4px; width: 26px; height: 26px;
-                display: inline-flex; align-items: center; justify-content: center;
-                color: var(--text-faint); border-radius: 6px; opacity: .75; }
-#theme-toggle svg { width: 15px; height: 15px; display: block; }
-#theme-toggle:hover { opacity: 1; color: var(--text); background: var(--bg-sunken); filter: none; }
-/* ---- search combobox ------------------------------------------------
-   One box for both ways in: a street address or a parcel number. The
-   suggestion list is a real dropdown rather than the browser's <datalist>
-   so each row can carry its secondary line (postcode/commune, EGRID) and
-   so a pick can keep the coordinates it came with instead of re-running
-   the search on the text. */
-.combo { position: relative; flex: 1; min-width: 0; }
-.combo input[type=text] { width: 100%; box-sizing: border-box; }
-.combo-list { position: absolute; z-index: 1200; top: calc(100% + 4px); left: 0; right: 0;
-              margin: 0; padding: 4px; list-style: none; max-height: 320px; overflow-y: auto;
-              background: var(--bg-pane); border: 1px solid var(--border); border-radius: 8px;
-              box-shadow: 0 10px 28px rgba(0,0,0,.22); }
-.combo-list[hidden] { display: none; }
-.combo-opt { display: flex; align-items: baseline; gap: 0.5rem; padding: 0.4rem 0.55rem;
-             border-radius: 5px; cursor: pointer; font-size: 0.9rem; line-height: 1.25; }
-.combo-opt[aria-selected="true"], .combo-opt:hover { background: var(--accent-soft); }
-.combo-opt .opt-kind { flex: none; font-size: 0.62rem; text-transform: uppercase; letter-spacing: .07em;
-                       color: var(--accent); border: 1px solid var(--border); border-radius: 3px;
-                       padding: 1px 4px; }
-.combo-opt .opt-main { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.combo-opt .opt-sub { flex: none; color: var(--text-faint); font-size: 0.78rem; }
-.combo-empty { padding: 0.45rem 0.55rem; color: var(--text-faint); font-size: 0.85rem; }
 
 /* ---- Gemeinde picker ------------------------------------------------
    Styled as a quiet secondary control with its own chevron: the native
    select's platform arrow made it read like a third primary action next
    to "Analysieren". */
-.select-wrap { position: relative; display: inline-flex; align-items: center; }
-.select-wrap::after { content: ""; position: absolute; right: 0.7rem; width: 7px; height: 7px;
-                      border-right: 1.6px solid var(--text-muted); border-bottom: 1.6px solid var(--text-muted);
-                      transform: translateY(-2px) rotate(45deg); pointer-events: none; }
-.select-wrap select { appearance: none; -webkit-appearance: none;
-                      padding: 0.5rem 2rem 0.5rem 0.75rem; font-size: 0.9rem; font-family: inherit;
-                      color: var(--text-muted); background: var(--bg-sunken);
-                      border: 1px solid var(--border); border-radius: 7px; cursor: pointer;
-                      transition: border-color .15s, color .15s; }
-.select-wrap select:hover { color: var(--text); border-color: var(--text-faint); }
-.select-wrap select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
-#status { color: var(--text-muted); margin-bottom: 1rem; }
-#status.error { color: var(--flag-badge); white-space: pre-wrap; }
-
-#map-section { display: none; }
-#pane-map #map-section[style*='flex'] { display: flex !important; }
-#map { width: 100%; height: 420px; border: 1px solid var(--border); margin-bottom: 0.5rem; background: var(--bg-sunken); }
 /* Root cause of the tearing along tile boundaries: Leaflet positions each
    256px tile <img> with its own `transform: translate3d(Xpx, Ypx, 0)` for
    GPU-accelerated panning -- which is exactly the kind of transform that
@@ -157,29 +135,14 @@ button:hover { filter: brightness(1.08); }
    below is a secondary, unrelated mitigation for genuine sub-pixel gaps
    between tiles (not a filter artifact) and is kept as a second line of
    defence. */
-#map .leaflet-tile-pane {
-  filter: var(--map-filter);
-  will-change: filter;
-  isolation: isolate;
-  transform: translateZ(0);
-}
 /* Secondary mitigation, independent of the above: Leaflet's per-tile
    transform offset is not always a whole pixel, which can leave a
    hairline GAP (not a filter seam) between two tiles showing the same
    continuous raster. Oversizing each tile by half a pixel makes adjacent
    tiles overlap slightly instead of gapping. */
-#map .leaflet-tile { width: 256.5px !important; height: 256.5px !important; }
 /* Selection styling (leaflet-drawn polygons) uses inline SVG colours from
    JS, not CSS, so it is unaffected by the tile invert filter above. */
-.leaflet-control-scale-line { background: var(--bg-pane); color: var(--text); border-color: var(--text-muted) !important; }
-.leaflet-bar a { background: var(--bg-pane); color: var(--text); border-color: var(--border) !important; }
-.map-hint { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem; }
-#selection-list { list-style: none; padding: 0; margin: 0 0 1.5rem; }
-#selection-list li { padding: 0.3rem 0.5rem; border-bottom: 1px solid var(--border-soft); font-size: 0.9rem; }
-#selection-list li.anchor { font-weight: bold; }
-#selection-list li.empty { color: var(--text-faint); font-style: italic; border-bottom: none; }
 
-#results { display: none; }
 .version-banner { background: var(--warn-bg); border: 1px solid var(--warn-border); color: var(--warn-text); padding: 0.75rem 1rem; border-radius: 6px; margin-bottom: 1rem; font-size: 0.9rem; }
 .binding { background: var(--pass-bg); border: 1px solid var(--pass-badge); border-radius: 6px; padding: 1rem; margin-bottom: 1rem; }
 .binding.zero { background: var(--flag-bg); border-color: var(--flag-badge); }
@@ -203,17 +166,8 @@ button:hover { filter: brightness(1.08); }
 table.numbers { border-collapse: collapse; margin-bottom: 1rem; }
 table.numbers td { padding: 0.25rem 0.75rem 0.25rem 0; }
 table.numbers td:first-child { color: var(--text-muted); }
-#viewer { width: 100%; height: 450px; border: 1px solid var(--border); margin-bottom: 1rem; }
-#floorplan { width: 100%; max-width: 760px; border: 1px solid var(--border); margin-bottom: 0.4rem; background: #fff; position: relative; }
-.plan-zoom { position: absolute; top: 8px; right: 8px; display: flex; flex-direction: column; gap: 3px; z-index: 2; }
-.plan-zoom button { width: 26px; height: 26px; padding: 0; font-size: 15px; line-height: 1;
-  cursor: pointer; border: 1px solid var(--border); border-radius: 4px;
-  background: var(--panel-bg, #fff); color: var(--text, #222); opacity: .85; }
-.plan-zoom button:hover { opacity: 1; }
 .caption-line { font-size: 0.85rem; color: var(--text-muted); margin: 0 0 1.2rem; }
-#viewer-hint { margin-bottom: 0.35rem; }
 .flag { background: var(--warn-bg); border: 1px solid var(--warn-border); color: var(--warn-text); border-radius: 4px; padding: 0.5rem 0.75rem; margin-bottom: 0.5rem; font-size: 0.9rem; }
-footer { font-size: 0.8rem; color: var(--text-muted); margin-top: 2rem; border-top: 1px solid var(--border-soft); padding-top: 1rem; }
 
 .checklist-tier { margin-bottom: 1rem; }
 .checklist-tier h3 { font-size: 0.95rem; margin-bottom: 0.4rem; }
@@ -250,5 +204,4 @@ footer { font-size: 0.8rem; color: var(--text-muted); margin-top: 2rem; border-t
    liess er die Kopfzeile bei jeder Suche springen. Das display:none hier
    stammte aus der Zeit im Ergebnispanel, wo app.js es auf 'inline-block'
    umstellte; ohne diese Zeile in app.js blieb der Knopf unsichtbar. */
-#preview-pdf-btn { margin-bottom: 0; margin-right: 0; }
 

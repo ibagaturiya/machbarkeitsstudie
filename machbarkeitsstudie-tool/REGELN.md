@@ -393,7 +393,33 @@ Annahmen werden im Quellen-Abschnitt des Tools ausdrücklich als
 
 ## 7. Nachvollziehbarkeit
 
-* **Ablauf & Normkette** (einklappbares Panel, linke Spalte): während der
+* **Das Protokollfenster** (linke Spalte, dauerhaft sichtbar) zeigt den Lauf,
+  während er läuft: eine Zeile je Rechenschritt mit ihrer Dauer, eine je
+  Norm, die tatsächlich gegriffen hat (mit Artikel aus dem
+  `_provenance`-Block, nie formuliert), eine je Werkzeug-Annahme, eine je
+  ausgefallener Quelle. Darunter QUELLEN · STAND mit dem Stand jedes
+  Datensatzes. Die Kopfzeile — `n Regeln · n Annahmen · n Konflikte` — wird
+  aus dem Protokoll und den Kennwerten **gezählt**, nicht getippt: Annahmen
+  sind die Zeilen mit `kind = ANNAHME`, Konflikte die ausgefallenen Quellen.
+  Beides kann deshalb nicht von der Tafel daneben abweichen
+  (`js/ui/protokoll.js`).
+* **Jeder Kennwert trägt vier Angaben** (`js/ui/kennwerte.js`): den Wert, die
+  Fundstelle (Artikel oder Datensatz — Gesetzeszitate in der Akzentfarbe),
+  die Art (`GEHOLT` aus einer Quelle, `BERECHNET` in `js/core/`, `GEPRÜFT`
+  eine Prüfung, die gehalten hat, `ANNAHME` aus dem Register §5, `ENTWURF`
+  eine Entscheidung des Benutzers) und die **Herleitung** als Text. Beim
+  Überfahren einer Zeile steht ihre Herleitung in der Leiste am Fuss des
+  Bildschirms — es gibt auf dem Auswertungsbildschirm keine Zahl ohne
+  sichtbaren Rechenweg.
+* **Die Regelfahnen** über Isometrie (REGELN IM MODELL) und Situationsplan
+  (ABSTÄNDE & ABZÜGE) stammen aus den Werten dieses Laufs. Eine Regel, die
+  hier nicht gilt, steht ausdrücklich als «nicht anwendbar» da statt zu
+  fehlen — eine fehlende Zeile liest sich wie eine vergessene Prüfung
+  (gleiche Begründung wie §2 und 3.17).
+* Eine Zeichnung, die nicht zustande kommt, nimmt die Zahlen **nicht** mit:
+  der Grund steht im Panel, eine Warnung im Protokoll, die Auswertung läuft
+  weiter. Die Zahlen sind das Ergebnis, das Modell ist ihre Darstellung.
+* **Ablauf & Normkette** (Detailbildschirm): während der
   Rechnung das Live-Protokoll des Laufs, danach jeder Schritt mit seiner
   Normebene, seiner Rechtsgrundlage und der Fläche, die er kostet — plus die
   abspielbare Animation, die die Fläche Schicht für Schicht schrumpfen zeigt.
