@@ -189,8 +189,12 @@
   /* Never wider than the pane leaves room for -- in a narrow column a fixed
      300px would run past the right edge. */
   max-width: min(300px, calc(100% - 28px));
-  pointer-events: none;
 }
+/* Collapsed to the title chip unless hovered: the full list covered most of
+   the drawing it annotates. pointer-events stays on for the hover; the chip
+   is small enough not to matter for dragging the model. */
+.ovl:not(:hover) .o-row { display: none; }
+.ovl:not(:hover) .o-k { margin-bottom: 0; }
 .ovl .o-k {
   display: block; margin-bottom: 6px;
   font: 600 9px/1 var(--font-ui); letter-spacing: .16em; color: var(--lbl);

@@ -31,7 +31,27 @@ body {
   display: flex;
   flex-direction: column;
   gap: var(--gutter);
-  overflow: hidden;
+  /* auto, not hidden: on a window smaller than the layout's minimum the
+     page scrolls instead of silently clipping columns at the edges. */
+  overflow: auto;
+}
+
+/* Bright paper: the tiny checkbox in the status bar flips this class on
+   <body>. Only the millimetre paper and the translucent bars change --
+   the panels stay the same dark glass, so nothing else re-themes. */
+body.bg-bright {
+  --canvas: #e9e7e2;
+  --glass: rgba(22, 22, 22, .9);
+  --bar-glass: rgba(30, 27, 24, .9);
+  --status-glass: rgba(18, 18, 18, .88);
+  --overlay-box: rgba(28, 28, 28, .78);
+  --shadow-frame: 0 24px 60px rgba(0, 0, 0, .28);
+  --shadow-panel: 0 12px 34px rgba(0, 0, 0, .25);
+  background-image:
+    linear-gradient(rgba(0, 0, 0, .1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 0, 0, .1) 1px, transparent 1px),
+    linear-gradient(rgba(0, 0, 0, .035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 0, 0, .035) 1px, transparent 1px);
 }
 
 body.detail-open { overflow: auto; }
@@ -181,7 +201,10 @@ body.detail-open { overflow: auto; }
 
 #dash {
   flex: 1 1 auto; min-height: 0;
-  display: grid; grid-template-columns: 460px minmax(0, 1fr) 440px; gap: var(--gutter);
+  /* Side columns give way before anything is cut off: 460/440 when the
+     window is wide, down to 300 when it is not; below the sum of the
+     minimums the body scrolls (see the body rule above). */
+  display: grid; grid-template-columns: minmax(300px, 460px) minmax(320px, 1fr) minmax(300px, 440px); gap: var(--gutter);
 }
 #col-left, #col-mid { display: flex; flex-direction: column; gap: var(--gutter); min-width: 0; min-height: 0; }
 
@@ -219,6 +242,13 @@ body.detail-open { overflow: auto; }
   font: 400 10px/1 var(--font-num); color: var(--txt3);
   overflow: hidden;
 }
+/* The bright-paper switch: deliberately tiny and unlabelled. Leftmost so
+   the bar's overflowing right side can never clip it away. */
+#statusbar #bg-toggle {
+  flex: none; margin: 0 10px 0 0; width: 11px; height: 11px;
+  accent-color: var(--acc); cursor: pointer;
+}
+#statusbar #bg-toggle + span { border-left: none; padding-left: 0; }
 #statusbar > span { flex: none; padding: 0 10px; border-left: 1px solid var(--hair-soft); white-space: nowrap; }
 #statusbar > span:first-child { border-left: none; padding-left: 0; }
 #statusbar .live { color: var(--acc); }

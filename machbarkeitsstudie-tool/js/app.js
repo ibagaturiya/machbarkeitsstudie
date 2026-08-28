@@ -15,6 +15,24 @@
 
   const $ = (id) => document.getElementById(id);
 
+  // Bright-paper switch: the unexplained little checkbox in the status bar
+  // flips body.bg-bright (shell.css). Survives reloads via localStorage;
+  // nothing else re-themes with it.
+  {
+    const bgToggle = $('bg-toggle');
+    const applyBg = (on) => document.body.classList.toggle('bg-bright', on);
+    let savedBg = null;
+    try { savedBg = localStorage.getItem('bg-bright'); } catch (_) { /* private mode */ }
+    if (bgToggle) {
+      bgToggle.checked = savedBg === '1';
+      applyBg(bgToggle.checked);
+      bgToggle.addEventListener('change', () => {
+        applyBg(bgToggle.checked);
+        try { localStorage.setItem('bg-bright', bgToggle.checked ? '1' : '0'); } catch (_) { /* private mode */ }
+      });
+    }
+  }
+
   // ---- analysis screen -------------------------------------------------
   const form = $('address-form');
   const gemeindeSelect = $('gemeinde-select');
