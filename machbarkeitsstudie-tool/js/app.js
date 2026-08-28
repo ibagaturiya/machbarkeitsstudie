@@ -1683,6 +1683,22 @@
   // Kennwert / Wert / Beleg, gruppiert. Beim Ueberfahren einer Zeile steht
   // ihre Herleitung in der Leiste unten -- jeder Wert traegt den String, es
   // gibt also auf diesem Bildschirm keine Zahl ohne sichtbaren Rechenweg.
+  // Die Herleitung erscheint als Popover NEBEN der Zeile: die eine Leiste
+  // unten war fuer lange Formeln zu kurz und zu weit vom Blick entfernt.
+  // Die Leiste bleibt bestehen und zeigt weiterhin denselben Text.
+  const kwTip = document.createElement('div');
+  kwTip.id = 'kw-tip';
+  kwTip.hidden = true;
+  document.body.appendChild(kwTip);
+  function showKwTip(rowEl, text) {
+    kwTip.textContent = text;
+    kwTip.hidden = false;
+    const r = rowEl.getBoundingClientRect();
+    kwTip.style.right = `${Math.round(window.innerWidth - r.left + 8)}px`;
+    kwTip.style.left = 'auto';
+    const h = kwTip.offsetHeight;
+    kwTip.style.top = `${Math.round(Math.max(8, Math.min(r.top, window.innerHeight - h - 8)))}px`;
+  }
   function renderKennwerte(groups) {
     const cssKind = (k) => `kd-${k.replace('Ü', 'UE').replace('Ä', 'AE').replace('Ö', 'OE')}`;
     kennwerteEl.innerHTML = groups.map((g) => {
@@ -1713,12 +1729,17 @@
         + `<div class="kw-group-head">${esc(g.title)}<span class="note">${esc(g.note)}</span></div>`
         + rows + `</div>`;
     }).join('');
-    // Legende der Sicherheitsstufen. Ein Zeichen ohne Legende ist eine
-    // Geheimschrift — sie gehoert an denselben Ort wie die Zeichen.
+    // Die Zahlen hier kommen aus derselben Zaehlung wie die Abzeichen in der
+    // Tabelle — sie koennen deshalb nicht davon abweichen.
+    const alleRows = groups.flatMap((g) => g.rows);
+    const z = T.zaehleSicherheit(alleRows);
+    // Legende der Sicherheitsstufen, mit den Zaehlern direkt IN ihr. Der
+    // Panel-Titel traegt nur noch "22 Werte": die volle Aufschluesselung
+    // dort quetschte sich zweizeilig in die 30-px-Titelleiste.
     kennwerteEl.insertAdjacentHTML('afterbegin',
       `<div class="sich-legende">`
       + T.SICHERHEIT_STUFEN_NACH_RANG.map((st) =>
-        `<span title="${esc(st.erklaerung)}"><i class="sich s-${st.key}">${esc(st.zeichen)}</i>${esc(st.kurz)}</span>`).join('')
+        `<span title="${esc(st.erklaerung)}"><i class="sich s-${st.key}">${esc(st.zeichen)}</i>${z[st.key]} ${esc(st.kurz)}</span>`).join('')
       + `</div>`);
     wireProvButtons(kennwerteEl);
     kennwerteEl.querySelectorAll('.kw-row').forEach((el) => {
@@ -1726,19 +1747,14 @@
         const f = el.dataset.formula || 'keine Herleitung hinterlegt';
         const s = el.dataset.sicher;
         herleitungEl.textContent = s ? `${f}  ·  ${s}` : f;
+        showKwTip(el, s ? `${f}\n${s}` : f);
       });
     });
-    // Die Zahlen hier kommen aus derselben Zaehlung wie die Abzeichen in der
-    // Tabelle — sie koennen deshalb nicht davon abweichen.
-    const alleRows = groups.flatMap((g) => g.rows);
-    const z = T.zaehleSicherheit(alleRows);
-    const teile = T.SICHERHEIT_STUFEN_NACH_RANG
-      .filter((st) => z[st.key] > 0)
-      .map((st) => `${z[st.key]} ${st.kurz}`);
-    kwNoteEl.textContent = `${alleRows.length} Werte · ${teile.join(' · ')}`;
+    kwNoteEl.textContent = `${alleRows.length} Werte`;
   }
   kennwerteEl.addEventListener('mouseleave', () => {
     herleitungEl.textContent = HERLEITUNG_IDLE;
+    kwTip.hidden = true;
   });
   const HERLEITUNG_IDLE = 'über eine Zeile fahren — Herleitung erscheint hier';
 
@@ -1767,6 +1783,23 @@
   // Plan. Jede Zeile stammt aus einem Wert, der in diesem Lauf gegriffen
   // hat; nicht anwendbare Regeln stehen ausdrücklich als solche da, statt zu
   // fehlen -- eine fehlende Zeile liest sich wie eine vergessene Pruefung.
+  // Warum keine Attika steht, in einer Zeile MIT den Zahlen. Die lange
+  // Fassung steht unter Hinweise & Vorbehalte — aber die Frage "wieso
+  // nicht?" muss die Zeichnung selbst beantworten, nicht ein zweiter
+  // Bildschirm.
+  function attikaSuppressReason(mm) {
+    const d = (mm.attikaDiagnostics || [])[0];
+    if (!d) return 'Attika zonenrechtlich zulässig, geometrisch nicht darstellbar';
+    const rest = Math.max(0, d.narrowestM);
+    return d.bergseite
+      ? `Attika zulässig, aber nicht darstellbar: bergseitig fassadenbündig, übrige Seiten ${fmt(mm.attikaSetbackM)} m Rücksprung — bleiben ${fmt(rest)} m, min. ${T.MIN_PRIMITIVE_WIDTH_M} m nötig`
+      : `Attika zulässig, aber nicht darstellbar: 45°-Rücksprung ${fmt(mm.attikaSetbackM)} m je Seite lässt von ${fmt(d.belowWidthM)} m Baukörpertiefe nur ${fmt(rest)} m — min. ${T.MIN_PRIMITIVE_WIDTH_M} m nötig`;
+  }
+  function attikaSuppressShort(mm) {
+    const d = (mm.attikaDiagnostics || [])[0];
+    if (!d) return 'geometrisch nicht darstellbar';
+    return `45°-Profil lässt nur ${fmt(Math.max(0, d.narrowestM))} m Tiefe — min. ${T.MIN_PRIMITIVE_WIDTH_M} m nötig`;
+  }
   function ovlRow(state, text, cite) {
     const glyph = state === 'ok' ? '✓' : (state === 'assume' ? '!' : '·');
     return `<div class="o-row is-${state}"><span class="g">${glyph}</span>`
@@ -1791,7 +1824,7 @@
             `45°-Profil Attika, Rücksprung ${fmt(mm.attikaSetbackM)} m`,
             artOf('attika_profil_ueberhoehung_m'))]
         : (mm && mm.attikaSuppressed
-            ? [ovlRow('assume', 'Attika zonenrechtlich zulässig, geometrisch nicht darstellbar', artOf('attika_profil_ueberhoehung_m'))]
+            ? [ovlRow('assume', attikaSuppressReason(mm), artOf('attika_profil_ueberhoehung_m'))]
             : [])),
       ovlRow('ok', `Ausnützungsziffer ${(rules.ausnuetzungsziffer_max_pct / 100).toFixed(2)}`,
         artOf('ausnuetzungsziffer_max_pct')),
@@ -1930,9 +1963,11 @@
           + (suppressedHere ? 0 : attika) * mm.attikaStoreyHeightM;
         const active = n === (mm.requestedStoreys != null ? mm.requestedStoreys : mm.storeys);
         return `<button type="button" class="variant${active ? ' active' : ''}${suppressedHere ? ' unavailable' : ''}" data-storeys="${n}"`
-          + ` title="${esc(suppressedHere ? `Attika hier nicht darstellbar — gerechnet mit ${storeyCountLabel(ordinary, 0)}` : 'Freie Entwurfsentscheidung — die Ausnützungsziffer begrenzt die Geschossfläche, nicht die Geschosszahl.')}">`
+          + ` title="${esc(suppressedHere ? `${attikaSuppressReason(mm)} — gerechnet mit ${storeyCountLabel(ordinary, 0)}` : 'Freie Entwurfsentscheidung — die Ausnützungsziffer begrenzt die Geschossfläche, nicht die Geschosszahl.')}">`
           + `<span class="n">${esc(storeyCountLabel(ordinary, attika))}</span>`
-          + `<span class="d">${fmt(plate)} m²/G · ${fmt(cov, 0)} % üb. · ${fmt(heightM)} m</span>`
+          // Der gesperrten Karte gehoert ihre Begruendung, nicht dieselben
+          // Zahlen wie der Nachbarkarte — die erklaeren das Verbot nicht.
+          + `<span class="d">${esc(suppressedHere ? attikaSuppressShort(mm) : `${fmt(plate)} m²/G · ${fmt(cov, 0)} % üb. · ${fmt(heightM)} m`)}</span>`
           + `</button>`;
       }).join('');
       variantsEl.querySelectorAll('.variant').forEach((btn) => btn.addEventListener('click', () => {

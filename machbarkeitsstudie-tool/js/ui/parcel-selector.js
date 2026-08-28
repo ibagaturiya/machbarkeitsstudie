@@ -23,7 +23,24 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   // and it 400s entirely at zoom 20, so tiles loaded inconsistently and the
   // map showed dark rectangular patches that looked like overlapping tiles.
   // One layer, no blending, no artifacts.
-  const CADASTRE_WMTS_URL = 'https://wmts.geo.admin.ch/1.0.0/ch.kantone.cadastralwebmap-farbe/default/current/3857/{z}/{x}/{y}.png';
+  // Amtliche Vermessung direkt vom Kanton Zürich (MapServer-WMS, on the fly
+  // aus den Vektordaten gerendert). Ersetzt die gekachelte cadastralwebmap
+  // des Bundes: deren WMTS-Cache lieferte Nachbarkacheln aus verschiedenen
+  // Datenständen — Strassen und Parzellenlinien sprangen an den Kachel-
+  // grenzen sichtbar um mehrere Pixel (mit drei nebeneinandergelegten
+  // Originalkacheln verifiziert, 2026-08-28; der Bund-WMS zeigte dieselbe
+  // Naht, er bedient sich aus demselben Cache). Der kantonale Dienst rendert
+  // jede Anfrage frisch, die Geometrie stösst exakt aneinander, und die
+  // Layergruppe blendet bei kleinen Massstäben selbst auf Landeskarten um
+  // statt mit 400 zu antworten. Das Werkzeug rechnet ohnehin nur im Kanton
+  // Zürich (CLAUDE.md, Zero-Assumption).
+  const AV_WMS_URL = 'https://wms.zh.ch/AVfarbigZH';
+  const CADASTRE_WMTS_URL = 'https://wmts.geo.admin.ch/1.0.0/ch.kantone.cadastralwebmap-farbe/default/current/3857/{z}/{x}/{y}.png'; // eslint-disable-line no-unused-vars -- dokumentiert die abgelöste Quelle
+  // Underneath it: the grey national map as fallback ground. The cadastre
+  // layer only exists at large scales — zoomed further out its tiles 400
+  // and the pane went fully black. The cadastre's opaque white ground
+  // covers this layer wherever it exists, so nothing blends at high zoom.
+  const BASE_WMTS_URL = 'https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.pixelkarte-grau/default/current/3857/{z}/{x}/{y}.jpeg';
   // The cadastre layer serves up to z20 and 400s at z21, so cap there
   // rather than letting Leaflet request tiles that don't exist.
   const MAX_ZOOM = 20;
@@ -70,18 +87,26 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       .setView([lat, lon], 19);
     activeMap = map;
 
-    L.tileLayer(CADASTRE_WMTS_URL, {
+    L.tileLayer(BASE_WMTS_URL, {
       maxZoom: MAX_ZOOM,
-      maxNativeZoom: MAX_ZOOM,
-      attribution: 'swisstopo / Kantone',
+      // The grey map itself stops at z19; Leaflet upscales it beyond that,
+      // invisible under the opaque cadastre tiles that cover those zooms.
+      maxNativeZoom: 19,
+      // Kein eigener Attribution-Text: die Kachel-Ebene darueber nennt
+      // swisstopo bereits — zweimal "swisstopo" in der Leiste ist Rauschen.
       keepBuffer: 4,
-      // Native EPSG:3857, 256px tiles -- Leaflet's default CRS.EPSG3857 grid
-      // origin and resolutions already match this exactly, so there is no
-      // tile-matrix/grid-origin mismatch to correct here (ruled out as a
-      // seam cause). updateWhenZooming:false stops Leaflet from swapping in
-      // lower-resolution tiles mid-zoom (irrelevant to seams directly, but
-      // one less source of mid-transition tile churn now that zoomAnimation
-      // is already off, above).
+      updateWhenZooming: false,
+    }).addTo(map);
+    L.tileLayer.wms(AV_WMS_URL, {
+      layers: 'AVfarbigZH',
+      format: 'image/png',
+      version: '1.3.0',
+      maxZoom: MAX_ZOOM,
+      // 512er-Kacheln: halb so viele Requests an den ungecachten Dienst,
+      // und Strassennamen wiederholen sich seltener je Bildschirm.
+      tileSize: 512,
+      attribution: 'AV GIS-ZH / swisstopo',
+      keepBuffer: 2,
       updateWhenZooming: false,
     }).addTo(map);
     L.control.scale({ metric: true, imperial: false, position: 'bottomleft' }).addTo(map);

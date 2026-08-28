@@ -10,10 +10,12 @@
    Three columns, monospaced, one line per event. */
 
 #log-filter {
-  flex: none; display: flex; align-items: center; gap: 14px;
-  height: 28px; padding: 0 14px;
+  /* Darf umbrechen: auf schmalen Fenstern standen die Zaehler auf 28 px
+     Hoehe aneinandergequetscht. */
+  flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 3px 14px;
+  min-height: 28px; padding: 6px 14px;
   border-bottom: 1px solid var(--hair-soft);
-  font: 400 10px/1 var(--font-num); color: var(--txt3);
+  font: 400 10px/1.4 var(--font-num); color: var(--txt3);
 }
 #log-filter .lf-acc { color: var(--acc); }
 #log-filter .lf-warn { color: var(--assume); }
@@ -129,6 +131,19 @@
 .sich-legende span { display: inline-flex; align-items: center; gap: 3px; }
 .sich-legende .sich { font-size: 9.5px; font-style: normal; }
 
+/* Herleitung als Popover neben der Zeile: in der einen Fussleiste passte
+   eine lange Formel nie hinein. Schwebt links neben der Kennwerte-Tafel,
+   nimmt keine Zeigerereignisse an. */
+#kw-tip {
+  position: fixed; z-index: 1300; max-width: 380px;
+  border-radius: var(--r-overlay); border: 1px solid var(--hair);
+  background: rgba(22, 22, 22, .96);
+  box-shadow: var(--shadow-panel);
+  padding: 8px 11px 9px;
+  font: 400 10.5px/1.55 var(--font-num); color: var(--txt2);
+  pointer-events: none; white-space: pre-line;
+}
+
 .kw-row {
   display: grid; grid-template-columns: 13px minmax(0, 1fr) 104px 74px;
   align-items: baseline; gap: 5px;
@@ -207,7 +222,13 @@
 .ovl .o-row .g { flex: none; width: 9px; }
 .ovl .o-row .p { margin-left: auto; color: var(--faint); font-size: 9px; }
 .ovl .o-row.is-ok .g { color: var(--ok); }
-.ovl .o-row.is-assume { color: var(--log-warn); }
+/* Eine Warnzeile muss als Warnung LESBAR sein, nicht nur einen anderen
+   Glyphen tragen: amber, halbfett, eigener Grund hinter der ganzen Zeile. */
+.ovl .o-row.is-assume {
+  color: var(--assume); font-weight: 600;
+  background: color-mix(in srgb, var(--assume) 14%, transparent);
+  border-radius: 6px; padding: 2px 6px; margin: 2px 0;
+}
 .ovl .o-row.is-assume .g { color: var(--assume); }
 .ovl .o-row.is-na { color: var(--lbl); }
 .ovl .o-row.is-na .g { color: var(--lbl); }
@@ -263,6 +284,9 @@
 .variant.active { background: color-mix(in srgb, var(--acc) 14%, transparent); }
 .variant.active .n { color: var(--acc); }
 .variant.unavailable .n { text-decoration: line-through; opacity: .7; }
+/* Die gesperrte Karte traegt ihre Begruendung statt Kennzahlen — die darf
+   umbrechen und ist als Warnung gefaerbt. */
+.variant.unavailable .d { white-space: normal; color: var(--assume); }
 
 /* ---- 6. map footer / selection ---------------------------------------- */
 
@@ -272,10 +296,10 @@
 /* Leaflet inside a dark panel: the raster basemap is inverted (see
    --map-filter in tokens.css) and the controls take the panel's palette. */
 #map .leaflet-tile-pane { filter: var(--map-filter); }
-/* 256.5, not 256: adjacent tiles are rasterised independently server-side,
-   and at exactly 256 the sub-pixel seam between them shows as a hairline
-   grid once the whole pane is inverted. */
-#map .leaflet-tile { width: 256.5px !important; height: 256.5px !important; }
+/* No tile-size hack here any more: stretching tiles to 256.5px hid the
+   hairline seams but visibly mis-registered the map content at the seams
+   (roads and parcel lines jumped). The panel behind the tiles is dark, so
+   the sub-pixel seams read as nothing on the inverted map. */
 #map .leaflet-container { background: var(--draw); }
 #map .leaflet-bar a {
   background: rgba(28, 28, 28, .9); color: var(--txt2);
