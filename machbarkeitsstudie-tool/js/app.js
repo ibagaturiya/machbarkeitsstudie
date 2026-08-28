@@ -107,8 +107,10 @@
     if (open) ablaufPanel.redraw();
   });
 
-  // Der Dateiname trägt Adresse (oder Parzellennummern) und Datum, damit im
-  // Download-Ordner nicht zehn "Machbarkeit.pdf" nebeneinander liegen.
+  // Der Dateiname trägt Adresse (oder Parzellennummern), Datum und die
+  // Werkzeug-Version, damit im Download-Ordner nicht zehn "Machbarkeit.pdf"
+  // nebeneinander liegen und zwei Exporte verschiedener Stände
+  // unterscheidbar bleiben.
   function pdfFilename() {
     const r = lastResult;
     const subject = r
@@ -116,7 +118,7 @@
       : '';
     const d = new Date();
     const stamp = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    return T.safeFilename(['Machbarkeit', subject, stamp]);
+    return T.safeFilename(['Machbarkeitsstudie', subject, stamp, T.WERKZEUG_VERSION]);
   }
 
   // Startzustand: ohne Analyse gibt es nichts zu exportieren und nichts

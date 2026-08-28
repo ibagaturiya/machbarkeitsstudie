@@ -96,7 +96,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       `font:15px/1.6 -apple-system,"Helvetica Neue",Arial,sans-serif;background:#2b2b2e;color:#cfcabf}` +
       `div{text-align:center}b{display:block;font-size:17px;color:#fff;margin-bottom:.4rem}` +
       `</style></head><body><div><b>Die Studie wird gesetzt …</b>` +
-      `Zehn A3-Blätter werden gerendert. Das dauert einige Sekunden;` +
+      `Die A3-Blätter werden gerendert. Das dauert einige Sekunden;` +
       `<br>dieser Tab füllt sich von selbst.</div></body></html>`
     );
     tab.document.close();
@@ -141,39 +141,112 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     }).join('\n');
   }
 
-  // Bettet jedes externe Bild als data:-URI in den Klon ein — aus dem
-  // Original im Dokument, das der Browser längst geladen hat. `source` und
-  // `clone` sind derselbe Baum, also stehen die <img> in derselben Reihenfolge.
-  //
+  // Rasterbilder werden NICHT mehr ueber das <foreignObject> gerendert,
+  // sondern nach dem Rastern des Blatts direkt auf das Canvas gezeichnet.
+  // Grund: WebKit (Safari) zeichnet <img>-Elemente innerhalb eines
+  // <foreignObject>, das als SVG-Bild gerastert wird, schlicht nicht — der
+  // Export vom 28.8.2026 hatte deshalb auf JEDEM Blatt leere Kartenrahmen
+  // und eine leere Isometrie, waehrend alle Inline-SVGs (Grundriss,
+  // Zonenfarben, Parzellenumrisse) korrekt erschienen. Ein data:-URI aendert
+  // daran nichts; die 30-s-Wartefrist (print.js) auch nicht. Deshalb:
+  //   1. Im Klon werden alle <img> und alle .mapwrap-Ebenen unsichtbar
+  //      gestellt (Layout bleibt, damit Masse und Positionen stimmen).
+  //   2. Nach dem Zeichnen des Blatt-Bilds malt paintRasterLayers() jede
+  //      Kartenebene in DOM-Reihenfolge direkt auf das Canvas — inklusive
+  //      mix-blend-mode:multiply (Kataster ueber Zonenfarben) via
+  //      globalCompositeOperation. Die SVG-Ebenen der Karten werden dabei
+  //      einzeln als eigenstaendige SVG-Bilder gezeichnet (das rastert auch
+  //      Safari korrekt), damit die Stapelfolge Zonen → Kataster → Umriss
+  //      erhalten bleibt.
   // Scheitert ein Bild, wird es NICHT stillschweigend weggelassen: der Grund
   // wandert in `problems` und der Aufrufer sagt es in der Statuszeile. Ein
-  // leerer Kartenrahmen, den niemand erwähnt, ist genau die Art Fehler, die
-  // erst beim Empfänger auffällt (REGELN §2: eine fehlgeschlagene Quelle darf
-  // nie wie ein sauberes Ergebnis aussehen).
-  function embedImages(source, clone, sheetLabel, problems) {
-    const originals = [...source.querySelectorAll('img')];
-    const clones = [...clone.querySelectorAll('img')];
-    clones.forEach((img, i) => {
-      const src = img.getAttribute('src') || '';
-      if (!src || src.startsWith('data:')) return;
-      const original = originals[i];
-      try {
-        if (!original || !original.complete || !original.naturalWidth) {
-          throw new Error('Bild war nicht geladen');
+  // leerer Kartenrahmen, den niemand erwaehnt, ist genau die Art Fehler, die
+  // erst beim Empfaenger auffaellt (REGELN §2: eine fehlgeschlagene Quelle
+  // darf nie wie ein sauberes Ergebnis aussehen).
+
+  // Versteckt im Klon alles, was paintRasterLayers spaeter selbst zeichnet.
+  function hidePaintedLayers(clone) {
+    for (const el of clone.querySelectorAll('.mapwrap > *, img')) {
+      el.style.visibility = 'hidden';
+    }
+  }
+
+  // Zeichnet die Kartenstapel und freistehenden Bilder des ORIGINAL-Blatts
+  // auf das bereits gerasterte Canvas. `scale` = Canvas-Pixel je CSS-Pixel.
+  async function paintRasterLayers(sheetEl, ctx, scale, sheetLabel, problems) {
+    const sheetRect = sheetEl.getBoundingClientRect();
+    const destRect = (el) => {
+      const r = el.getBoundingClientRect();
+      return {
+        x: (r.left - sheetRect.left) * scale,
+        y: (r.top - sheetRect.top) * scale,
+        w: r.width * scale,
+        h: r.height * scale,
+      };
+    };
+
+    // Kartenstapel: alle Ebenen eines .mapwrap in DOM-Reihenfolge, auf den
+    // Rahmen beschnitten. Freistehende Bilder (Isometrie): einzeln.
+    const jobs = [];
+    for (const wrap of sheetEl.querySelectorAll('.mapwrap')) {
+      for (const layer of wrap.children) jobs.push({ el: layer, clip: wrap });
+    }
+    for (const img of sheetEl.querySelectorAll('img')) {
+      if (!img.closest('.mapwrap')) jobs.push({ el: img, clip: null });
+    }
+
+    for (const { el, clip } of jobs) {
+      const d = destRect(el);
+      if (!d.w || !d.h) continue;
+      let source;
+      if (el.tagName === 'IMG') {
+        if (!el.getAttribute('src') || !el.complete || !el.naturalWidth) {
+          problems.push(`${sheetLabel}: ${el.getAttribute('alt') || 'Bild'} fehlt (Bild war nicht geladen)`);
+          continue;
         }
-        const c = document.createElement('canvas');
-        c.width = original.naturalWidth;
-        c.height = original.naturalHeight;
-        // PNG, nicht JPEG: die Katasterebene wird mit mix-blend-mode
-        // multiply über die Zonenfarben gelegt: JPEG-Artefakte um die
-        // schwarzen Linien würden dabei als graue Schleier sichtbar.
-        c.getContext('2d').drawImage(original, 0, 0);
-        img.setAttribute('src', c.toDataURL('image/png'));
-      } catch (e) {
-        img.removeAttribute('src');
-        problems.push(`${sheetLabel}: ${img.getAttribute('alt') || 'Bild'} fehlt (${e.message})`);
+        source = el;
+      } else {
+        try {
+          source = await svgElementToImage(el, d.w, d.h);
+        } catch (e) {
+          problems.push(`${sheetLabel}: Kartenebene fehlt (${e.message})`);
+          continue;
+        }
       }
-    });
+      ctx.save();
+      if (clip) {
+        const c = destRect(clip);
+        ctx.beginPath();
+        ctx.rect(c.x, c.y, c.w, c.h);
+        ctx.clip();
+      }
+      // mix-blend-mode:multiply der Katasterebene (schwarze Linien ueber
+      // Zonenfarben) hat im Canvas eine direkte Entsprechung.
+      ctx.globalCompositeOperation = el.classList.contains('multiply') ? 'multiply' : 'source-over';
+      try {
+        ctx.drawImage(source, d.x, d.y, d.w, d.h);
+      } catch (e) {
+        problems.push(`${sheetLabel}: ${el.getAttribute('alt') || 'Ebene'} fehlt (${e.message})`);
+      }
+      ctx.restore();
+    }
+  }
+
+  // Ein Inline-SVG als eigenstaendiges Bild. Breite/Hoehe muessen als
+  // Attribute gesetzt sein — Safari rastert ein SVG-Bild ohne konkrete
+  // Masse mit Groesse null.
+  function svgElementToImage(svgEl, wPx, hPx) {
+    const copy = svgEl.cloneNode(true);
+    // Das Inline-style (width:100% etc.) wuerde als CSS die width/height-
+    // Attribute uebersteuern und das SVG auf die Ersatzgroesse 300x150
+    // rastern lassen — im Dokument positioniert es die Ebene, hier stoert es.
+    copy.removeAttribute('style');
+    copy.removeAttribute('class');
+    copy.setAttribute('width', Math.round(wPx));
+    copy.setAttribute('height', Math.round(hPx));
+    copy.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    const markup = new XMLSerializer().serializeToString(copy);
+    return loadImage('data:image/svg+xml;charset=utf-8,' + encodeURIComponent(markup));
   }
 
   function rasteriseSheet(sheetEl, css, problems) {
@@ -182,8 +255,8 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     if (!w || !h) throw new Error('Das Blatt hat keine Ausmasse — #print-doc ist nicht dargestellt.');
 
     const clone = sheetEl.cloneNode(true);
-    const label = (sheetEl.querySelector('h2') || {}).textContent || 'Blatt';
-    embedImages(sheetEl, clone, label, problems);
+    const label = (sheetEl.querySelector('h2, h1') || {}).textContent || 'Blatt';
+    hidePaintedLayers(clone);
     return Promise.resolve().then(() => {
       // Der Klon braucht denselben Kontext wie im Dokument: die Blattregeln
       // hängen an `#print-doc .sheet`, und `#print-doc` ist am Bildschirm
@@ -205,7 +278,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
         `</foreignObject></svg>`;
 
       return loadImage('data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg));
-    }).then((img) => {
+    }).then(async (img) => {
       const canvas = document.createElement('canvas');
       canvas.width = w * RASTER_SCALE;
       canvas.height = h * RASTER_SCALE;
@@ -215,6 +288,8 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      // Karten und Bilder direkt aufs Canvas — siehe Kommentar oben.
+      await paintRasterLayers(sheetEl, ctx, RASTER_SCALE, label, problems);
       return {
         width: canvas.width,
         height: canvas.height,

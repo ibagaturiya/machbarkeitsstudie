@@ -63,7 +63,7 @@
 
 #print-doc .sheet {
   width: 420mm; height: 297mm; box-sizing: border-box;
-  padding: 16mm 18mm 12mm; background: #fff; color: #1a1a1a;
+  padding: 12mm 18mm 10mm; background: #fff; color: #1a1a1a;
   display: flex; flex-direction: column; overflow: hidden;
   page-break-after: always; break-after: page;
   font-family: -apple-system, "Helvetica Neue", Arial, sans-serif;
@@ -71,9 +71,32 @@
 }
 #print-doc .sheet:last-child { page-break-after: auto; break-after: auto; }
 
+/* --- Titelblatt (28.8.2026) ------------------------------------------------
+   Erste Seite des Exports: Adresse gross, zwei Saetze, Absender und Stand.
+   Bewusst fast leer — die Dichte kommt auf den Folgeblaettern. */
+#print-doc .sheet-title { justify-content: flex-start; }
+#print-doc .titel-mitte { margin-top: 62mm; }
+#print-doc .titel-kicker { font-size: 12pt; letter-spacing: .2em; text-transform: uppercase;
+                           color: #7a6a55; margin-bottom: 9mm; }
+#print-doc .titel-adresse { font-size: 42pt; font-weight: 650; margin: 0 0 6mm;
+                            letter-spacing: -.01em; line-height: 1.1; }
+#print-doc .titel-meta { font-size: 13pt; color: #55493a; margin-bottom: 13mm; }
+#print-doc .titel-text { font-size: 13pt; line-height: 1.7; color: #333;
+                         max-width: 225mm; margin: 0; }
+#print-doc .titel-unten { margin-top: auto; border-top: 2px solid #1a1a1a; padding-top: 5mm;
+                          display: flex; justify-content: space-between; align-items: baseline; }
+/* "all small caps": Eingabe klein geschrieben, gesetzt in Kapitaelchen. */
+#print-doc .titel-autor { font-variant-caps: small-caps; letter-spacing: .1em; font-size: 12.5pt; }
+#print-doc .titel-stand { font-size: 10pt; color: #777; }
+
+/* Ein-Satz-Einleitung unter jedem Blatttitel: was die Seite zeigt und
+   worauf sie sich stuetzt. */
+#print-doc .sheet-intro { font-size: 10.5pt; line-height: 1.5; color: #555;
+                          margin: 2.5mm 0 0; max-width: 320mm; }
+
 #print-doc .sheet-sources { flex: none; font-size: 8pt; color: #666; line-height: 1.45;
                             border-top: 1px solid #ddd; padding-top: 2mm; margin-top: 3mm; }
-#print-doc .sheet-head { border-bottom: 2px solid #1a1a1a; padding-bottom: 4mm; margin-bottom: 7mm; flex: none; }
+#print-doc .sheet-head { border-bottom: 2px solid #1a1a1a; padding-bottom: 3mm; margin-bottom: 6mm; flex: none; }
 #print-doc .kicker { font-size: 9pt; letter-spacing: .12em; text-transform: uppercase; color: #7a6a55; margin-bottom: 2mm; }
 #print-doc .sheet-head h2 { font-size: 24pt; margin: 0; font-weight: 600; letter-spacing: -.01em; }
 /* overflow hidden: a sheet is a fixed 420x297mm page — content that does
@@ -86,10 +109,11 @@
 #print-doc .quote-item .q-head { font-weight: 600; }
 #print-doc .quote-item .q-ref { color: #7a6a55; font-size: 8pt; }
 #print-doc .quote-item .q-text { font-style: italic; color: #333; }
-#print-doc .flags-cols { columns: 2; column-gap: 10mm; }
-#print-doc .flags-cols .flagline { break-inside: avoid; font-size: 9pt; }
+#print-doc .flags-cols { columns: 2; column-gap: 12mm; }
+#print-doc .flags-cols .flagline { break-inside: avoid; font-size: 10.5pt;
+                                   line-height: 1.55; padding: 4mm 5mm; margin-bottom: 3mm; }
 #print-doc .sheet-foot {
-  flex: none; border-top: 1px solid #d5d5d5; padding-top: 3mm; margin-top: 6mm;
+  flex: none; border-top: 1px solid #d5d5d5; padding-top: 2.5mm; margin-top: 4mm;
   font-size: 8pt; color: #777; display: flex; justify-content: space-between;
 }
 

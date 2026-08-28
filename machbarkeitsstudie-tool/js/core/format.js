@@ -11,6 +11,13 @@
 window.MachbarkeitTool = window.MachbarkeitTool || {};
 
 (function () {
+  // Version des Werkzeugs, wie sie im PDF-Dateinamen und auf dem Titelblatt
+  // des Exports erscheint. Hier, weil format.js als erstes Modul laedt und
+  // sowohl js/app.js (Dateiname) als auch js/ui/print.js (Titelblatt) sie
+  // brauchen. Bei inhaltlichen Aenderungen am Export hochzaehlen — zwei
+  // Studien mit verschiedenen Zahlen duerfen nicht denselben Namen tragen.
+  window.MachbarkeitTool.WERKZEUG_VERSION = 'v1.0';
+
   // Every user- and API-sourced string passes through here before innerHTML.
   // Escapes the single quote too, so a value is safe in a single-quoted
   // attribute as well as in text — the strictest of the former copies.
