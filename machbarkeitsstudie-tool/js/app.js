@@ -59,7 +59,6 @@
 
   const kennwerteEl = $('kennwerte');
   const kwNoteEl = $('kw-note');
-  const herleitungEl = $('herleitung-text');
 
   // The five KPI cells, each a value and a sub-line.
   const KPI = ['volumen', 'gfa', 'fuss', 'hoehe', 'nutz']
@@ -1746,17 +1745,14 @@
       el.addEventListener('mouseenter', () => {
         const f = el.dataset.formula || 'keine Herleitung hinterlegt';
         const s = el.dataset.sicher;
-        herleitungEl.textContent = s ? `${f}  ·  ${s}` : f;
         showKwTip(el, s ? `${f}\n${s}` : f);
       });
     });
     kwNoteEl.textContent = `${alleRows.length} Werte`;
   }
   kennwerteEl.addEventListener('mouseleave', () => {
-    herleitungEl.textContent = HERLEITUNG_IDLE;
     kwTip.hidden = true;
   });
-  const HERLEITUNG_IDLE = 'über eine Zeile fahren — Herleitung erscheint hier';
 
   // ---- Kopfzahlen -----------------------------------------------------
   // Fuenf Zahlen, die die Studie beantwortet. Alle stammen aus demselben
@@ -2275,7 +2271,6 @@
     statusTimingsEl.textContent = '';
     statusStandEl.textContent = '';
     flagsNoteEl.textContent = '';
-    herleitungEl.textContent = HERLEITUNG_IDLE;
     ovlModellEl.hidden = true;
     ovlPlanEl.hidden = true;
     isoControlsEl.hidden = true;

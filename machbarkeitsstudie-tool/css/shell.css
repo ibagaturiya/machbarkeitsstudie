@@ -219,19 +219,9 @@ body.detail-open { overflow: auto; }
 #floorplan { position: absolute; inset: 0; overflow: hidden; }
 #floorplan svg { width: 100%; height: 100%; display: block; }
 
-/* ---- 6. HERLEITUNG bar ------------------------------------------------ */
-
-#herleitung {
-  flex: none; height: 38px; flex-direction: row; align-items: center; gap: 14px;
-  padding: 0 16px;
-  background: var(--bar-glass);
-}
-#herleitung .k { flex: none; font: 600 9px/1 var(--font-ui); letter-spacing: .16em; color: var(--acc); }
-#herleitung .v {
-  flex: 1 1 auto; min-width: 0;
-  font: 500 11.5px/1 var(--font-num); color: var(--txt2);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
+/* ---- 6. (frei) --------------------------------------------------------
+   Die HERLEITUNG-Leiste ist entfernt: die Herleitung erscheint als Popover
+   direkt neben der Kennwert-Zeile (#kw-tip in panels.css). */
 
 /* ---- 7. status bar ---------------------------------------------------- */
 
@@ -249,7 +239,12 @@ body.detail-open { overflow: auto; }
   accent-color: var(--acc); cursor: pointer;
 }
 #statusbar #bg-toggle + span { border-left: none; padding-left: 0; }
-#statusbar > span { flex: none; padding: 0 10px; border-left: 1px solid var(--hair-soft); white-space: nowrap; }
+/* Jeder Abschnitt darf schrumpfen und mit Ellipse enden — vorher ragte der
+   rechte Rand auf schmalen Fenstern mitten im Wort aus dem Bild. */
+#statusbar > span {
+  flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+  padding: 0 10px; border-left: 1px solid var(--hair-soft); white-space: nowrap;
+}
 #statusbar > span:first-child { border-left: none; padding-left: 0; }
 #statusbar .live { color: var(--acc); }
 #statusbar .norm { color: var(--lbl); letter-spacing: .06em; }
@@ -271,7 +266,7 @@ body.detail-open { overflow: auto; }
 #screen-detail { display: none; }
 body.detail-open #screen-analyse { display: none !important; }
 body.detail-open #screen-detail { display: flex; flex-direction: column; gap: var(--gutter); flex: 1 1 auto; }
-body.detail-open #kpis, body.detail-open #herleitung { display: none; }
+body.detail-open #kpis { display: none; }
 
 #screen-detail .panel { flex: none; }
 #screen-detail .panel-body { padding: 16px 18px 20px; overflow: visible; }
