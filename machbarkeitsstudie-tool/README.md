@@ -202,14 +202,17 @@ being visible) and the finished PDF opens in its own tab.
 It writes a real PDF file and opens it in **its own tab, in
   the browser's PDF viewer** — whose own toolbar carries the download arrow,
   search and page numbers. No print dialog, no "Save as PDF" detour. Pages are
-  exact A3 landscape (420 × 297 mm), one rasterised sheet each at ~190 dpi;
-  a ten-sheet export lands around 5 MB. Written by `js/ui/pdf.js` with **no
-  library**: the browser rasterises each sheet through an SVG `foreignObject`
-  (so the page is laid out by the same engine that drew the preview — CSS
-  grid, `columns`, `aspect-ratio` and `mix-blend-mode` all survive, which is
-  exactly where html2canvas fails), and the PDF container itself is ~120 lines
-  of object table and xref. Verified against macOS Quick Look / Preview, which
-  is the same Core Graphics engine Safari uses.
+  exact A4 landscape (297 × 210 mm) with **selectable, searchable vector
+  text** (v1.2): the rendered DOM serves as the layout engine — line boxes are
+  read via the Range API and written as positioned base-14 Helvetica/Courier
+  runs, with the tracking (`Tz`) fitted per line to the measured box so
+  right-aligned number columns stay aligned; backgrounds and rules come from
+  the computed styles, maps/3D/floor plan remain embedded JPEGs. A full export
+  is well under 1 MB and carries PDF bookmarks per sheet plus full /Info
+  metadata. Written by `js/ui/pdf.js` with **no library**. If vector
+  typesetting fails for one sheet, exactly that sheet falls back to the SVG
+  `foreignObject` rasterisation (the same engine that draws the preview), and
+  the export reports it.
 
   The tab is opened **synchronously in the click handler**, showing a waiting
   page, and navigated to the finished file some seconds later. Opening it
@@ -221,10 +224,10 @@ It writes a real PDF file and opens it in **its own tab, in
   filename. The document title is in the PDF's `/Title`, but what the viewer's
   own download arrow suggests as a filename is up to the browser. Serving the
   file under a real name would need a service worker.
-There is no longer a "Drucken" button, and with it went the only path to
-**vector** (selectable) text — every page in the exported PDF is an image. The
-browser's own PDF viewer can still print. `@media print` in `print.css` is kept
-so Cmd+P on the app still yields the A3 sheets.
+There is no longer a "Drucken" button — since v1.2 the export itself is
+vector text, so nothing is lost by that. The browser's own PDF viewer can
+still print. `@media print` in `print.css` is kept so Cmd+P on the app still
+yields the A4 sheets.
 
 The PDF shows the **same building as the screen** (the massing model with the
 chosen storeys — not the abstract legal hull, which used to overstate volume
