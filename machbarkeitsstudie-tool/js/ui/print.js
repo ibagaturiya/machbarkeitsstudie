@@ -70,14 +70,39 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   // wozu sie gehört. Der Inhalt steht zweispaltig über die volle Breite:
   // die Karte oder Tabelle daneben stand schon auf dem ersten Blatt.
   function continuationSheet(sourceSheet, foot) {
-    const title = (sourceSheet.querySelector('h2') || {}).textContent || '';
-    const kicker = (sourceSheet.querySelector('.kicker') || {}).textContent || '';
+    const title = sourceSheet.dataset.outlineTitle
+      || (sourceSheet.querySelector('h2') || {}).textContent || '';
+    const kickerEl = sourceSheet.querySelector('.kicker');
+    // Nur den Text hinter dem Nummern-Chip, nicht den Chip mitkopieren.
+    const kicker = kickerEl
+      ? [...kickerEl.childNodes].filter((n) => n.nodeType === Node.TEXT_NODE).map((n) => n.textContent).join('')
+      : '';
     const el = document.createElement('div');
     el.innerHTML = sheet(
       `${title} (Fortsetzung)`, kicker, '',
-      '<div class="flags-cols" data-flow></div>', foot, ''
+      '<div data-cont-slot></div>', foot, '',
+      sourceSheet.dataset.outlineNum || ''
     );
-    return el.firstElementChild;
+    const cont = el.firstElementChild;
+    // Fortsetzungen zaehlen zum selben Abschnitt, sind aber als solche
+    // markiert — die PDF-Bookmarks ueberspringen sie.
+    cont.dataset.continuation = '1';
+    // Der Fortsetzungs-Container ist ein KLON des Quell-Containers, nicht
+    // ein hartkodiertes <div class="flags-cols">: eine Tabelle bricht in
+    // eine Tabelle um, eine Spaltenliste in eine Spaltenliste. Bei einem
+    // <tbody data-flow> muss die umgebende <table> mitgeklont werden, sonst
+    // verlieren die Zeilen ihr Tabellenlayout.
+    const srcFlow = sourceSheet.querySelector('[data-flow]');
+    const slot = cont.querySelector('[data-cont-slot]');
+    const flowClone = srcFlow.cloneNode(false);
+    if (srcFlow.tagName === 'TBODY') {
+      const tableClone = srcFlow.closest('table').cloneNode(false);
+      tableClone.appendChild(flowClone);
+      slot.replaceWith(tableClone);
+    } else {
+      slot.replaceWith(flowClone);
+    }
+    return cont;
   }
 
   // "2 Vollgeschosse", "2 Vollgeschosse + 1 Attika" — ganze Geschosse, nie
@@ -235,7 +260,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
         <p class="titel-text">Diese Studie zeigt, was auf ${multi ? 'den gewählten Parzellen' : 'der gewählten Parzelle'} nach geltendem Baurecht gebaut werden darf: Fläche, Geschosse, Volumen und eine erste Kostenschätzung. Grundlage sind die amtliche Vermessung, die kantonalen Geodaten sowie die Bau- und Zonenordnung der Gemeinde — jede Zahl nennt ihre Quelle.</p>
       </div>
       <div class="titel-unten">
-        <div class="titel-autor">exportiert von ivan bagaturiya</div>
+        <div class="titel-autor">exportiert von ${esc(T.ABSENDER)}</div>
         <div class="titel-stand">erstellt am ${esc(dateStr)} · Werkzeug ${esc(T.WERKZEUG_VERSION)} · ${esc(rules.source.version)}</div>
       </div>
       <footer class="sheet-foot">${foot}</footer>
@@ -245,10 +270,13 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   // Jedes Blatt beginnt unter dem Titel mit ein bis zwei Saetzen, die sagen,
   // was die Seite zeigt und worauf sie sich stuetzt — der Leser soll nicht
   // aus der Tabelle erraten muessen, was er vor sich hat.
-  function sheet(title, kicker, intro, bodyHtml, footerHtml, sourcesHtml) {
-    return `<section class="sheet">
+  // `num` ist die Abschnittsnummer («1», «A.2»): sie steht als Chip im
+  // Kicker, wandert als data-Attribut ans Blatt (PDF-Bookmarks, Mini-
+  // Inhaltsverzeichnis) und fehlt bei Blaettern ohne Nummer einfach.
+  function sheet(title, kicker, intro, bodyHtml, footerHtml, sourcesHtml, num) {
+    return `<section class="sheet" data-outline-title="${esc(title)}"${num ? ` data-outline-num="${esc(num)}"` : ''}>
       <header class="sheet-head">
-        <div class="kicker">${esc(kicker)}</div>
+        <div class="kicker">${num ? `<span class="sect-num">${esc(num)}</span>` : ''}${esc(kicker)}</div>
         <h2>${esc(title)}</h2>
         ${intro ? `<p class="sheet-intro">${esc(intro)}</p>` : ''}
       </header>
@@ -346,6 +374,13 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       `<div class="lg"><span class="lg-sw" style="${swatch}"></span>${esc(label)}</div>`).join('')}</div>`;
   }
 
+  // Eine Zeile je Punkt: Badge + Titel. Für das Blatt «Zone & Regeln», wo
+  // die vollen Begründungstexte die Spalte sprengten — sie stehen im Anhang.
+  function checklistCompactHtml(items) {
+    return items.map((i) => `<div class="ci-line ci-${i.status}">
+      <span class="ci-badge">${esc(i.status.toUpperCase())}</span>
+      <span>${esc(i.label)}</span></div>`).join('');
+  }
   function checklistHtml(items) {
     return items.map((i) => `<div class="ci ci-${i.status}">
       <span class="ci-badge">${esc(i.status.toUpperCase())}</span>
@@ -410,14 +445,45 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     // which zone it is talking about.
     const foot = `${esc(rules.gemeinde)} · Zone ${esc(anchor.zone)} · ${esc(rulesData.version)} · erstellt ${dateStr}`;
 
+    // ---- Abschnittsnummern -------------------------------------------------
+    // Die Nummern hängen davon ab, welche optionalen Blätter dieses Grundstück
+    // bekommt (Waldabstand nur wo er greift, Parkierung nur mit kommunaler
+    // Regel) — deshalb werden sie hier EINMAL vergeben und überall konsumiert:
+    // im Kicker-Chip, im Mini-Inhaltsverzeichnis und in den PDF-Bookmarks.
+    const pk = r.parkierung;
+    const showWaldMap = !!(wald && wald.forbidden);
+    const numPot = '2', numSitu = '3', numZone = '4';
+    let numCursor = 5;
+    const numWald = showWaldMap ? String(numCursor++) : null;
+    const numPk = pk ? String(numCursor++) : null;
+    const numKosten = String(numCursor++);
+    const tocEntries = [
+      [numPot, 'Potenzial & Volumetrie'],
+      [numSitu, 'Situation & Grundriss'],
+      [numZone, 'Zone & Regeln'],
+      ...(numWald ? [[numWald, 'Waldabstand']] : []),
+      ...(numPk ? [[numPk, 'Parkierung']] : []),
+      [numKosten, 'Kostenschätzung, grob'],
+      ['A', 'Anhang — Belastbarkeit der Zahlen, Hinweise, Quellen mit Wortlaut'],
+    ];
+
     // ---- Sheet 1: Übersicht ------------------------------------------------
-    const s1 = sheet(anchor.address || selection.map((p) => p.parcelNumber).join(' + '),
-      // "Machbarkeitsstudie" versprach die ganze Phase (SIA 112 Teilphase 21:
-      // auch Standort, Umwelt, Nachhaltigkeit, Ertrag, Termine). Gerechnet wird
-      // hier der baurechtliche Teil — der Kicker sagt jetzt das, und das Blatt
-      // "Nicht Gegenstand dieser Auswertung" fuehrt den Rest als offene Punkte.
-      `Baurechtliche Machbarkeit — Ausnützungs- und Volumenanalyse · Zone ${anchor.zone}${anchor.zoneLabel ? ` (${anchor.zoneLabel})` : ''}`,
-      'Das Wichtigste in Kürze: was hier gebaut werden darf, auf welcher Fläche und mit welchen Grenzen — nach amtlicher Vermessung und den Bauvorschriften von Kanton und Gemeinde.',
+    // ---- Blatt 1: Das Wichtigste in Kürze ---------------------------------
+    // Das Blatt, das ein Makler zuerst zeigt: Verdict, Kernzahlen, drei bis
+    // vier Argumente in ganzen Sätzen, daneben Karte und Inhaltsverzeichnis.
+    // Die Identitäts-Fakten (EGRID, Rechtsstatus, Terrain) sind zum Blatt
+    // «Zone & Regeln» umgezogen — hier verkauft die Seite, dort belegt sie.
+    const args = [
+      `${fmt(reconciled.parcelAreaM2, 0)} m² Land in der Zone ${anchor.zone}${anchor.zoneLabel ? ` (${anchor.zoneLabel})` : ''} — zulässig sind ${rules.vollgeschosse_max} Vollgeschosse bei ${rules.heightMetric} bis ${rules.heightM} m.`,
+      ...(massingModel
+        ? [`Realistisch bebaubar: ${storeyLabel(massingModel.ordinaryStoreys, massingModel.attikaStoreys)} à ${fmt(massingModel.floorplateM2, 0)} m² — nutzbare Geschossfläche total ${fmt(massingModel.nutzflaecheTotalM2, 0)} m² inkl. anrechnungsfreier Geschosse.`]
+        : []),
+      `Bindende Grösse ist ${binding}. ${bindingExplanation(reconciled, rules)}`,
+      `Erstellungskosten grob ≈ CHF ${fmtInt(cost.totalChf)} (BKP 2) — Bandbreite auf Blatt ${numKosten}.`,
+    ];
+    const s1 = sheet('Das Wichtigste in Kürze',
+      `${anchor.address || selection.map((p) => `Parzelle ${p.parcelNumber}`).join(' + ')} · ${rules.gemeinde} · Zone ${anchor.zone}`,
+      'Was hier gebaut werden darf, auf welcher Fläche und mit welchen Grenzen — nach amtlicher Vermessung und den Bauvorschriften von Kanton und Gemeinde. Jede Zahl nennt ihre Quelle.',
       `<div class="cols c-6040">
         <div>
           <div class="hero">
@@ -427,29 +493,17 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
           </div>
           <div class="kpis">
             ${kpi(multi ? 'Fläche zusammengefasst' : 'Parzellenfläche', fmt(reconciled.parcelAreaM2) + ' m²')}
-            ${kpi('Nutzbarer Fussabdruck', fmt(reconciled.usableFootprintAreaM2) + ' m²')}
             ${kpi('Max. Geschossfläche', fmt(reconciled.maxGfaM2) + ' m²', 'Ausnützungsziffer ' + rules.ausnuetzungsziffer_max_pct + '%')}
-            ${kpi(rules.heightMetric, rules.heightM + ' m')}
+            ${kpi('Nutzbarer Fussabdruck', fmt(reconciled.usableFootprintAreaM2) + ' m²')}
+            ${kpi('Kosten grob (BKP 2)', '≈ CHF ' + fmtInt(cost.totalChf), 'Kennwert CHF ' + cost.chfPerM3 + '/m³')}
           </div>
-          <table class="facts">
-            <tr><td>Gemeinde</td><td>${esc(rules.gemeinde)}</td></tr>
-            <tr><td>${multi ? 'Parzellen' : 'Parzelle'}</td><td>${esc(selection.map((p) => p.parcelNumber).join(' + '))}</td></tr>
-            <tr><td>EGRID</td><td>${esc(selection.map((p) => p.egrid).join(', '))}</td></tr>
-            <tr><td>Zone</td><td>${esc(anchor.zone)}${anchor.zoneLabel ? ' — ' + esc(anchor.zoneLabel) : ''}</td></tr>
-            <tr><td>Gewachsenes Terrain</td><td>${fmt(terrainHeight)} m ü. M.</td></tr>
-            ${hang ? `<tr><td>Terrainneigung</td><td>${fmt(hang.slopePercent, 0)} %${hang.isHang ? ' — Hanglage' : ' — keine Hanglage'}</td></tr>` : ''}
-          </table>
-          <div class="note-box">
-            <b>Was diese Zahl bedeutet.</b><br>
-            ${esc(bindingExplanation(reconciled, rules))}
-            ${waldLossInFootprintM2 > 0.5
-              ? ` Der Waldabstand wurde geometrisch berücksichtigt und reduziert den Fussabdruck um ${fmt(waldLossInFootprintM2)} m².`
-              : ''}
-            Grundlage ist unbebautes Land; Bestand und Abbruch sind nicht berücksichtigt.
-          </div>
+          <ul class="args">${args.map((a) => `<li>${esc(a)}</li>`).join('')}</ul>
         </div>
-        <div>${mapBlock(rings, centerE, centerN, wideSpan, ['cadastre'], null, 900, 1120)}
+        <div>${mapBlock(rings, centerE, centerN, wideSpan, ['cadastre'], null, 900, 760)}
           <div class="caption">Situationsplan — ${multi ? 'gewählte Parzellen' : 'Parzelle'} rot markiert. Amtliche Vermessung (swisstopo / Kantone).</div>
+          <div class="toc">
+            ${tocEntries.map(([n, t]) => `<div class="toc-row" data-toc-for="${esc(n)}"><span class="t-num">${esc(n)}</span><span class="t-title">${esc(t)}</span><span class="t-page"></span></div>`).join('')}
+          </div>
         </div>
       </div>`, foot,
       sourcesLine(rules, [
@@ -457,9 +511,9 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
         ['Vollgeschosse', 'vollgeschosse_max'],
         ['Höhe', rules.heightRegime ? 'gebaeudehoehe_max_m_bzo2016' : 'traufseitige_fassadenhoehe_max_m', 'gebaeudehoehe_max_m'],
         ['Regime', 'negative_vorwirkung'],
-      ]));
+      ]), '1');
 
-    // ---- Sheet 2: Volumetrie ----------------------------------------------
+    // ---- Blatt 2: Potenzial & Volumetrie ----------------------------------
     const abz = r.flaechenAbzuege || {};
     const derivation = [
       [multi ? 'Fläche zusammengefasst' : 'Parzellenfläche', fmt(reconciled.parcelAreaM2) + ' m²', ''],
@@ -493,23 +547,33 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       derivation.push(['Nutzbare Geschossfläche total', fmt(massingModel.nutzflaecheTotalM2) + ' m²', 'result']);
     }
 
-    const s2 = sheet('Volumetrie', 'Wie die Zahl zustande kommt',
-      'Schritt für Schritt von der Parzellenfläche zur zulässigen Geschossfläche — jede Zeile stützt sich auf eine unten genannte Bestimmung, Abzüge sind rot ausgewiesen.',
-      `<div class="cols c-4555">
+    // Variantenreihe: dieselben Zahlen wie die Karten am Bildschirm, aus
+    // T.storeyVariantData (js/core/envelope.js) — der Export sagt damit auch,
+    // dass die Geschosszahl eine WAHL ist, nicht ein einziges Ergebnis.
+    const variantData = T.storeyVariantData(massingModel, reconciled);
+    const variantsHtml = variantData.length
+      ? `<div class="variants-row">${variantData.map((v) =>
+          `<div class="variant-card${v.active ? ' active' : ''}${v.suppressed ? ' unavailable' : ''}">
+             <div class="v-n">${esc(storeyLabel(v.ordinary, v.attika))}</div>
+             <div class="v-d">${fmt(v.plateM2, 0)} m²/Geschoss · ${fmt(v.coveragePct, 0)} % überbaut · Höhe ${fmt(v.heightM)} m</div>
+             ${v.active ? '<div class="v-tag">gerechnet & dargestellt</div>' : (v.suppressed ? '<div class="v-tag">Attika hier nicht darstellbar</div>' : '<div class="v-tag">gleich zulässig</div>')}
+           </div>`).join('')}</div>`
+      : '';
+
+    const s2 = sheet('Potenzial & Volumetrie', 'Wie die Zahl zustande kommt',
+      'Schritt für Schritt von der Parzellenfläche zur zulässigen Geschossfläche — jede Zeile stützt sich auf eine unten genannte Bestimmung. Die Geschosszahl ist eine Entwurfswahl: die Reihe unten zeigt jede zulässige Variante.',
+      `<div class="cols c-5545">
         <div>
           <table class="derive">
             ${derivation.map(([k, v, cls]) => `<tr class="${cls}"><td>${esc(k)}</td><td>${esc(v)}</td></tr>`).join('')}
           </table>
-          <div class="note-box">
-            <b>Bindende Einschränkung: ${esc(binding)}.</b><br>
-            ${esc(bindingExplanation(reconciled, rules))}
-          </div>
         </div>
         <div>
           ${envelopePng ? `<img class="render" src="${envelopePng}" alt="Isometrie">` : '<div class="empty">Kein Volumen darstellbar.</div>'}
           ${waldRemoved ? legend([['background:#b08b4f;', 'zulässige Hüllform'],['background:rgba(198,40,40,.35);border:1px solid #c62828;', 'durch Waldabstand entfallen'],['background:transparent;border:1px solid #333;', 'Parzellengrenze']]) : ''}<div class="caption">Maximal zulässige Hüllform, auf ${esc(rules.heightMetric)} ${rules.heightM} m extrudiert.${waldRemoved ? ' Der rot dargestellte Teil ist durch die boolesche Differenz mit der Waldabstands-Fläche entfallen und in den Zahlen links bereits abgezogen.' : ''} Flaches Dach ist eine Vereinfachung der Darstellung.</div>
         </div>
-      </div>`, foot,
+      </div>
+      ${variantsHtml}`, foot,
       sourcesLine(rules, [
         ['Anrechenbare Fläche', 'massgebliche_grundflaeche', 'anrechenbare_grundstuecksflaeche', 'massgebliche_grundflaeche_altrecht'],
         ['Grundabstand', 'grundabstand_min_m'],
@@ -517,9 +581,9 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
         ['Überbauungsziffer', 'ueberbauungsziffer_hauptgebaeude_max_pct'],
         ['Ausnützungsziffer', 'ausnuetzungsziffer_max_pct'],
         ['Freibetrag', 'dach_attika_ug_freibetrag'],
-      ]));
+      ]), numPot);
 
-    // ---- Sheet 3: Grundriss ------------------------------------------------
+    // ---- Blatt 3: Situation & Grundriss ------------------------------------
     const fpDims = (() => {
       if (!setbackFootprint) return null;
       const g = setbackFootprint.geometry;
@@ -528,7 +592,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       return { w: Math.max(...e) - Math.min(...e), d: Math.max(...n) - Math.min(...n) };
     })();
 
-    const s2b = sheet('Grundriss Erdgeschoss', 'Bebaubare Grundfläche, massstäblich',
+    const s2b = sheet('Situation & Grundriss', 'Bebaubare Grundfläche, massstäblich',
       'Die bebaubare Grundfläche im Erdgeschoss, massstäblich und nordorientiert gezeichnet — nach Abzug von Grenzabständen, Gebäudeabständen und Waldabstand.',
       `<div class="cols c-6040">
         <div>${setbackFootprint
@@ -573,96 +637,110 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
         ['Mehrlängenzuschlag', 'mehrlaengenzuschlag'],
         ['Gebäudelänge', 'gesamtlaenge_max_m', 'gebaeudelaenge_inkl_klein_anbauten_max_m'],
         ['Waldabstand', 'waldabstand'],
-      ]));
+      ]), numSitu);
 
-    // ---- Sheet 3: Zonenplan ------------------------------------------------
-    const s3 = sheet('Zonenplan', 'Grundlage der Zonenzuordnung',
-      'Ausschnitt aus der kantonalen Nutzungsplanung: die Zone, in der diese Auswertung rechnet, mit ihren Grundmassen aus der Bau- und Zonenordnung der Gemeinde.',
-      `<div class="cols c-6040">
-        <div>${mapBlock(rings, centerE, centerN, halfSpan * 1.8, ['zoning', 'cadastre'], zoneFeatures, 1200, 980)}
-          <div class="caption">Zonenplan-Ausschnitt mit Parzellengrenzen. ${multi ? 'Gewählte Parzellen' : 'Parzelle'} rot markiert.</div>
+    // ---- Blatt 4: Zone & Regeln --------------------------------------------
+    const s3 = sheet('Zone & Regeln', 'Zonenzuordnung, Grundmasse und was geprüft wurde',
+      'Die Zone, in der diese Auswertung rechnet, mit ihren Grundmassen aus der Bau- und Zonenordnung — und der Stand der automatischen Prüfung. Was manuell zu klären bleibt, steht vollständig im Anhang A.2.',
+      `<div class="cols c-5545">
+        <div>${mapBlock(rings, centerE, centerN, halfSpan * 1.8, ['zoning', 'cadastre'], zoneFeatures, 1000, 900)}
+          <div class="caption">Zonenplan-Ausschnitt mit Parzellengrenzen. ${multi ? 'Gewählte Parzellen' : 'Parzelle'} rot markiert. Kantonale Nutzungsplanung (ogd-0156).</div>
         </div>
         <div>
-          <table class="facts big">
-            <tr><td>Zone</td><td><b>${esc(anchor.zone)}</b></td></tr>
-            <tr><td>Bezeichnung</td><td>${esc(anchor.zoneLabel || '—')}</td></tr>
-            <tr><td>Rechtsstatus</td><td>${esc(anchor.zoneSource ? anchor.zoneSource.rechtsstatus : '—')}</td></tr>
+          <table class="facts tight">
+            <tr><td>Gemeinde · ${multi ? 'Parzellen' : 'Parzelle'}</td><td>${esc(rules.gemeinde)} · ${esc(selection.map((p) => p.parcelNumber).join(' + '))}</td></tr>
+            <tr><td>EGRID</td><td>${esc(selection.map((p) => p.egrid).join(', '))}</td></tr>
+            <tr><td>Zone</td><td><b>${esc(anchor.zone)}</b>${anchor.zoneLabel ? ' — ' + esc(anchor.zoneLabel) : ''}${anchor.zoneSource && anchor.zoneSource.rechtsstatus ? ' · ' + esc(anchor.zoneSource.rechtsstatus) : ''}</td></tr>
             <tr><td>Ausnützungsziffer</td><td>${rules.ausnuetzungsziffer_max_pct} %</td></tr>
             <tr><td>Vollgeschosse</td><td>max. ${rules.vollgeschosse_max}</td></tr>
             <tr><td>${esc(rules.heightMetric)}</td><td>max. ${rules.heightM} m</td></tr>
             <tr><td>Grundabstand</td><td>min. ${rules.grundabstand_min_m} m</td></tr>
             ${rules.grosser_grenzabstand_min_m != null ? `<tr><td>Grosser Grenzabstand</td><td>min. ${rules.grosser_grenzabstand_min_m} m</td></tr>` : ''}
             ${rules.gruenflaechenziffer_min_pct != null ? `<tr><td>Grünflächenziffer</td><td>min. ${rules.gruenflaechenziffer_min_pct} %</td></tr>` : ''}
+            <tr><td>Gewachsenes Terrain</td><td>${fmt(terrainHeight)} m ü. M.${hang ? ` · Neigung ${fmt(hang.slopePercent, 0)} %${hang.isHang ? ' (Hanglage)' : ''}` : ''}</td></tr>
           </table>
+          <h3 style="margin-top:4mm">Automatisch geprüft</h3>
+          ${checklistCompactHtml(checklist.tierA)}
           <div class="note-box small">
-            Zone und Grundmasse: kantonale Nutzungsplanung (ogd-0156).<br>
-            Grenzabstand / Grünflächenziffer: ${esc(rules.source.article)}, ${esc(rules.source.version)}.
+            ${checklist.tierB.length} Punkte sind vor einem Bauprojekt manuell zu klären
+            (Werkleitungen, Altlasten, Lärm u. a.) — vollständige Liste mit Begründung je Punkt im Anhang A.2.
           </div>
         </div>
-      </div>`, foot,
+      </div>`,
+      foot,
       sourcesLine(rules, [
         ['Grundmasse', 'ausnuetzungsziffer_max_pct'],
         ['Höhe', rules.heightRegime ? 'gebaeudehoehe_max_m_bzo2016' : 'traufseitige_fassadenhoehe_max_m', 'gebaeudehoehe_max_m'],
         ['Regime', 'negative_vorwirkung'],
-      ]));
+      ]), numZone);
 
-    // ---- Sheet 4: Einschränkungen -----------------------------------------
-    // Show the Waldabstand geometry where it actually bites; otherwise fall
-    // back to the ordinary situation map so the sheet still carries context.
-    const showWaldMap = !!(wald && wald.forbidden);
-    const rmW = 1000, rmH = 820;
+    // ---- Blatt 5 (nur wo er greift): Waldabstand ---------------------------
+    // Die Wald-Geometrie bekommt ihr eigenes Blatt statt einer Ecke der
+    // Checkliste: wo sie greift, ist sie der grösste einzelne Abzug des
+    // Grundstücks — und wo nicht, fehlt das Blatt einfach.
+    const rmW = 1000, rmH = 780;
     const rmBbox = T.buildMapBbox(centerE, centerN, halfSpan * 1.45, rmW, rmH);
-    const restrictionMap = showWaldMap
-      ? `<div class="mapwrap" style="aspect-ratio:${rmW}/${rmH}">
-           <img class="layer multiply" crossorigin="anonymous" src="${T.buildCadastreMapUrl(rmBbox, rmW, rmH)}" alt="Parzellengrenzen">
-           ${restrictionMapSvg(wald, rings, rmBbox, rmW, rmH)}
-         </div>
-         ${legend([
-           ['background:#9fc38f;border:1px solid #5f8a52;', 'Waldareal'],
-           ['background:transparent;border-top:3px dashed #2f6b23;height:0;margin-top:6px;', 'Waldabstandslinie'],
-           ['background:repeating-linear-gradient(45deg,#c62828 0 3px,transparent 3px 6px);border:1px solid #c62828;', 'nicht bebaubar (Waldseite)'],
-           ['background:transparent;border:2px solid #c62828;', multi ? 'gewählte Parzellen' : 'Parzelle'],
-         ])}
-         <div class="caption">Waldabstand geometrisch ermittelt: ${fmt(wald.lostAreaM2)} m² der Parzelle liegen auf der Waldseite der Abstandslinie und sind vom Fussabdruck abgezogen. Quellen: ogd-0152 (Abstandslinie), ogd-0111 (Waldareal).</div>`
-      : `${mapBlock(rings, centerE, centerN, halfSpan * 1.45, ['cadastre'], null, rmW, rmH)}
-         <div class="caption">Situationsplan. Für diese Parzelle wurde keine einschneidende Waldabstandslinie gefunden.</div>`;
-
-    const s4 = sheet('Einschränkungen', 'Was geprüft wurde — und was nicht',
-      'Welche öffentlich-rechtlichen Einschränkungen automatisch geprüft wurden — und welche Punkte vor einem Bauprojekt manuell zu klären bleiben.',
-      `<div class="cols c-5545">
-        <div data-flow>
-          <h3>Automatisch berechnet</h3>
-          ${checklistHtml(checklist.tierA)}
-          <h3 style="margin-top:6mm">Manuell zu prüfen</h3>
-          ${checklistHtml(checklist.tierB)}
-        </div>
-        <div>${restrictionMap}</div>
-      </div>`,
-      foot,
-      sourcesLine(rules, [
-        ['Waldabstand', 'waldabstand'],
-        ['Strassenabstand', 'strassenabstand_ohne_baulinien_m'],
-        ['Begrünung', 'begruenung_perimeter_min_pct'],
-        ['Attika', 'attika_profil_ueberhoehung_m'],
-      ]));
+    const sWald = showWaldMap
+      ? sheet('Waldabstand', 'Der grösste Abzug dieses Grundstücks, geometrisch ermittelt',
+          'Die Waldabstandslinie und die Fläche, die auf ihrer Waldseite liegt — sie ist vom bebaubaren Bereich abgezogen und in allen Zahlen dieses Dokuments berücksichtigt.',
+          `<div class="cols c-5545">
+            <div>
+              <div class="mapwrap" style="aspect-ratio:${rmW}/${rmH}">
+                <img class="layer multiply" crossorigin="anonymous" src="${T.buildCadastreMapUrl(rmBbox, rmW, rmH)}" alt="Parzellengrenzen">
+                ${restrictionMapSvg(wald, rings, rmBbox, rmW, rmH)}
+              </div>
+              ${legend([
+                ['background:#9fc38f;border:1px solid #5f8a52;', 'Waldareal'],
+                ['background:transparent;border-top:3px dashed #2f6b23;height:0;margin-top:6px;', 'Waldabstandslinie'],
+                ['background:repeating-linear-gradient(45deg,#c62828 0 3px,transparent 3px 6px);border:1px solid #c62828;', 'nicht bebaubar (Waldseite)'],
+                ['background:transparent;border:2px solid #c62828;', multi ? 'gewählte Parzellen' : 'Parzelle'],
+              ])}
+            </div>
+            <div>
+              <table class="facts big">
+                <tr><td>Fläche auf der Waldseite der Linie</td><td><b>${fmt(wald.lostAreaM2)} m²</b></td></tr>
+                ${waldLossInFootprintM2 > 0.5 ? `<tr><td>davon im Fussabdruck abgezogen</td><td>− ${fmt(waldLossInFootprintM2)} m²</td></tr>` : ''}
+                ${(r.flaechenAbzuege && r.flaechenAbzuege.waldM2 > 0.5) ? `<tr><td>Abzug Wald von der anrechenbaren Fläche</td><td>− ${fmt(r.flaechenAbzuege.waldM2)} m²</td></tr>` : ''}
+                ${(r.flaechenAbzuege && r.flaechenAbzuege.waldAbstand15M2 > 0.5) ? `<tr><td>Abzug > 15 m hinter der Linie (§ 259 aPBG)</td><td>− ${fmt(r.flaechenAbzuege.waldAbstand15M2)} m²</td></tr>` : ''}
+              </table>
+              <div class="note-box small">
+                Geometrisch ermittelt aus der kantonalen Waldabstandslinie (ogd-0152)
+                und dem Waldareal (ogd-0111). Die Abzüge sind in Fussabdruck,
+                Geschossfläche und Volumen dieses Dokuments bereits enthalten.
+              </div>
+            </div>
+          </div>`,
+          foot,
+          sourcesLine(rules, [['Waldabstand', 'waldabstand']]), numWald)
+      : '';
 
     // ---- Sheet 4b: Hinweise (the flags) ------------------------------------
     // The warnings are numerous and legally load-bearing; squeezed under the
     // checklist they overflowed the fixed sheet and painted over the sources
     // line. They get their own sheet, two columns.
-    const s4b = flags.length
-      ? sheet('Hinweise und Vorbehalte der Berechnung', 'Jede Vereinfachung, ausgeschrieben',
-          'Jede Vereinfachung und Annahme dieser Berechnung, einzeln ausgewiesen — wer eine Zahl weiterverwendet, sollte den zugehörigen Hinweis kennen.',
-          `<div class="flags-cols" data-flow>${flags.map((f) => `<div class="flagline">${esc(f)}</div>`).join('')}</div>`,
+    // Anhang A.2 trägt jetzt AUCH die vollständige Tier-B-Checkliste: das
+    // Blatt «Zone & Regeln» nennt nur den Zähler und verweist hierher.
+    const s4b = (flags.length || checklist.tierB.length)
+      ? sheet('Hinweise, Vorbehalte & offene Punkte', 'Anhang — jede Vereinfachung, ausgeschrieben',
+          'Was vor einem Bauprojekt manuell zu klären bleibt, und jede Vereinfachung und Annahme dieser Berechnung — wer eine Zahl weiterverwendet, sollte den zugehörigen Hinweis kennen.',
+          `<div class="flags-cols" data-flow>
+            <h3>Automatisch geprüft</h3>
+            ${checklistHtml(checklist.tierA)}
+            <h3 style="margin-top:4mm">Manuell zu prüfen</h3>
+            ${checklistHtml(checklist.tierB)}
+            <h3 style="margin-top:4mm">Hinweise der Berechnung</h3>
+            ${flags.map((f) => `<div class="flagline">${esc(f)}</div>`).join('')}
+          </div>`,
           foot,
-          '<b>Quellen:</b> je Hinweis im Text genannt (Artikel/Paragraph); Wortlaut der zitierten Bestimmungen auf dem Blatt «Quellen und Vorbehalte».')
+          '<b>Quellen:</b> je Hinweis im Text genannt (Artikel/Paragraph); Wortlaut der zitierten Bestimmungen auf dem Blatt «Quellen und Vorbehalte».',
+          'A.2')
       : '';
 
     // ---- Sheet 4c: Parkierung ---------------------------------------------
     // Position: nach den Einschränkungen, vor den Kosten. Die Parkierung ist
     // eine Einschränkung des Volumens und zugleich Voraussetzung des Volumens,
     // aus dem die Kosten gerechnet werden — sie gehört zwischen beide.
-    const pk = r.parkierung;
+    // (`pk` ist oben bei der Nummernvergabe deklariert.)
     const sPk = pk
       ? sheet('Parkierung', pk.erfasst && pk.bindet
           ? 'Wann die Garage das Volumen begrenzt — nicht die Ausnützungsziffer'
@@ -672,11 +750,12 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
           pk.erfasst
             ? sourcesLine(rules, [['Parkierung', 'parkierung']])
               + ' · <b>Werkzeug-Annahme (kein Rechtswert):</b> Fläche je Abstellplatz.'
-            : '<b>Quellen:</b> § 242 PBG überlässt die Zahl der Abstellplätze der kommunalen Regelung; diese liegt dem Werkzeug für diese Gemeinde nicht vor — deshalb keine Zahl.')
+            : '<b>Quellen:</b> § 242 PBG überlässt die Zahl der Abstellplätze der kommunalen Regelung; diese liegt dem Werkzeug für diese Gemeinde nicht vor — deshalb keine Zahl.',
+          numPk)
       : '';
 
     // ---- Sheet 5: Kosten ---------------------------------------------------
-    const s5 = sheet('Grobe Kostenschätzung', 'Sehr grob — keine Kostenplanung',
+    const s5 = sheet('Kostenschätzung, grob', 'Sehr grob — keine Kostenplanung',
       'Überschlägige Gebäudekosten (BKP 2) aus dem hergeleiteten Volumen und einem Erfahrungskennwert für den Raum Zürich — eine Grössenordnung, keine Kostenplanung.',
       `<div class="cols c-5050">
         <div>
@@ -703,7 +782,8 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
           <div class="note-box small">${esc(cost.note)}</div>
         </div>
       </div>`, foot,
-      '<b>Quellen:</b> Kostenkennwert ist eine Werkzeug-Annahme (Bandbreite CHF 800–1000/m³ BKP 2), kein Gesetzeswert. Volumen aus dem oben hergeleiteten Baukörper.');
+      '<b>Quellen:</b> Kostenkennwert ist eine Werkzeug-Annahme (Bandbreite CHF 800–1000/m³ BKP 2), kein Gesetzeswert. Volumen aus dem oben hergeleiteten Baukörper.',
+      numKosten);
 
     // ---- Sheet 5a: Belastbarkeit ------------------------------------------
     // Jede Zahl dieses Berichts mit ihrer Sicherheitsstufe. Ohne dieses Blatt
@@ -731,36 +811,34 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
                 + `<td class="bel-g">${esc(row.sicherheitGrund || st.kurz)}${row.sicherheitVererbt ? ' <i>(geerbt)</i>' : ''}</td>`
                 + `</tr>`;
             }).join('')).join('');
-          return sheet('Belastbarkeit der Zahlen', 'Was belegt ist — und was nicht',
+          return sheet('Belastbarkeit der Zahlen', 'Anhang — was belegt ist und was nicht',
             'Nicht jede Zahl ist gleich gut abgestützt — diese Seite stuft jeden Wert ein: belegt, vereinfacht angewandt, Annahme des Werkzeugs oder nicht ermittelbar.',
-            `<div class="cols c-3565">
-              <div>
-                <div class="hero">
-                  <div class="hero-label">Von ${alle.length} Werten belegt</div>
-                  <div class="hero-value">${z.BELEGT} von ${alle.length}</div>
-                  <div class="hero-sub">${z.VEREINFACHT} vereinfacht · ${z.ANNAHME} Annahme · ${z.NICHT_ERMITTELBAR} nicht ermittelbar</div>
-                </div>
-                <table class="facts">${legende}</table>
-                <div class="note-box small">
-                  Ein abgeleiteter Wert trägt die schwächste Stufe seiner Eingänge.
-                  «Geerbt» heisst: der Wert selbst wäre besser belegt, einer seiner
-                  Eingänge ist es nicht. Kein Wert unterhalb von «belegt» ist eine
-                  bestandene Prüfung.
-                </div>
+            `<div class="bel-kopf">
+              <div class="hero">
+                <div class="hero-label">Von ${alle.length} Werten belegt</div>
+                <div class="hero-value">${z.BELEGT} von ${alle.length}</div>
+                <div class="hero-sub">${z.VEREINFACHT} vereinfacht · ${z.ANNAHME} Annahme · ${z.NICHT_ERMITTELBAR} nicht ermittelbar</div>
               </div>
-              <div><table class="derive bel-tafel" data-flow>${tafel}</table></div>
-            </div>`, foot,
+              <div class="bel-legende">
+                ${T.SICHERHEIT_STUFEN_NACH_RANG.map((st) =>
+                  `<div><b class="bel-z bel-${st.key}">${esc(st.zeichen)}</b> <b>${esc(st.label)}</b> (${z[st.key]}) — ${esc(st.erklaerung)}</div>`).join('')}
+                <div class="bel-fuss">Ein abgeleiteter Wert trägt die schwächste Stufe seiner Eingänge; «geerbt» heisst: einer seiner Eingänge ist schwächer belegt als er selbst. Kein Wert unterhalb von «belegt» ist eine bestandene Prüfung.</div>
+              </div>
+            </div>
+            <table class="derive bel-tafel"><tbody data-flow>${tafel}</tbody></table>`, foot,
             '<b>Quellen:</b> die Einstufung selbst rechnet nichts. Sie liest die Belegstellen der Datendateien '
-            + '(Artikel, Seite, Wortlaut) und das Register der Werkzeug-Annahmen — Wortlaut auf dem Blatt «Quellen und Vorbehalte».');
+            + '(Artikel, Seite, Wortlaut) und das Register der Werkzeug-Annahmen — Wortlaut auf dem Blatt «Quellen und Vorbehalte».',
+            'A.1');
         })()
       : '';
 
     // ---- Sheet 5b: Abgrenzung ---------------------------------------------
     // Direkt vor den Quellen: das Dokument schliesst mit Umfang und Grundlage.
-    const sAbg = sheet('Nicht Gegenstand dieser Auswertung', 'Was offen bleibt — benannt statt weggelassen',
+    const sAbg = sheet('Nicht Gegenstand dieser Auswertung', 'Anhang — was offen bleibt, benannt statt weggelassen',
       'Eine vollständige Machbarkeitsstudie beantwortet mehr als das Baurecht — diese Seite nennt, was hier bewusst offen bleibt, damit nichts davon als geprüft gilt.',
       abgrenzungSheetBody(), foot,
-      '<b>Quellen:</b> auf diesem Blatt wird nichts gerechnet. Der Umfang der Phase Machbarkeit folgt der Norm SIA 112, Modell Bauplanung, 2014, Teilphase 21.');
+      '<b>Quellen:</b> auf diesem Blatt wird nichts gerechnet. Der Umfang der Phase Machbarkeit folgt der Norm SIA 112, Modell Bauplanung, 2014, Teilphase 21.',
+      'A.3');
 
     // ---- Sheet 6: Quellen & Vorbehalte ------------------------------------
     // Full WORDING of every cited provision (from the provenance records) —
@@ -802,7 +880,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       );
     }
 
-    const s6 = sheet('Quellen und Vorbehalte', 'Grundlage und Grenzen dieser Auswertung — mit Wortlaut',
+    const s6 = sheet('Quellen und Vorbehalte', 'Anhang — Grundlage und Grenzen, mit Wortlaut',
       'Die verwendeten Datenquellen, die Vorbehalte dieser Auswertung und der Wortlaut jeder zitierten Bestimmung.',
       `<div class="cols c-5050" style="margin-bottom:5mm">
         <div>
@@ -828,9 +906,12 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
         </div>
       </div>
       <h3>Zitierte Bestimmungen (Wortlaut)</h3>
-      <div class="quote-list" data-flow>${quoteItems.join('')}</div>`, foot);
+      <div class="quote-list" data-flow>${quoteItems.join('')}</div>`, foot, '', 'A.4');
 
-    const html = [titleSheet(r, foot), s1, s2, s2b, s3, s4, s4b, sPk, s5, sBel, sAbg, s6].join('');
+    // Geordnete Blattfolge (CLAUDE.md Carve-out 3): die Erzählung eines
+    // Verkaufsdokuments — Ergebnis, Potenzial, Ort, Recht, dann der Anhang
+    // mit Belastbarkeit und Wortlaut. Umgestellt am 29.8.2026 (v1.1).
+    const html = [titleSheet(r, foot), s1, s2, s2b, s3, sWald, sPk, s5, sBel, s4b, sAbg, s6].join('');
     const host = document.getElementById('print-doc');
     host.innerHTML = html;
 
@@ -841,7 +922,17 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     const sheets = host.querySelectorAll('.sheet');
     sheets.forEach((s, i) => {
       const f = s.querySelector('.sheet-foot');
-      f.innerHTML = `<span>${f.innerHTML}</span><span>${i + 1} / ${sheets.length}</span>`;
+      f.innerHTML = `<span>${f.innerHTML}</span><span>Seite ${i + 1} / ${sheets.length}</span>`;
+    });
+    // Seitenzahlen ins Mini-Inhaltsverzeichnis — erst JETZT sind sie bekannt.
+    host.querySelectorAll('.toc-row').forEach((row) => {
+      const num = row.dataset.tocFor;
+      const target = num === 'A'
+        ? host.querySelector('.sheet[data-outline-num^="A."]')
+        : host.querySelector(`.sheet[data-outline-num="${num}"]`);
+      if (!target) { row.remove(); return; }
+      const page = [...sheets].indexOf(target) + 1;
+      row.querySelector('.t-page').textContent = `Seite ${page}`;
     });
 
     await waitForImages(host);

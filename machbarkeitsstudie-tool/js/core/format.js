@@ -11,12 +11,18 @@
 window.MachbarkeitTool = window.MachbarkeitTool || {};
 
 (function () {
+  // Absender des Exports: Titelblatt-Signatur und /Author der PDF-Metadaten.
+  // EINE Konstante statt eines im Blattaufbau vergrabenen Strings — wer das
+  // Werkzeug unter eigenem Namen nutzt, aendert genau diese Zeile.
+  window.MachbarkeitTool.ABSENDER = 'Ivan Bagaturia';
+
   // Version des Werkzeugs, wie sie im PDF-Dateinamen und auf dem Titelblatt
   // des Exports erscheint. Hier, weil format.js als erstes Modul laedt und
   // sowohl js/app.js (Dateiname) als auch js/ui/print.js (Titelblatt) sie
   // brauchen. Bei inhaltlichen Aenderungen am Export hochzaehlen — zwei
   // Studien mit verschiedenen Zahlen duerfen nicht denselben Namen tragen.
-  window.MachbarkeitTool.WERKZEUG_VERSION = 'v1.0';
+  // v1.1: Umbau auf A4 quer, neue Blattfolge (Verkaufsdokument), Bookmarks.
+  window.MachbarkeitTool.WERKZEUG_VERSION = 'v1.1';
 
   // Every user- and API-sourced string passes through here before innerHTML.
   // Escapes the single quote too, so a value is safe in a single-quoted

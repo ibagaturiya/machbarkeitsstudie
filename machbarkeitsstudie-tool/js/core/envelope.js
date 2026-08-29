@@ -17,6 +17,31 @@
 window.MachbarkeitTool = window.MachbarkeitTool || {};
 
 (function () {
+  // Die Zahlen jeder Geschossvariante — EINMAL gerechnet, konsumiert von den
+  // Varianten-Karten am Bildschirm (js/app.js) UND vom Variantenblock des
+  // PDF-Exports (js/ui/print.js). Dieselbe Arithmetik zweimal zu führen ist
+  // die Driftklasse, vor der CLAUDE.md §1 warnt. AZ wird nur von den
+  // Vollgeschossen verbraucht (§ 255 Abs. 2/3 PBG), deshalb teilt `plateM2`
+  // durch `ordinary`, nie durch die Gesamtgeschosszahl.
+  function storeyVariantData(mm, reconciled) {
+    if (!mm || !mm.storeyOptions || mm.storeyOptions.length < 2) return [];
+    return mm.storeyOptions.map((n) => {
+      const ordinary = Math.min(n, mm.ordinaryMax);
+      const attika = Math.max(0, n - mm.ordinaryMax);
+      const plateM2 = Math.min(reconciled.maxGfaM2, reconciled.usableFootprintAreaM2 * ordinary) / ordinary;
+      const coveragePct = plateM2 / reconciled.parcelAreaM2 * 100;
+      // Ob eine Attika das 45°-Profil überlebt, ist nur für die tatsächlich
+      // gebaute Option bekannt (ihr Fussabdruck entscheidet) — deshalb trägt
+      // nur die gewählte Karte das Verdikt.
+      const suppressed = !!mm.attikaSuppressed && n === mm.requestedStoreys;
+      const heightM = ordinary * mm.ordinaryStoreyHeightM
+        + (suppressed ? 0 : attika) * mm.attikaStoreyHeightM;
+      const active = n === (mm.requestedStoreys != null ? mm.requestedStoreys : mm.storeys);
+      return { n, ordinary, attika, plateM2, coveragePct, heightM, suppressed, active };
+    });
+  }
+  window.MachbarkeitTool.storeyVariantData = storeyVariantData;
+
   // parcelAreaM2:         raw merged geometry area.
   // anrechenbareFlaecheM2: reference area per § 255/259 PBG — parcel area minus
   //   the deductions in `flaechenAbzuege` (forest, water, non-Bauzone parts).

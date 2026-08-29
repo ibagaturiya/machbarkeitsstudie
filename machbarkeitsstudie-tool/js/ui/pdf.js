@@ -1,4 +1,4 @@
-// pdf.js — schreibt aus den fertigen A3-Blättern eine echte PDF-Datei und
+// pdf.js — schreibt aus den fertigen A4-Blättern eine echte PDF-Datei und
 // öffnet sie in einem eigenen Tab im PDF-Viewer des Browsers. Ohne
 // Druckdialog: ein Klick, die Studie steht im Viewer, und dessen eigene
 // Leiste hat den Download-Pfeil, die Suche und die Seitenzahlen.
@@ -38,12 +38,13 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
 (function () {
   const T = window.MachbarkeitTool;
 
-  // A3 quer in PDF-Punkten (1 pt = 1/72 Zoll). Exakte Literale aus
-  // 420 mm bzw. 297 mm — nicht gerundet, sonst driftet das Seitenformat.
-  const A3_LANDSCAPE_PT = { w: (420 / 25.4) * 72, h: (297 / 25.4) * 72 };
-  // 2× CSS-Pixel ≈ 192 dpi. Bei 3× wird die Datei drei- bis viermal so gross,
-  // ohne dass man auf Papier etwas sieht.
-  const RASTER_SCALE = 2;
+  // A4 quer in PDF-Punkten (1 pt = 1/72 Zoll). Exakte Literale aus
+  // 297 mm bzw. 210 mm — nicht gerundet, sonst driftet das Seitenformat.
+  const A4_LANDSCAPE_PT = { w: (297 / 25.4) * 72, h: (210 / 25.4) * 72 };
+  // 2.5× CSS-Pixel ≈ 240 dpi — die Seite ist halb so gross wie das frühere
+  // A3, feine Katasterlinien brauchen die höhere Dichte; die Dateigrösse
+  // bleibt dank halber Fläche etwa gleich.
+  const RASTER_SCALE = 2.5;
   const JPEG_QUALITY = 0.85;
 
   // ---- öffentlicher Einstieg ---------------------------------------------
@@ -63,10 +64,11 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   // hineinnavigiert.
   //
   // tab — das bereits geöffnete Fenster (oder null, wenn blockiert)
-  async function openSheetsAsPdf(tab, host, filename, onProgress) {
+  // meta — { author, subject, keywords } für das Info-Wörterbuch der PDF.
+  async function openSheetsAsPdf(tab, host, filename, meta, onProgress) {
     let blob;
     try {
-      blob = await buildSheetsPdf(host, filename, onProgress);
+      blob = await buildSheetsPdf(host, filename, meta, onProgress);
     } catch (e) {
       if (tab && !tab.closed) tab.close();
       throw e;
@@ -96,7 +98,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       `font:15px/1.6 -apple-system,"Helvetica Neue",Arial,sans-serif;background:#2b2b2e;color:#cfcabf}` +
       `div{text-align:center}b{display:block;font-size:17px;color:#fff;margin-bottom:.4rem}` +
       `</style></head><body><div><b>Die Studie wird gesetzt …</b>` +
-      `Die A3-Blätter werden gerendert. Das dauert einige Sekunden;` +
+      `Die Blätter werden gerendert. Das dauert einige Sekunden;` +
       `<br>dieser Tab füllt sich von selbst.</div></body></html>`
     );
     tab.document.close();
@@ -106,11 +108,27 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   // host      — das #print-doc-Element mit den fertigen .sheet-Kindern
   // filename  — Dateiname ohne Endung
   // onProgress(i, n) — für die Fortschrittsanzeige am Knopf
-  async function buildSheetsPdf(host, filename, onProgress) {
+  async function buildSheetsPdf(host, filename, meta, onProgress) {
     const sheets = [...host.querySelectorAll('.sheet')];
     if (!sheets.length) throw new Error('Kein Export-Dokument vorhanden.');
 
-    const css = collectCss();
+    // Bookmarks aus den Blättern selbst: jedes nummerierte Blatt wird ein
+    // Eintrag, Fortsetzungsblätter zählen zum Eintrag ihres Themas, die
+    // Anhangs-Blätter (A.*) sammeln sich unter einem Knoten «Anhang».
+    const bookmarks = [];
+    sheets.forEach((sh, i) => {
+      if (sh.dataset.continuation) return;
+      const t = sh.dataset.outlineTitle
+        || (sh.querySelector('h2, h1') || {}).textContent || `Seite ${i + 1}`;
+      const num = sh.dataset.outlineNum || '';
+      bookmarks.push({
+        title: num ? `${num} · ${t}` : t,
+        pageIndex: i,
+        appendix: num.startsWith('A.'),
+      });
+    });
+
+    const css = (await fontFaceCssAsDataUris()) + '\n' + collectCss();
     const pages = [];
     const problems = [];
     for (let i = 0; i < sheets.length; i++) {
@@ -122,7 +140,8 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     }
     if (onProgress) onProgress(sheets.length, sheets.length);
 
-    const blob = buildPdfBlob(pages, A3_LANDSCAPE_PT.w, A3_LANDSCAPE_PT.h, filename);
+    const blob = buildPdfBlob(pages, A4_LANDSCAPE_PT.w, A4_LANDSCAPE_PT.h, filename,
+      { ...(meta || {}), bookmarks });
     blob.__pages = pages.length;
     blob.__problems = problems;
     return blob;
@@ -130,13 +149,52 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
 
   // ---- Blatt → JPEG ------------------------------------------------------
 
+  // Die @font-face-Regeln mit den woff2-Dateien als data:-URIs. Nötig, weil
+  // ein als <img> geladenes SVG ein eigenständiges Dokument ist, das KEINE
+  // Subresourcen nachlädt — die Datei-URLs aus vendor/fonts/fonts.css laufen
+  // im foreignObject ins Leere, und die Blätter fielen still auf die
+  // Systemschrift zurück. Einmal geholt, dann modulweit gecacht.
+  let fontCssPromise = null;
+  function fontFaceCssAsDataUris() {
+    if (fontCssPromise) return fontCssPromise;
+    fontCssPromise = (async () => {
+      const sheet = [...document.styleSheets].find((s) => s.href && s.href.includes('fonts.css'));
+      if (!sheet) return '';
+      const base = sheet.href;
+      const parts = [];
+      for (const rule of sheet.cssRules) {
+        if (!(rule instanceof CSSFontFaceRule)) continue;
+        const m = rule.cssText.match(/url\((["']?)([^"')]+)\1\)/);
+        if (!m) continue;
+        try {
+          const abs = new URL(m[2], base).href;
+          const buf = await (await fetch(abs)).arrayBuffer();
+          let bin = '';
+          const bytes = new Uint8Array(buf);
+          for (let i = 0; i < bytes.length; i += 0x8000) {
+            bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+          }
+          parts.push(rule.cssText.replace(m[0], `url(data:font/woff2;base64,${btoa(bin)})`));
+        } catch { /* eine fehlende Fontdatei bricht den Export nicht */ }
+      }
+      return parts.join('\n');
+    })();
+    return fontCssPromise;
+  }
+
   // Alle Regeln aller Stylesheets als Text. Ein <link>-Stylesheet gleicher
   // Herkunft lässt sich auslesen; sollte eines je fremd sein, wirft der
   // Zugriff auf cssRules — dann lieber diese eine Datei überspringen als den
-  // Export abbrechen.
+  // Export abbrechen. @font-face-Regeln werden ÜBERSPRUNGEN: ihre Datei-URLs
+  // laden im SVG-Bild ohnehin nicht, und sie dürfen nicht mit den
+  // data:-URI-Fassungen aus fontFaceCssAsDataUris() konkurrieren.
   function collectCss() {
     return [...document.styleSheets].map((s) => {
-      try { return [...s.cssRules].map((r) => r.cssText).join('\n'); }
+      try {
+        return [...s.cssRules]
+          .filter((r) => !(r instanceof CSSFontFaceRule))
+          .map((r) => r.cssText).join('\n');
+      }
       catch { return ''; }
     }).join('\n');
   }
@@ -322,7 +380,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   // Die xref-Tabelle nennt Byte-Offsets, deshalb wird die Datei als Folge
   // von Uint8Arrays zusammengesetzt und die Länge in BYTES mitgezählt —
   // String.length wäre bei den JPEG-Daten schlicht falsch.
-  function buildPdfBlob(pages, pageW, pageH, title) {
+  function buildPdfBlob(pages, pageW, pageH, title, meta) {
     const enc = new TextEncoder();
     const chunks = [];
     let length = 0;
@@ -336,12 +394,28 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     const beginObject = (num) => { offsets[num] = length; push(`${num} 0 obj\n`); };
 
     // Objektnummern vorab vergeben: 1 Katalog, 2 Seitenbaum, 3 Info,
-    // danach je Seite Seite/Inhalt/Bild.
+    // danach je Seite Seite/Inhalt/Bild — und ANS ENDE die Outline-Objekte,
+    // deren Nummern sich aus der Seitenzahl ergeben und deshalb schon beim
+    // Schreiben des Katalogs bekannt sind.
     const CATALOG = 1, PAGES = 2, INFO = 3;
     const pageObjNum = (i) => 4 + i * 3;
     const contentObjNum = (i) => 5 + i * 3;
     const imageObjNum = (i) => 6 + i * 3;
-    const totalObjects = 3 + pages.length * 3;
+    const baseObjects = 3 + pages.length * 3;
+
+    // Bookmarks: Hauptblätter als oberste Ebene, die Anhangs-Blätter als
+    // Kinder eines eingeklappten «Anhang»-Knotens.
+    const bm = (meta && meta.bookmarks) || [];
+    const tops = bm.filter((b) => !b.appendix);
+    const apps = bm.filter((b) => b.appendix);
+    const hasOutline = bm.length > 0;
+    const OUTLINE_ROOT = baseObjects + 1;
+    const topIds = tops.map((_, k) => OUTLINE_ROOT + 1 + k);
+    const appNodeId = apps.length ? OUTLINE_ROOT + 1 + tops.length : null;
+    const appIds = apps.map((_, k) => appNodeId + 1 + k);
+    const totalObjects = hasOutline
+      ? baseObjects + 1 + tops.length + (apps.length ? 1 + apps.length : 0)
+      : baseObjects;
 
     push('%PDF-1.4\n');
     // Binär-Kommentar: sagt jedem Werkzeug, dass die Datei binäre Ströme
@@ -349,7 +423,9 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     push(new Uint8Array([0x25, 0xE2, 0xE3, 0xCF, 0xD3, 0x0A]));
 
     beginObject(CATALOG);
-    push(`<< /Type /Catalog /Pages ${PAGES} 0 R >>\nendobj\n`);
+    push(`<< /Type /Catalog /Pages ${PAGES} 0 R` +
+      (hasOutline ? ` /Outlines ${OUTLINE_ROOT} 0 R /PageMode /UseOutlines` : '') +
+      ` >>\nendobj\n`);
 
     beginObject(PAGES);
     push(`<< /Type /Pages /Count ${pages.length} /Kids [` +
@@ -357,6 +433,9 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
 
     beginObject(INFO);
     push(`<< /Title ${pdfTextString(title)} /Producer ${pdfTextString('Machbarkeitsstudie-Werkzeug')} ` +
+      (meta && meta.author ? `/Author ${pdfTextString(meta.author)} ` : '') +
+      (meta && meta.subject ? `/Subject ${pdfTextString(meta.subject)} ` : '') +
+      (meta && meta.keywords ? `/Keywords ${pdfTextString(meta.keywords)} ` : '') +
       `/CreationDate (${pdfDate(new Date())}) >>\nendobj\n`);
 
     const w = pageW.toFixed(4), h = pageH.toFixed(4);
@@ -378,6 +457,40 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       push(page.jpeg);
       push('\nendstream\nendobj\n');
     });
+
+    // ---- Outline-Objekte -------------------------------------------------
+    // /Dest [Seite /XYZ 0 <Seitenhöhe> null]: springt an den Seitenanfang.
+    if (hasOutline) {
+      const destOf = (b) => `[${pageObjNum(b.pageIndex)} 0 R /XYZ 0 ${h} null]`;
+      const topSiblings = [...topIds, ...(appNodeId ? [appNodeId] : [])];
+      beginObject(OUTLINE_ROOT);
+      push(`<< /Type /Outlines /First ${topSiblings[0]} 0 R /Last ${topSiblings[topSiblings.length - 1]} 0 R ` +
+        `/Count ${topSiblings.length} >>\nendobj\n`);
+      tops.forEach((b, k) => {
+        const id = topIds[k];
+        const prev = k > 0 ? topIds[k - 1] : null;
+        const next = k < topIds.length - 1 ? topIds[k + 1] : (appNodeId || null);
+        beginObject(id);
+        push(`<< /Title ${pdfTextString(b.title)} /Parent ${OUTLINE_ROOT} 0 R` +
+          (prev ? ` /Prev ${prev} 0 R` : '') + (next ? ` /Next ${next} 0 R` : '') +
+          ` /Dest ${destOf(b)} >>\nendobj\n`);
+      });
+      if (appNodeId) {
+        beginObject(appNodeId);
+        // Negativer /Count: der Anhang startet eingeklappt.
+        push(`<< /Title ${pdfTextString('Anhang')} /Parent ${OUTLINE_ROOT} 0 R` +
+          (topIds.length ? ` /Prev ${topIds[topIds.length - 1]} 0 R` : '') +
+          ` /First ${appIds[0]} 0 R /Last ${appIds[appIds.length - 1]} 0 R /Count -${apps.length}` +
+          ` /Dest ${destOf(apps[0])} >>\nendobj\n`);
+        apps.forEach((b, k) => {
+          beginObject(appIds[k]);
+          push(`<< /Title ${pdfTextString(b.title)} /Parent ${appNodeId} 0 R` +
+            (k > 0 ? ` /Prev ${appIds[k - 1]} 0 R` : '') +
+            (k < appIds.length - 1 ? ` /Next ${appIds[k + 1]} 0 R` : '') +
+            ` /Dest ${destOf(b)} >>\nendobj\n`);
+        });
+      }
+    }
 
     const xrefOffset = length;
     let xref = `xref\n0 ${totalObjects + 1}\n0000000000 65535 f \n`;

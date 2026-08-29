@@ -156,7 +156,16 @@
       // auf Fortsetzungsblätter umzubrechen — ohne Layout misst es null.
       printDocEl.classList.add('exporting');
       if (!(await composePrintDoc())) throw new Error('Keine Analyse vorhanden.');
-      const res = await T.openSheetsAsPdf(tab, printDocEl, filename, (i, n) => {
+      // Metadaten der Datei: wer im Viewer «Dokumentinfo» öffnet oder die
+      // Datei indexiert, sieht Autor, Gegenstand und Suchbegriffe.
+      const lr = lastResult;
+      const meta = lr ? {
+        author: T.ABSENDER,
+        subject: `Baurechtliche Machbarkeitsstudie ${lr.anchor.address || lr.selection.map((p) => `Parzelle ${p.parcelNumber}`).join(' + ')}`,
+        keywords: [lr.rules.gemeinde, ...lr.selection.map((p) => `Parzelle ${p.parcelNumber}`),
+          `Zone ${lr.anchor.zone}`, ...lr.selection.map((p) => p.egrid)].join(', '),
+      } : { author: T.ABSENDER };
+      const res = await T.openSheetsAsPdf(tab, printDocEl, filename, meta, (i, n) => {
         previewPdfBtn.textContent = i < n ? `Blatt ${i + 1} von ${n} …` : 'PDF wird geschrieben …';
       });
       if (res.blocked) {
@@ -1954,30 +1963,19 @@
     // Zonenmaximum ist gleich zulaessig -- nur die Ueberbauung unterscheidet
     // sich. Deshalb steht die Reihe unter dem Modell, das sich beim Klick
     // aendert, und nicht in der Zahlentafel, die Ergebnisse zeigt.
-    if (mm && mm.storeyOptions.length > 1) {
-      variantsEl.innerHTML = mm.storeyOptions.map((n) => {
-        const ordinary = Math.min(n, mm.ordinaryMax);
-        const attika = Math.max(0, n - mm.ordinaryMax);
-        // Same arithmetic buildMassingModel does for the chosen option: the
-        // AZ is spent by the ORDINARY storeys only (§ 255 Abs. 2/3 PBG).
-        // Dividing the permitted GFA by the TOTAL storey count sold the
-        // Attika variant short -- the card advertised 74.3 m² je Geschoss
-        // for a building the tool then drew with 111.5 m² plates.
-        const plate = Math.min(reconciled.maxGfaM2, reconciled.usableFootprintAreaM2 * ordinary) / ordinary;
-        const cov = plate / reconciled.parcelAreaM2 * 100;
-        // Whether an Attika survives the 45° profile is only known for the
-        // option that was actually built (its footprint decides it), so the
-        // active card is the one that can carry the verdict.
-        const suppressedHere = !!mm.attikaSuppressed && n === mm.requestedStoreys;
-        const heightM = ordinary * mm.ordinaryStoreyHeightM
-          + (suppressedHere ? 0 : attika) * mm.attikaStoreyHeightM;
-        const active = n === (mm.requestedStoreys != null ? mm.requestedStoreys : mm.storeys);
-        return `<button type="button" class="variant${active ? ' active' : ''}${suppressedHere ? ' unavailable' : ''}" data-storeys="${n}"`
-          + ` title="${esc(suppressedHere ? `${attikaSuppressReason(mm)} — gerechnet mit ${storeyCountLabel(ordinary, 0)}` : 'Freie Entwurfsentscheidung — die Ausnützungsziffer begrenzt die Geschossfläche, nicht die Geschosszahl.')}">`
-          + `<span class="n">${esc(storeyCountLabel(ordinary, attika))}</span>`
+    // Die Zahlen je Variante kommen aus T.storeyVariantData (js/core/
+    // envelope.js) — dieselbe Quelle, aus der auch der PDF-Export seine
+    // Variantenreihe baut. AZ wird nur von den Vollgeschossen verbraucht
+    // (§ 255 Abs. 2/3 PBG); die Arithmetik steht dort, nicht hier.
+    const variantData = T.storeyVariantData(mm, reconciled);
+    if (variantData.length) {
+      variantsEl.innerHTML = variantData.map((v) => {
+        return `<button type="button" class="variant${v.active ? ' active' : ''}${v.suppressed ? ' unavailable' : ''}" data-storeys="${v.n}"`
+          + ` title="${esc(v.suppressed ? `${attikaSuppressReason(mm)} — gerechnet mit ${storeyCountLabel(v.ordinary, 0)}` : 'Freie Entwurfsentscheidung — die Ausnützungsziffer begrenzt die Geschossfläche, nicht die Geschosszahl.')}">`
+          + `<span class="n">${esc(storeyCountLabel(v.ordinary, v.attika))}</span>`
           // Der gesperrten Karte gehoert ihre Begruendung, nicht dieselben
           // Zahlen wie der Nachbarkarte — die erklaeren das Verbot nicht.
-          + `<span class="d">${esc(suppressedHere ? attikaSuppressShort(mm) : `${fmt(plate)} m²/G · ${fmt(cov, 0)} % üb. · ${fmt(heightM)} m`)}</span>`
+          + `<span class="d">${esc(v.suppressed ? attikaSuppressShort(mm) : `${fmt(v.plateM2)} m²/G · ${fmt(v.coveragePct, 0)} % üb. · ${fmt(v.heightM)} m`)}</span>`
           + `</button>`;
       }).join('');
       variantsEl.querySelectorAll('.variant').forEach((btn) => btn.addEventListener('click', () => {
