@@ -1,0 +1,46 @@
+/* Snap-in — spring overshoot entrance (easeOutBack)
+   Blocks start 6% oversized + invisible, settle just past the target, land at 1.
+   Duration 1.5s, blocks stagger 0.27s apart, as in the Machbarkeitsstudie mock. */
+
+@keyframes snap {
+  0%   { opacity: 0; transform: scale(1.06); }
+  60%  { opacity: 1; transform: scale(.995); }
+  100% { opacity: 1; transform: none; }
+}
+
+.snap-in {
+  animation: snap 1.5s cubic-bezier(.34, 1.56, .44, 1) both;
+}
+
+/* Stagger: put data-step="0,1,2,…" on the blocks, in the order they should appear. */
+.snap-in { animation-delay: calc(0.27s * var(--step, 0)); }
+.snap-in[data-step="1"] { --step: 1 }
+.snap-in[data-step="2"] { --step: 2 }
+.snap-in[data-step="3"] { --step: 3 }
+.snap-in[data-step="4"] { --step: 4 }
+.snap-in[data-step="5"] { --step: 5 }
+.snap-in[data-step="6"] { --step: 6 }
+.snap-in[data-step="7"] { --step: 7 }
+.snap-in[data-step="8"] { --step: 8 }
+
+@media (prefers-reduced-motion: reduce) {
+  .snap-in { animation: none; }
+}
+
+/* ---------------------------------------------------------------
+   HTML
+   <div class="snap-in" data-step="0">…</div>
+   <div class="snap-in" data-step="1">…</div>
+
+   Trigger on scroll instead of page load — add .snap-in only when
+   the element enters the viewport:
+
+   const io = new IntersectionObserver((entries) => {
+     entries.forEach((e, i) => {
+       if (!e.isIntersecting) return;
+       e.target.classList.add('snap-in');
+       io.unobserve(e.target);
+     });
+   }, { threshold: 0.15 });
+   document.querySelectorAll('[data-step]').forEach(el => io.observe(el));
+   --------------------------------------------------------------- */
