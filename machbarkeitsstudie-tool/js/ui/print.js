@@ -499,7 +499,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
           </div>
           <ul class="args">${args.map((a) => `<li>${esc(a)}</li>`).join('')}</ul>
         </div>
-        <div>${mapBlock(rings, centerE, centerN, wideSpan, ['cadastre'], null, 900, 760)}
+        <div>${mapBlock(rings, centerE, centerN, wideSpan, ['cadastre'], null, 900, 540)}
           <div class="caption">Situationsplan — ${multi ? 'gewählte Parzellen' : 'Parzelle'} rot markiert. Amtliche Vermessung (swisstopo / Kantone).</div>
           <div class="toc">
             ${tocEntries.map(([n, t]) => `<div class="toc-row" data-toc-for="${esc(n)}"><span class="t-num">${esc(n)}</span><span class="t-title">${esc(t)}</span><span class="t-page"></span></div>`).join('')}

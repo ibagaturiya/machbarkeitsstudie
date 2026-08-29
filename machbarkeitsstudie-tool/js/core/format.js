@@ -22,7 +22,8 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   // brauchen. Bei inhaltlichen Aenderungen am Export hochzaehlen — zwei
   // Studien mit verschiedenen Zahlen duerfen nicht denselben Namen tragen.
   // v1.1: Umbau auf A4 quer, neue Blattfolge (Verkaufsdokument), Bookmarks.
-  window.MachbarkeitTool.WERKZEUG_VERSION = 'v1.1';
+  // v1.2: Vektor-Satz — waehlbarer Text statt Seiten-JPEGs.
+  window.MachbarkeitTool.WERKZEUG_VERSION = 'v1.2';
 
   // Every user- and API-sourced string passes through here before innerHTML.
   // Escapes the single quote too, so a value is safe in a single-quoted
