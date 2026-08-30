@@ -1641,7 +1641,8 @@
       (pk.wohnungenHergeleitet ? ` <span class="assumption">hergeleitet</span>` : '') + `</div>` +
       `<table class="numbers">${rows.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('')}</table>` +
       (pk.bindet ? `<div class="flag flag-binding">⚠ Die Parkierung bindet, nicht die Ausnützungsziffer.</div>` : '') +
-      pk.hinweise.map((h) => `<div class="flag">⚠ ${esc(h)}</div>`).join('');
+      [...(pk.bindendHinweis ? [pk.bindendHinweis] : []), ...pk.hinweise]
+        .map((h) => `<div class="flag">⚠ ${esc(h)}</div>`).join('');
     wireProvButtons(parkierungEl);
     const wi = document.getElementById('wohnungen-input');
     if (wi) {
@@ -2113,13 +2114,16 @@
     // eine Studie, die eine bindende Einschraenkung nur am Bildschirm zeigt,
     // ist auf Papier falsch.
     const pkFlag = r.parkierung;
+    const parkierungFlags = [];
     if (pkFlag && !pkFlag.erfasst) {
-      flags.push(`Parkierung nicht prüfbar: ${pkFlag.grund} § 242 PBG überlässt die Zahl der Abstellplätze der BZO — hier wurde nichts gerechnet und nichts geschätzt.`);
+      parkierungFlags.push(`Parkierung nicht prüfbar: ${pkFlag.grund} § 242 PBG überlässt die Zahl der Abstellplätze der BZO — hier wurde nichts gerechnet und nichts geschätzt.`);
     } else if (pkFlag && pkFlag.bindet) {
-      flags.push(`Parkierung bindet: ${pkFlag.totalP} Pflichtplätze (${pkFlag.artikel}). Unter dem Baukörper (${fmt(pkFlag.fussabdruckM2, 0)} m²) fasst ein Untergeschoss rund ${pkFlag.plaetzeJeUgGeschoss} Plätze und trägt damit ${fmt(pkFlag.gnfAusEinemUgM2, 0)} m² Geschossfläche — gerechnet sind ${fmt(pkFlag.gnfM2, 0)} m². Nötig sind ${pkFlag.ugGeschosseNoetig} Untergeschosse, eine über den Baukörper hinausreichende Tiefgarage oder weniger Geschossfläche. Fläche je Platz ist eine Werkzeug-Annahme.`);
+      parkierungFlags.push(`Parkierung bindet: ${pkFlag.totalP} Pflichtplätze (${pkFlag.artikel}). Unter dem Baukörper (${fmt(pkFlag.fussabdruckM2, 0)} m²) fasst ein Untergeschoss rund ${pkFlag.plaetzeJeUgGeschoss} Plätze und trägt damit ${fmt(pkFlag.gnfAusEinemUgM2, 0)} m² Geschossfläche — gerechnet sind ${fmt(pkFlag.gnfM2, 0)} m². Nötig sind ${pkFlag.ugGeschosseNoetig} Untergeschosse, eine über den Baukörper hinausreichende Tiefgarage oder weniger Geschossfläche. Fläche je Platz ist eine Werkzeug-Annahme.`);
     } else if (pkFlag && !pkFlag.oberirdischPasst) {
-      flags.push(`Parkierung: die ${pkFlag.besucherP} Besucherplätze brauchen rund ${fmt(pkFlag.oberirdischBedarfM2, 0)} m² oberirdisch, frei sind ${fmt(pkFlag.freiflaecheM2, 0)} m².`);
+      parkierungFlags.push(`Parkierung: die ${pkFlag.besucherP} Besucherplätze brauchen rund ${fmt(pkFlag.oberirdischBedarfM2, 0)} m² oberirdisch, frei sind ${fmt(pkFlag.freiflaecheM2, 0)} m².`);
     }
+    flags.push(...parkierungFlags);
+    r.parkierungFlags = parkierungFlags;
     flagsEl.innerHTML = flags.map((f) => `<div class="flag">⚠ ${f}</div>`).join('');
     lastResult = r;
     lastFlags = flags;

@@ -137,8 +137,15 @@ function check(name, actual, expected, tol = 0.01) {
   const eng = T.computeParkierung({ rules: zumikon, gnfM2: 1600, fussabdruckM2: 300, parzelleM2: 1000, wohnungen: 16 });
   check('bei 1600 m² GNF bindet die Parkierung', eng.bindet, true);
   check('zwei Untergeschosse noetig', eng.ugGeschosseNoetig, 2);
-  check('der bindende Fall wird auch als Hinweis gesagt',
-    eng.hinweise.some((h) => h.startsWith('Bindend:')), true);
+  // Der bindende Fall muss in Worten dastehen, nicht nur als Boolean --
+  // seit dem Export-Aufraeumen in einem eigenen Feld: das Parkierungsblatt
+  // sagt ihn schon als Verdict-Kachel, der Bildschirm setzt bindendHinweis
+  // wieder vorne an die Hinweisliste (js/app.js, js/ui/print.js).
+  check('der bindende Fall wird auch in Worten gesagt',
+    (eng.bindendHinweis || '').startsWith('Bindend:'), true);
+  check('und steht nicht zusaetzlich in hinweise',
+    eng.hinweise.some((h) => h.startsWith('Bindend:')), false);
+  check('der nicht bindende Fall hat keinen bindendHinweis', a.bindendHinweis, null);
 
   // Zuerich: die Vorschrift EXISTIERT, steht aber nicht im hinterlegten PDF.
   // Das ist NICHT dasselbe wie null ("gibt es hier nicht") und darf nie als
