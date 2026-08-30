@@ -5,7 +5,7 @@
 //
 // Seit v1.2 werden die Seiten als VEKTOR-TEXT gesetzt (buildVectorPage):
 // das gerenderte DOM ist die Layout-Engine — Zeilenkästen per Range-API
-// ausgelesen, jeder Run als positionierter Base-14-Helvetica/Courier-Text
+// ausgelesen, jeder Run als positionierter Base-14-Courier-Text
 // geschrieben, Laufweite per Tz exakt auf das gemessene Kästchen gestellt;
 // Flächen und Linien kommen aus den computed styles, Karten/3D/Grundriss
 // bleiben eingebettete JPEGs. Ergebnis: wählbarer, durchsuchbarer Text und
@@ -63,11 +63,20 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   // Rasterung zurueck und der Export meldet es — das ist die Rueckfallebene.
   const VECTOR_EXPORT = true;
 
-  // Base-14-Schriften: kein Font-Embedding (die vendored Archivo/Plex liegen
-  // als woff2/Brotli vor — ein Decompressor plus Subsetting waere neuer
-  // Fremdcode). Helvetica steht der Grotesk Archivo nahe genug; Mono-Spalten
-  // werden Courier. Die Laufweite wird je Zeile exakt auf das im Browser
-  // gemessene Kaestchen gestellt (Tz), deshalb fluchten die Zahlenspalten.
+  // Base-14-Schriften: kein Font-Embedding (eine mitgelieferte woff2 laege
+  // Brotli-komprimiert vor — ein Decompressor plus Subsetting waere neuer
+  // Fremdcode).
+  //
+  // Seit das Dokument durchgehend in Menlo gesetzt ist, greift unten IMMER
+  // der Mono-Zweig: Courier ist die einzige Monospace unter den Base-14.
+  // Courier ist deutlich schmaler als Menlo — das faellt aber nicht auf,
+  // weil die Laufweite je Zeile per Tz exakt auf das im Browser gemessene
+  // Kaestchen gestellt wird. Gesetzt wird also Courier in Menlo-Breite, und
+  // die Zahlenspalten fluchten weiterhin.
+  //
+  // Die Helvetica-Eintraege bleiben stehen: sie kosten nichts (nur ein
+  // Katalogeintrag) und der Zweig lebt wieder auf, sobald irgendwo eine
+  // proportionale Schrift gesetzt wird.
   const PDF_FONTS = {
     HELV:    { res: 'F1', ps: 'Helvetica' },
     HELV_B:  { res: 'F2', ps: 'Helvetica-Bold' },
@@ -354,7 +363,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       `<!doctype html><html lang="de"><head><meta charset="utf-8">` +
       `<title>${title}</title><style>` +
       `body{margin:0;height:100vh;display:flex;align-items:center;justify-content:center;` +
-      `font:15px/1.6 -apple-system,"Helvetica Neue",Arial,sans-serif;background:#2b2b2e;color:#cfcabf}` +
+      `font:15px/1.6 -apple-system,"Helvetica Neue",Arial,sans-serif;background:#2b2b2e;color:#c9c9c9}` +
       `div{text-align:center}b{display:block;font-size:17px;color:#fff;margin-bottom:.4rem}` +
       `</style></head><body><div><b>Die Studie wird gesetzt …</b>` +
       `Die Blätter werden gerendert. Das dauert einige Sekunden;` +

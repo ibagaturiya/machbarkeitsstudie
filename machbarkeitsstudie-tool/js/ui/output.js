@@ -58,7 +58,29 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   // code (typ_zh_code): C11xx/C12xx Wohnzonen, C13xx Kern-/Zentrumszonen,
   // C14xx-C15xx Arbeiten, C16xx öffentliche Bauten, C3xxx Freihalte-/
   // Erholungszonen, C4401 Wald, C41xx Landwirtschaft.
-  function zoneColor(props) {
+  //
+  // `mono` setzt denselben Plan in Graustufen — das Exportdokument ist
+  // farblos, der Bildschirm nicht. Die Staffel folgt derselben Ordnung wie
+  // die Farbfassung: Wohnzonen dunkler mit mehr Vollgeschossen, Wald am
+  // dunkelsten (staerkste Einschraenkung), alles Uebrige heller im
+  // Hintergrund. Welche Zone es ist, steht ohnehin als Kuerzel IM Feld
+  // (typ_gde_abkuerzung) — der Ton ordnet, er benennt nicht.
+  function zoneColor(props, mono) {
+    if (mono) {
+      const code = String(props.typ_zh_code || '');
+      const floors = props.vollgeschosse_max;
+      if (code.startsWith('C11') || code.startsWith('C12')) {
+        const g = ['#d8d8d8', '#cdcdcd', '#c2c2c2', '#b7b7b7', '#ababab', '#9e9e9e', '#8e8e8e'];
+        return g[Math.min(Math.max((floors || 2) - 1, 0), g.length - 1)];
+      }
+      if (code.startsWith('C13')) return '#c0c0c0';
+      if (code.startsWith('C14') || code.startsWith('C15')) return '#cacaca';
+      if (code.startsWith('C16')) return '#d4d4d4';
+      if (code === 'C4401') return '#6f6f6f';
+      if (code.startsWith('C31') || code.startsWith('C32')) return '#e2e2e2';
+      if (code.startsWith('C41')) return '#ececec';
+      return '#f4f4f4';
+    }
     const code = String(props.typ_zh_code || '');
     const floors = props.vollgeschosse_max;
     if (code.startsWith('C11') || code.startsWith('C12')) {
@@ -75,7 +97,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     return '#ededed';                                          // nicht zugewiesen / übrige
   }
 
-  function buildZonePlanSvg(features, bbox, widthPx, heightPx) {
+  function buildZonePlanSvg(features, bbox, widthPx, heightPx, mono) {
     const [minE, minN, maxE, maxN] = bbox;
     const px = ([e, n]) => [
       ((e - minE) / (maxE - minE)) * widthPx,
@@ -85,7 +107,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     const labels = [];
     for (const f of features) {
       const polys = f.geometry.type === 'Polygon' ? [f.geometry.coordinates] : f.geometry.coordinates;
-      const fill = zoneColor(f.properties);
+      const fill = zoneColor(f.properties, mono);
       for (const rings of polys) {
         const d = rings.map((ring) => 'M' + ring.map((c) => px(c).map((v) => v.toFixed(1)).join(',')).join('L') + 'Z').join(' ');
         parts.push(`<path d="${d}" fill="${fill}" fill-rule="evenodd" stroke="#8d8d8d" stroke-width="1"/>`);
@@ -131,16 +153,25 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   // single-parcel case passes one ring; Arealüberbauung passes one per
   // selected parcel, so each stays individually outlined on the zoning
   // excerpt rather than being merged into an indistinct blob.
-  function buildParcelOverlaySvg(rings, bbox, widthPx, heightPx) {
+  function buildParcelOverlaySvg(rings, bbox, widthPx, heightPx, mono) {
     const [minE, minN, maxE, maxN] = bbox;
     const toPixel = ([e, n]) => {
       const x = ((e - minE) / (maxE - minE)) * widthPx;
       const y = heightPx - ((n - minN) / (maxN - minN)) * heightPx;
       return `${x.toFixed(1)},${y.toFixed(1)}`;
     };
-    const polygons = rings
-      .map((ring) => `<polygon points="${ring.map(toPixel).join(' ')}" fill="rgba(255,0,0,0.15)" stroke="red" stroke-width="3" />`)
-      .join('');
+    // Farbfassung: ein roter Umriss, der auf hellem wie dunklem Grund auffaellt.
+    // Graufassung (Export): das kann ein einzelner Grauton nicht, also uebernimmt
+    // ein heller Saum um einen dunklen Kern — die uebliche Loesung der
+    // Kartografie, wenn eine Linie ueber wechselndem Untergrund lesbar bleiben muss.
+    const polygons = rings.map((ring) => {
+      const pts = ring.map(toPixel).join(' ');
+      if (!mono) {
+        return `<polygon points="${pts}" fill="rgba(255,0,0,0.15)" stroke="red" stroke-width="3" />`;
+      }
+      return `<polygon points="${pts}" fill="rgba(255,255,255,0.14)" stroke="#ffffff" stroke-width="5.5" stroke-linejoin="round" />`
+        + `<polygon points="${pts}" fill="none" stroke="#111111" stroke-width="2.4" stroke-linejoin="round" />`;
+    }).join('');
     // viewBox + 100%-sizing, NOT fixed pixel width/height: the containers
     // this lands in (print sheets, the zoning excerpt pane) scale the raster
     // layers with CSS, and an SVG without a viewBox does not scale its

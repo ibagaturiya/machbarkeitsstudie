@@ -63,17 +63,22 @@
 
 /* Palette des Dokuments — EINE Akzentfarbe (das Orange des Werkzeugs) plus
    Neutraltoene, als Variablen auf #print-doc. Print hat kein Theme; fixe
-   Hexwerte sind hier erlaubt, aber sie stehen an EINEM Ort. Die semantischen
-   Gruen/Rot/Amber der Badges bleiben davon unberuehrt — sie tragen Bedeutung,
-   keine Identitaet. */
+   Hexwerte sind hier erlaubt, aber sie stehen an EINEM Ort.
+
+   Das Dokument ist im Uebrigen farblos — Text, Flaechen, Linien, Karten und
+   Zeichnungen stehen in Graustufen. Die semantischen Gruen/Rot/Amber der
+   Badges sind davon AUSGENOMMEN und ausdruecklich stehen geblieben: sie
+   tragen Bedeutung, nicht Identitaet. Ein bestandener Punkt, ein Verstoss
+   und ein offener Punkt muessen sich auf einen Blick unterscheiden, auch
+   wenn niemand das Wort daneben liest. */
 #print-doc {
   --p-ink: #1a1a1a;      /* Text */
-  --p-muted: #5f5b56;    /* Sekundaertext */
-  --p-faint: #8d8983;    /* Tertiaertext, Fusszeilen */
-  --p-acc: #ff9d2e;      /* Grafik-Akzent: Kanten, Ticks, Swatches */
-  --p-acc-ink: #b06a12;  /* Text-Akzent: Kicker, h3 — orange, aber lesbar */
-  --p-tint: #faf6ef;     /* Flaechen: Hero, Notizboxen */
-  --p-hair: #e4e0da;     /* Linien */
+  --p-muted: #5c5c5c;    /* Sekundaertext */
+  --p-faint: #8a8a8a;    /* Tertiaertext, Fusszeilen */
+  --p-acc: #111111;      /* Grafik-Akzent: Kanten, Ticks, Swatches */
+  --p-acc-ink: #111111;  /* Text-Akzent: Kicker, h3 */
+  --p-tint: #f4f4f4;     /* Flaechen: Hero, Notizboxen */
+  --p-hair: #e2e2e2;     /* Linien */
 }
 
 /* A4 quer, 297x210 mm: das Format eines Exposés, das gemailt, am Bildschirm
@@ -84,14 +89,14 @@
   padding: 10mm 12mm 8mm; background: #fff; color: var(--p-ink);
   display: flex; flex-direction: column; overflow: hidden;
   page-break-after: always; break-after: page;
-  font-family: 'Archivo', -apple-system, "Helvetica Neue", Arial, sans-serif;
+  /* Eine Schrift fuer das ganze Dokument, dieselbe wie am Bildschirm.
+     Vorher standen hier zwei: Archivo fuer den Text, IBM Plex Mono fuer die
+     Zahlen. Die Trennung hatte einen Grund -- Zahlen in einer Mono stehen
+     in Spalten untereinander und sind von Fliesstext zu unterscheiden --,
+     aber eine Mono fuer ALLES leistet beides: die Spalten stimmen weiterhin,
+     und der Bruch zwischen Bildschirm und Papier faellt weg. */
+  font-family: Menlo, ui-monospace, SFMono-Regular, 'SF Mono', Consolas, 'DejaVu Sans Mono', monospace;
   -webkit-print-color-adjust: exact; print-color-adjust: exact;
-}
-/* Zahlen im Dokument stehen in der Mono des Werkzeugs — tabellenfest und
-   von Fliesstext unterscheidbar. */
-#print-doc .kpi-value, #print-doc .derive td:last-child,
-#print-doc .bel-n, #print-doc .bel-v {
-  font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
 }
 #print-doc .sheet:last-child { page-break-after: auto; break-after: auto; }
 
@@ -198,19 +203,25 @@
 
 #print-doc .derive td { padding: 2.4mm 0; border-bottom: 1px solid var(--p-hair); font-size: 8.5pt; }
 #print-doc .derive td:last-child { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-#print-doc .derive tr.minus td { color: #8a3b3b; }
+#print-doc .derive tr.minus td { color: #5a5a5a; }
 #print-doc .derive tr.result td { font-weight: 700; border-top: 1.5px solid var(--p-ink); border-bottom: none; font-size: 8.5pt; }
 
 #print-doc .note-box { background: var(--p-tint); border: 1px solid var(--p-hair); padding: 3.5mm; margin-top: 4mm; font-size: 8.5pt; line-height: 1.55; }
 #print-doc .note-box.small { font-size: 7.5pt; }
 
 #print-doc .mapwrap { position: relative; width: 100%; aspect-ratio: 1/1; border: 1px solid var(--p-hair); overflow: hidden; }
-#print-doc .mapwrap .layer { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+#print-doc .mapwrap .layer {
+  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+  /* Nur Saettigung raus, keine Invertierung: das Blatt ist weiss, die
+     Kacheln sind es auch. Ein Hauch Kontrast, weil Graustufen ohne Farbe
+     flauer wirken als das Original. */
+  filter: grayscale(1) contrast(1.06);
+}
 #print-doc .mapwrap .layer.multiply { mix-blend-mode: multiply; }
 #print-doc .mapwrap svg { position: absolute; inset: 0; width: 100%; height: 100%; }
 #print-doc .caption { font-size: 6.5pt; color: var(--p-faint); margin-top: 2.5mm; line-height: 1.4; }
 #print-doc .render { width: 100%; max-height: 92mm; object-fit: contain; border: 1px solid var(--p-hair); background: #f5f5f5; }
-#print-doc .empty { padding: 12mm; text-align: center; color: #a33; border: 1px solid var(--p-hair); }
+#print-doc .empty { padding: 12mm; text-align: center; color: #444444; border: 1px solid var(--p-hair); }
 
 #print-doc h3 { font-size: 8.5pt; margin: 0 0 3mm; text-transform: uppercase; letter-spacing: .07em; color: var(--p-acc-ink); }
 #print-doc .ci { display: flex; gap: 3mm; padding: 2.2mm 3mm; margin-bottom: 1.8mm; font-size: 8.5pt; line-height: 1.45; border-radius: 2px; }
@@ -219,7 +230,7 @@
 #print-doc .ci-flag { background: #fdf0f0; } #print-doc .ci-flag .ci-badge { background: #c62828; }
 #print-doc .ci-review { background: #fdf8e8; } #print-doc .ci-review .ci-badge { background: #c98a11; }
 #print-doc .flags { margin-top: 4mm; border-top: 1px solid var(--p-hair); padding-top: 4mm; }
-#print-doc .flagline { font-size: 7.5pt; color: #6a5330; background: #fdf8e8; border-left: 3px solid #d9a441; padding: 1.8mm 4mm; margin-bottom: 1.4mm; line-height: 1.32; }
+#print-doc .flagline { font-size: 7.5pt; color: #3d3d3d; background: #f0f0f0; border-left: 3px solid #9a9a9a; padding: 1.8mm 4mm; margin-bottom: 1.4mm; line-height: 1.32; }
 
 /* Kompakte Checklistenzeile (Blatt «Zone & Regeln»): Badge + Titel, eine
    Zeile — die vollen Begruendungen stehen im Anhang A.2. */

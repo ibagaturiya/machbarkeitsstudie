@@ -143,13 +143,15 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   // a near-black background (ground, outlines, ghost hull) is themed.
   const PALETTE = {
     light: {
-      bg: 0xf5f5f5, outline: 0x8a4b08, storeyLine: 0x6d3d07, attikaLine: 0x8a8a8a, attikaTint: 0xffffff,
-      ghostColor: 0x8a6a3a, ghostOpacity: 0.09, ghostOutline: 0xb09a72,
+      bg: 0xf5f5f5, outline: 0x3a3a3a, storeyLine: 0x1f1f1f, attikaLine: 0x8a8a8a, attikaTint: 0xffffff,
+      ghostColor: 0x9a9a9a, ghostOpacity: 0.09, ghostOutline: 0xbdbdbd,
+      body: 0xbdbdbd, removed: 0x555555,
       parcelOutline: 0x333333, ambient: 0.6, sun: 0.8,
     },
     dark: {
       bg: 0x1b1b1f, outline: 0xffb066, storeyLine: 0xffcf9e, attikaLine: 0xffffff, attikaTint: 0xffffff,
       ghostColor: 0xd8b98a, ghostOpacity: 0.16, ghostOutline: 0x8a795f,
+      body: 0xff9d2e, removed: 0xc62828,
       parcelOutline: 0xcfcfcf, ambient: 0.75, sun: 0.65,
     },
   };
@@ -180,10 +182,10 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     // duplicate surface" artifact. The offset makes the resolution
     // deterministic instead of relying on the visibility threshold below to
     // always catch the coincident case.
-    // Baukörper in der Akzentfarbe des Werkzeugs (--acc, #ff9d2e) — dieselbe
+    // Baukörper in der Akzentfarbe des Werkzeugs (--acc) — dieselbe
     // Farbe wie die gewählte Parzelle auf der Karte, ein Orange im ganzen UI.
     const material = new THREE.MeshStandardMaterial({
-      color: 0xff9d2e, opacity: 0.85, transparent: true, side: THREE.DoubleSide,
+      color: pal.body, opacity: 0.85, transparent: true, side: THREE.DoubleSide,
       polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1,
     });
     // Attikageschosse: weiss und deutlich durchscheinender als der Baukörper
@@ -214,7 +216,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     // What the restriction cuts removed: a dashed outline on the ground, not
     // a solid. A translucent red block reads as something you could build.
     removedRings.forEach((ring) => {
-      scene.add(buildDashedLoop(ring, centerE, centerN, 0xc62828, 0.08));
+      scene.add(buildDashedLoop(ring, centerE, centerN, pal.removed, 0.08));
     });
 
     parcelRings.forEach((ring) => scene.add(buildOutlineLoop(ring, centerE, centerN, pal.parcelOutline)));
