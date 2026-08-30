@@ -86,6 +86,32 @@ function check(name, actual, expected, tol = 0.01) {
     gefangen && gefangen.quelle + ' @ ' + gefangen.host,
     'Waldabstand (ogd-0152) @ maps.zh.ch');
 
+  // file:// ist der haeufigste Fehlstart: Datei doppelgeklickt statt ueber
+  // den Server geoeffnet. Safari meldet ihn wortgleich wie eine Netzstoerung
+  // («Load failed»), er geht aber nie von selbst weg — die Meldung muss ihn
+  // daher unterscheiden und den Startbefehl nennen statt «erneut versuchen».
+  {
+    const echteLoc = window.location;
+    Object.defineProperty(window, 'location',
+      { value: { protocol: 'file:', href: 'file:///X/index.html' }, configurable: true });
+    globalThis.fetch = async () => { throw new TypeError('Load failed'); };
+    let ausFile = null;
+    try {
+      await T.fetchQuelle('BZO Zumikon', 'data/bzo-zumikon.json');
+    } catch (e) { ausFile = e; }
+    globalThis.fetch = echtesFetch;
+    Object.defineProperty(window, 'location', { value: echteLoc, configurable: true });
+
+    check('file:// wird als eigener Fall erkannt', ausFile && ausFile.dauerhaft, true);
+    check('… nennt file:// als Ursache',
+      !!(ausFile && ausFile.message.includes('file://')), true);
+    check('… nennt den Startbefehl',
+      !!(ausFile && ausFile.message.includes('serve.py')), true);
+    check('… raet NICHT zum erneuten Versuchen',
+      !!(ausFile && /Erneut versuchen/.test(ausFile.message)), false);
+    check('echte Netzstoerung bleibt nicht dauerhaft', gefangen && !!gefangen.dauerhaft, false);
+  }
+
   // Ein gewollter Abbruch ist kein Quellenausfall und darf nicht als solcher
   // gemeldet werden — sonst meldet jeder Nutzerabbruch einen toten Dienst.
   globalThis.fetch = async () => { const e = new Error('aborted'); e.name = 'AbortError'; throw e; };

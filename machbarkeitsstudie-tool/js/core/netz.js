@@ -49,18 +49,46 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     }
   }
 
+  // Läuft die Seite selbst über file://, ist JEDER Abruf zum Scheitern
+  // verurteilt — auch der einer Datei, die direkt daneben liegt. Der Browser
+  // gibt einer file://-Seite keinen Ursprung, gegen den er eine Anfrage
+  // zulassen könnte, und lehnt sie ohne Rückfrage ab. Safari meldet das als
+  // «Load failed», also mit demselben Wortlaut wie eine echte Netzstörung.
+  //
+  // Der Unterschied ist aber der ganze Punkt: eine Netzstörung geht vorbei,
+  // das hier nicht. «Erneut versuchen» ist dann ein falscher Rat, der
+  // beliebig oft befolgt werden kann, ohne je zu wirken. Deshalb bekommt
+  // dieser Fall seine eigene Diagnose samt Startbefehl.
+  // (README/CLAUDE.md sagen es seit je: file:// funktioniert nicht.)
+  function laeuftUeberFileProtokoll() {
+    return typeof window !== 'undefined'
+      && window.location
+      && window.location.protocol === 'file:';
+  }
+
   class QuelleNichtErreichbarError extends Error {
     constructor(quelle, url, ursache) {
       const host = hostVon(url);
-      super(`${quelle} (${host}) nicht erreichbar — `
-        + `Netzwerkfehler: ${(ursache && ursache.message) || ursache}. `
-        + `Keine Verbindung, DNS, TLS oder eine Blockade im Browser; `
-        + `die Antwort kam nie an. Erneut versuchen.`);
+      const ausFile = laeuftUeberFileProtokoll();
+      super(ausFile
+        ? `${quelle} nicht ladbar — die Seite läuft über file://. `
+          + `In diesem Modus blockiert der Browser jeden Datenabruf, auch den `
+          + `lokaler Dateien wie «${host}»; es ist keine Netzstörung und geht `
+          + `durch erneutes Versuchen nicht weg. `
+          + `Lokalen Server starten: python3 serve.py im Ordner `
+          + `machbarkeitsstudie-tool, dann http://localhost:8000 öffnen.`
+        : `${quelle} (${host}) nicht erreichbar — `
+          + `Netzwerkfehler: ${(ursache && ursache.message) || ursache}. `
+          + `Keine Verbindung, DNS, TLS oder eine Blockade im Browser; `
+          + `die Antwort kam nie an. Erneut versuchen.`);
       this.name = 'QuelleNichtErreichbarError';
       this.quelle = quelle;
       this.url = String(url);
       this.host = host;
       this.ursache = ursache;
+      // Die Unterscheidung bleibt auch strukturiert lesbar: ein Aufrufer
+      // darf «kommt nie wieder» anders behandeln als «gerade jetzt nicht».
+      this.dauerhaft = ausFile;
     }
   }
 
