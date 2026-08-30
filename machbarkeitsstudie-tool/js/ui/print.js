@@ -238,6 +238,9 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
           ab wann sie ansteht.
         </div>
         ${pk.hinweise.length ? `<div class="flags">${pk.hinweise.map((h) => `<div class="flagline">${esc(h)}</div>`).join('')}</div>` : ''}
+        ${/* pk.bindendHinweis bewusst NICHT hier: die Verdict-Kachel oben links
+             sagt dasselbe, und die Zahlen dahinter stehen in der Tabelle
+             daneben. Am Bildschirm (ohne Kachel) wird er weiterhin gezeigt. */''}
       </div>
     </div>`;
   }
@@ -257,7 +260,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
         <div class="titel-kicker">Baurechtliche Machbarkeitsstudie</div>
         <h1 class="titel-adresse">${esc(subject)}</h1>
         <div class="titel-meta">Gemeinde ${esc(rules.gemeinde)} · ${multi ? 'Parzellen' : 'Parzelle'} ${esc(selection.map((p) => p.parcelNumber).join(' + '))} · Zone ${esc(anchor.zone)}${anchor.zoneLabel ? ` (${esc(anchor.zoneLabel)})` : ''}</div>
-        <p class="titel-text">Diese Studie zeigt, was auf ${multi ? 'den gewählten Parzellen' : 'der gewählten Parzelle'} nach geltendem Baurecht gebaut werden darf: Fläche, Geschosse, Volumen und eine erste Kostenschätzung. Grundlage sind die amtliche Vermessung, die kantonalen Geodaten sowie die Bau- und Zonenordnung der Gemeinde — jede Zahl nennt ihre Quelle.</p>
+        <p class="titel-text">Diese Studie zeigt, was auf ${multi ? 'den gewählten Parzellen' : 'der gewählten Parzelle'} nach geltendem Baurecht gebaut werden darf: Fläche, Geschosse, Volumen und eine erste Kostenschätzung. Grundlage sind die amtliche Vermessung, die kantonalen Geodaten sowie die Bau- und Zonenordnung der Gemeinde — jede Zahl nennt ihre Quelle. Erstellt hat sie ein Programm: es wendet die zitierten Bestimmungen als fest verdrahtete Regeln an, rechnet deterministisch und ohne KI und liefert für dieselbe Parzelle immer dieselben Zahlen.</p>
       </div>
       <div class="titel-unten">
         <div class="titel-autor">exportiert von ${esc(T.ABSENDER)}</div>
@@ -443,7 +446,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     // The zone rides in the running footer of every sheet: it is the premise
     // of every number in the document, and a page read on its own has to say
     // which zone it is talking about.
-    const foot = `${esc(rules.gemeinde)} · Zone ${esc(anchor.zone)} · ${esc(rulesData.version)} · erstellt ${dateStr}`;
+    const foot = `${esc(rules.gemeinde)} · Zone ${esc(anchor.zone)} · ${dateStr}`;
 
     // ---- Abschnittsnummern -------------------------------------------------
     // Die Nummern hängen davon ab, welche optionalen Blätter dieses Grundstück
@@ -473,29 +476,32 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     // vier Argumente in ganzen Sätzen, daneben Karte und Inhaltsverzeichnis.
     // Die Identitäts-Fakten (EGRID, Rechtsstatus, Terrain) sind zum Blatt
     // «Zone & Regeln» umgezogen — hier verkauft die Seite, dort belegt sie.
+    // Die Kacheln daneben tragen die Zahlen; diese Saetze tragen, was in
+    // keiner Kachel steht: warum diese Groesse bindet, und woher die
+    // Differenz zwischen anrechenbarer und nutzbarer Geschossflaeche kommt.
+    // Frueher wiederholte jeder Satz eine Kachel (Flaeche, Geschossflaeche,
+    // bindende Groesse, Kosten) -- vier Zahlen, jede zweimal auf einem Blatt.
     const args = [
-      `${fmt(reconciled.parcelAreaM2, 0)} m² Land in der Zone ${anchor.zone}${anchor.zoneLabel ? ` (${anchor.zoneLabel})` : ''} — zulässig sind ${rules.vollgeschosse_max} Vollgeschosse bei ${rules.heightMetric} bis ${rules.heightM} m.`,
-      ...(massingModel
-        ? [`Realistisch bebaubar: ${storeyLabel(massingModel.ordinaryStoreys, massingModel.attikaStoreys)} à ${fmt(massingModel.floorplateM2, 0)} m² — nutzbare Geschossfläche total ${fmt(massingModel.nutzflaecheTotalM2, 0)} m² inkl. anrechnungsfreier Geschosse.`]
+      bindingExplanation(reconciled, rules),
+      ...(massingModel && massingModel.nutzflaecheTotalM2 > reconciled.maxGfaM2 + 1e-6
+        ? [`Nutzbar sind dennoch ${fmt(massingModel.nutzflaecheTotalM2, 0)} m²: Dach-, Attika- und Untergeschosse bleiben nach § 255 Abs. 3 PBG je Geschoss bis zu einem Freibetrag ohne Anrechnung an die Ausnützungsziffer.`]
         : []),
-      `Bindende Grösse ist ${binding}. ${bindingExplanation(reconciled, rules)}`,
-      `Erstellungskosten grob ≈ CHF ${fmtInt(cost.totalChf)} (BKP 2) — Bandbreite auf Blatt ${numKosten}.`,
     ];
     const s1 = sheet('Das Wichtigste in Kürze',
-      `${anchor.address || selection.map((p) => `Parzelle ${p.parcelNumber}`).join(' + ')} · ${rules.gemeinde} · Zone ${anchor.zone}`,
-      'Was hier gebaut werden darf, auf welcher Fläche und mit welchen Grenzen — nach amtlicher Vermessung und den Bauvorschriften von Kanton und Gemeinde. Jede Zahl nennt ihre Quelle.',
+      `${anchor.address || selection.map((p) => `Parzelle ${p.parcelNumber}`).join(' + ')}`,
+      'Was hier gebaut werden darf, auf welcher Fläche und mit welchen Grenzen — nach amtlicher Vermessung und den Bauvorschriften von Kanton und Gemeinde.',
       `<div class="cols c-6040">
         <div>
           <div class="hero">
             <div class="hero-label">Realistisches Szenario</div>
             <div class="hero-value">${esc(headline)}</div>
-            <div class="hero-sub">${fmt(reconciled.maxGfaM2, 0)} m² Geschossfläche · bindend: ${esc(binding)}</div>
+            <div class="hero-sub">bindend: ${esc(binding)}</div>
           </div>
           <div class="kpis">
             ${kpi(multi ? 'Fläche zusammengefasst' : 'Parzellenfläche', fmt(reconciled.parcelAreaM2) + ' m²')}
-            ${kpi('Max. Geschossfläche', fmt(reconciled.maxGfaM2) + ' m²', 'Ausnützungsziffer ' + rules.ausnuetzungsziffer_max_pct + '%')}
+            ${kpi('Max. Geschossfläche', fmt(reconciled.maxGfaM2) + ' m²')}
             ${kpi('Nutzbarer Fussabdruck', fmt(reconciled.usableFootprintAreaM2) + ' m²')}
-            ${kpi('Kosten grob (BKP 2)', '≈ CHF ' + fmtInt(cost.totalChf), 'Kennwert CHF ' + cost.chfPerM3 + '/m³')}
+            ${kpi('Kosten grob (BKP 2)', '≈ CHF ' + fmtInt(cost.totalChf))}
           </div>
           <ul class="args">${args.map((a) => `<li>${esc(a)}</li>`).join('')}</ul>
         </div>
@@ -524,23 +530,39 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     if (abz.waldAbstand15M2 > 0.5) {
       derivation.push(['Abzug Waldabstandsfläche > 15 m hinter der Linie (§ 259 aPBG)', '− ' + fmt(abz.waldAbstand15M2) + ' m²', 'minus']);
     }
-    derivation.push(['Anrechenbare Grundstücksfläche', fmt(reconciled.anrechenbareFlaecheM2) + ' m²', '']);
-    derivation.push([`Fussabdruck nach Grundabstand (${fmt(r.grundabstandUsedM ?? rules.grundabstand_min_m)} m)`, fmt(footprintBeforeWaldM2) + ' m²', 'minus']);
+    // Nur zeigen, wenn tatsaechlich etwas abgezogen wurde -- sonst steht
+    // hier die Parzellenflaeche ein zweites Mal.
+    if (Math.abs(reconciled.anrechenbareFlaecheM2 - reconciled.parcelAreaM2) > 0.5) {
+      derivation.push(['Anrechenbare Grundstücksfläche', fmt(reconciled.anrechenbareFlaecheM2) + ' m²', '']);
+    }
+    // Das Mass des Grundabstands steht auf dem Blatt «Zone & Regeln»; hier
+    // zaehlt, welchen Schritt die Zeile macht, nicht die Wiederholung der Zahl.
+    derivation.push(['Fussabdruck nach Grundabstand', fmt(footprintBeforeWaldM2) + ' m²', 'minus']);
+    const hasCap = reconciled.hasGreenCap || reconciled.hasUeberbauungsCap;
     if (waldLossInFootprintM2 > 0.5) {
       derivation.push(['Abzug Waldabstand', '− ' + fmt(waldLossInFootprintM2) + ' m²', 'minus']);
-      derivation.push(['Fussabdruck nach Waldabstand', fmt(reconciled.setbackFootprintAreaM2) + ' m²', '']);
+      // Zwischenstand nur, wenn ein Deckel ihn danach noch veraendert --
+      // sonst ist er zahlengleich mit «Nutzbarer Fussabdruck» unten.
+      if (hasCap) {
+        derivation.push(['Fussabdruck nach Waldabstand', fmt(reconciled.setbackFootprintAreaM2) + ' m²', '']);
+      }
     }
-    derivation.push(['Deckel Grünflächenziffer',
-      reconciled.hasGreenCap ? fmt(reconciled.footprintAfterGreenCapAreaM2) + ' m²' : '— nicht vorhanden', '']);
+    // Eine Grünflächenziffer, die es in dieser Zone nicht gibt, ist kein
+    // Rechenschritt. Dass die Regel geprüft und für nicht anwendbar befunden
+    // wurde, hält das Blatt «Belastbarkeit der Zahlen» als «?» fest -- die
+    // Angabe geht nicht verloren, sie steht nur nicht zweimal (REGELN.md §2).
+    if (reconciled.hasGreenCap) {
+      derivation.push(['Deckel Grünflächenziffer', fmt(reconciled.footprintAfterGreenCapAreaM2) + ' m²', '']);
+    }
     if (reconciled.hasUeberbauungsCap) {
-      derivation.push([`Deckel Überbauungsziffer (${rules.ueberbauungsziffer_hauptgebaeude_max_pct} %)`,
+      derivation.push(['Deckel Überbauungsziffer',
         fmt(reconciled.footprintAfterUeberbauungsCapM2) + ' m²', '']);
     }
     derivation.push(['Nutzbarer Fussabdruck', fmt(reconciled.usableFootprintAreaM2) + ' m²', 'result']);
-    derivation.push(['Max. anrechenbare Geschossfläche (AZ ' + rules.ausnuetzungsziffer_max_pct + '%)', fmt(reconciled.maxGfaM2) + ' m²', '']);
-    derivation.push(['Bebaubar als', massingModel
-      ? `${storeyLabel(massingModel.ordinaryStoreys, massingModel.attikaStoreys)} à ${fmt(massingModel.floorplateM2, 0)} m²`
-      : `max. ${rules.vollgeschosse_max} Vollgeschosse`, 'result']);
+    derivation.push(['Max. anrechenbare Geschossfläche', fmt(reconciled.maxGfaM2) + ' m²', 'result']);
+    // «Bebaubar als» stand hier und gleich darunter noch einmal auf der
+    // aktiven Variantenkarte («gerechnet & dargestellt»). Die Karte bleibt:
+    // sie zeigt die Wahl, die Zeile zeigte nur ihr Ergebnis.
     if (massingModel && (massingModel.attikaStoreys > 0 || massingModel.ugStoreys > 0)) {
       derivation.push(['Freibetrag Dach-/Attika-/UG (§ 255 Abs. 3 PBG)',
         `je Geschoss bis ${fmt(massingModel.perStoreyFreeM2)} m² frei`, '']);
@@ -570,7 +592,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
         </div>
         <div>
           ${envelopePng ? `<img class="render" src="${envelopePng}" alt="Isometrie">` : '<div class="empty">Kein Volumen darstellbar.</div>'}
-          ${waldRemoved ? legend([['background:#b08b4f;', 'zulässige Hüllform'],['background:rgba(198,40,40,.35);border:1px solid #c62828;', 'durch Waldabstand entfallen'],['background:transparent;border:1px solid #333;', 'Parzellengrenze']]) : ''}<div class="caption">Maximal zulässige Hüllform, auf ${esc(rules.heightMetric)} ${rules.heightM} m extrudiert.${waldRemoved ? ' Der rot dargestellte Teil ist durch die boolesche Differenz mit der Waldabstands-Fläche entfallen und in den Zahlen links bereits abgezogen.' : ''} Flaches Dach ist eine Vereinfachung der Darstellung.</div>
+          ${waldRemoved ? legend([['background:#b08b4f;', 'zulässige Hüllform'],['background:rgba(198,40,40,.35);border:1px solid #c62828;', 'durch Waldabstand entfallen'],['background:transparent;border:1px solid #333;', 'Parzellengrenze']]) : ''}<div class="caption">Maximal zulässige Hüllform, auf die zulässige ${esc(rules.heightMetric)} extrudiert.${waldRemoved ? ' Der rot dargestellte Teil ist durch die boolesche Differenz mit der Waldabstands-Fläche entfallen und in den Zahlen links bereits abgezogen.' : ''} Flaches Dach ist eine Vereinfachung der Darstellung.</div>
         </div>
       </div>
       ${variantsHtml}`, foot,
@@ -594,29 +616,26 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
 
     const s2b = sheet('Situation & Grundriss', 'Bebaubare Grundfläche, massstäblich',
       'Die bebaubare Grundfläche im Erdgeschoss, massstäblich und nordorientiert gezeichnet — nach Abzug von Grenzabständen, Gebäudeabständen und Waldabstand.',
-      `<div class="cols c-6040">
+      `<div class="cols c-7228">
         <div>${setbackFootprint
           ? T.buildFloorPlanSvg({ parcelFeature: merged,
               footprintFeature: massingModel ? massingModel.footprintFeature : setbackFootprint,
               removedFeature: waldRemoved, lengthRect: massing && !massing.impossible ? areaRect : footprintRect,
               lengthLimitM, lengthResolved: !!(massing && !massing.impossible), blockCount: massing ? massing.count : 0,
               terrainGrid, hang,
-              widthPx: 1150, heightPx: 900 })
+              widthPx: 1500, heightPx: 1010 })
           : '<div class="empty">Keine bebaubare Grundfläche.</div>'}
         </div>
         <div>
           <table class="facts big">
-            <tr><td>Bebaubare Grundfläche</td><td><b>${fmt(reconciled.usableFootprintAreaM2)} m²</b></td></tr>
-            ${lengthLimitM != null ? `<tr><td>Max. Gebäudelänge</td><td>${lengthLimitM} m</td></tr>` : ''}
+            ${/* Die zulaessige Gebaeudelaenge steht als Anmerkung IN der
+                 Zeichnung («… (max. N m)»), dort wo sie gilt -- als eigene
+                 Tabellenzeile daneben stand sie zweimal auf einem Blatt. */''}
             ${massing && !massing.impossible
               ? `<tr><td>Bereich zu lang</td><td>${fmt(areaRect.lengthM)} m → geteilt</td></tr>
                  <tr><td>Baukörper</td><td><b>${massing.count} × ${fmt(massing.blockLengthM)} m</b> (längster ${fmt(massing.longestBlockM)} m)</td></tr>
                  <tr><td>Gebäudeabstand</td><td>${gebaeudeabstandM} m · kostet ${fmt(lengthLossM2)} m²</td></tr>`
-              : (footprintRect ? `<tr><td>Kleinstes Rechteck (L × B)</td><td>${fmt(footprintRect.lengthM)} × ${fmt(footprintRect.widthM)} m${lengthLimitM != null ? ' — eingehalten' : ''}</td></tr>` : '')}
-            <tr><td>Grundabstand</td><td>${rules.grundabstand_min_m} m ringsum</td></tr>
-            ${waldRemoved ? `<tr><td>Abzug Waldabstand</td><td>− ${fmt(waldLossInFootprintM2)} m²</td></tr>` : ''}
-            <tr><td>Max. Geschossfläche</td><td>${fmt(reconciled.maxGfaM2)} m²</td></tr>
-            <tr><td>Bebaubar als</td><td>${massingModel ? esc(storeyLabel(massingModel.ordinaryStoreys, massingModel.attikaStoreys)) + ' à ' + fmt(massingModel.floorplateM2, 0) + ' m²' : 'max. ' + rules.vollgeschosse_max + ' Vollgeschosse'}</td></tr>
+              : (footprintRect ? `<tr><td>Kleinstes Rechteck (L × B)</td><td><b>${fmt(footprintRect.lengthM)} × ${fmt(footprintRect.widthM)} m</b>${lengthLimitM != null ? ' — eingehalten' : ''}</td></tr>` : '')}
           </table>
           ${legend([
             ['background:#d9a066;border:1px solid #8a4b08;', 'bebaubare Grundfläche'],
@@ -648,7 +667,6 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
         </div>
         <div>
           <table class="facts tight">
-            <tr><td>Gemeinde · ${multi ? 'Parzellen' : 'Parzelle'}</td><td>${esc(rules.gemeinde)} · ${esc(selection.map((p) => p.parcelNumber).join(' + '))}</td></tr>
             <tr><td>EGRID</td><td>${esc(selection.map((p) => p.egrid).join(', '))}</td></tr>
             <tr><td>Zone</td><td><b>${esc(anchor.zone)}</b>${anchor.zoneLabel ? ' — ' + esc(anchor.zoneLabel) : ''}${anchor.zoneSource && anchor.zoneSource.rechtsstatus ? ' · ' + esc(anchor.zoneSource.rechtsstatus) : ''}</td></tr>
             <tr><td>Ausnützungsziffer</td><td>${rules.ausnuetzungsziffer_max_pct} %</td></tr>
@@ -705,8 +723,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
               </table>
               <div class="note-box small">
                 Geometrisch ermittelt aus der kantonalen Waldabstandslinie (ogd-0152)
-                und dem Waldareal (ogd-0111). Die Abzüge sind in Fussabdruck,
-                Geschossfläche und Volumen dieses Dokuments bereits enthalten.
+                und dem Waldareal (ogd-0111).
               </div>
             </div>
           </div>`,
@@ -720,16 +737,23 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     // line. They get their own sheet, two columns.
     // Anhang A.2 trägt jetzt AUCH die vollständige Tier-B-Checkliste: das
     // Blatt «Zone & Regeln» nennt nur den Zähler und verweist hierher.
-    const s4b = (flags.length || checklist.tierB.length)
+    const tierAPrint = checklist.tierA.map((i) => (showWaldMap && i.key === 'waldabstand')
+      ? { ...i, text: `Berücksichtigt und geometrisch abgezogen — Karte, Flächen und Rechtsgrundlage auf Blatt ${numWald}.` }
+      : i);
+    const flagsPrint = pk && r.parkierungFlags
+      ? flags.filter((f) => !r.parkierungFlags.includes(f))
+      : flags;
+
+    const s4b = (flagsPrint.length || checklist.tierB.length)
       ? sheet('Hinweise, Vorbehalte & offene Punkte', 'Anhang — jede Vereinfachung, ausgeschrieben',
           'Was vor einem Bauprojekt manuell zu klären bleibt, und jede Vereinfachung und Annahme dieser Berechnung — wer eine Zahl weiterverwendet, sollte den zugehörigen Hinweis kennen.',
           `<div class="flags-cols" data-flow>
             <h3>Automatisch geprüft</h3>
-            ${checklistHtml(checklist.tierA)}
+            ${checklistHtml(tierAPrint)}
             <h3 style="margin-top:4mm">Manuell zu prüfen</h3>
             ${checklistHtml(checklist.tierB)}
             <h3 style="margin-top:4mm">Hinweise der Berechnung</h3>
-            ${flags.map((f) => `<div class="flagline">${esc(f)}</div>`).join('')}
+            ${flagsPrint.map((f) => `<div class="flagline">${esc(f)}</div>`).join('')}
           </div>`,
           foot,
           '<b>Quellen:</b> je Hinweis im Text genannt (Artikel/Paragraph); Wortlaut der zitierten Bestimmungen auf dem Blatt «Quellen und Vorbehalte».',
@@ -762,13 +786,8 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
           <div class="hero">
             <div class="hero-label">Erstellungskosten BKP 2, überschlägig</div>
             <div class="hero-value">≈ CHF ${fmtInt(cost.totalChf)}</div>
-            <div class="hero-sub">${fmt(envelopeVolumeM3)} m³ × CHF ${cost.chfPerM3}/m³</div>
+            <div class="hero-sub">${fmt(envelopeVolumeM3)} m³ umbauter Raum (Box-Näherung) × CHF ${cost.chfPerM3}/m³</div>
           </div>
-          <table class="facts">
-            <tr><td>Nutzbarer Fussabdruck</td><td>${fmt(reconciled.usableFootprintAreaM2)} m²</td></tr>
-            <tr><td>${esc(rules.heightMetric)}</td><td>${rules.heightM} m</td></tr>
-            <tr><td>Umbauter Raum (Box-Näherung)</td><td>${fmt(envelopeVolumeM3)} m³</td></tr>
-          </table>
         </div>
         <div>
           <h3>Bandbreite</h3>
@@ -887,7 +906,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
           <h3>Quellen</h3>
           <table class="facts">
             <tr><td>Zone / Grundmasse</td><td>Kantonale Nutzungsplanung ZH, Datensatz ogd-0156</td></tr>
-            <tr><td>Bauvorschriften</td><td>${esc(rules.source.article)}, ${esc(rules.source.version)}</td></tr>
+            <tr><td>Bauvorschriften</td><td>${esc(rules.source.version)}</td></tr>
             <tr><td>Parzellengeometrie</td><td>Amtliche Vermessung (swisstopo)</td></tr>
             <tr><td>Eigentumsbeschränkungen</td><td>ÖREB-Kataster Kanton Zürich</td></tr>
             <tr><td>Waldabstand</td><td>Kantonale Geodaten ogd-0152 (Abstandslinie) und ogd-0111 (Waldareal)</td></tr>
@@ -900,7 +919,6 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
           ${grundbuchFootnote ? `<div class="note-box small"><b>Grundbuchauszug:</b> ${esc(grundbuchFootnote)}</div>` : ''}
           <div class="note-box small">
             Zonenzuordnung an der Grundstücksgrenze zusätzlich prüfen.
-            Diese Auswertung geht von unbebautem Land aus; Bestand, Abbruch und Bestandesschutz sind nicht berücksichtigt.
             Kein Ersatz für eine unterschriebene Machbarkeitsstudie oder ein Baugesuch.
           </div>
         </div>
@@ -942,7 +960,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   function bindingExplanation(reconciled, rules) {
     switch (reconciled.bindingConstraint) {
       case 'ausnuetzungsziffer':
-        return `Die zulässige Geschossfläche ist ausgeschöpft, bevor die Geschosszahl erreicht wird. Ein grösserer Fussabdruck bringt keine zusätzliche Fläche — die Ausnützungsziffer von ${rules.ausnuetzungsziffer_max_pct} % ist die Obergrenze.`;
+        return `Die zulässige Geschossfläche ist ausgeschöpft, bevor die Geschosszahl erreicht wird. Ein grösserer Fussabdruck bringt keine zusätzliche Fläche — die Ausnützungsziffer ist die Obergrenze.`;
       case 'gruenflaechenziffer':
         return `Der Fussabdruck wird durch die Grünflächenziffer begrenzt, nicht durch den Grundabstand: es muss mehr Fläche unbebaut bleiben, als der Grenzabstand allein verlangen würde.`;
       case 'grundabstand':

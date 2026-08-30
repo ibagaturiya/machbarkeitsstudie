@@ -100,9 +100,10 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     }
     if (cfg._gnf_note) hinweise.push(cfg._gnf_note);
     if (cfg._oev_reduktion_note) hinweise.push(cfg._oev_reduktion_note);
-    if (bindet) {
-      hinweise.push(`Bindend: unter diesem Baukörper (${Math.round(fp)} m²) fasst ein Untergeschoss rund ${plaetzeJeUgGeschoss} Plätze, das trägt etwa ${Math.round(gnfAusEinemUgM2)} m² Geschossfläche — gerechnet sind aber ${Math.round(gnf)} m². Entweder ${ugGeschosseNoetig} Untergeschosse, eine über den Baukörper hinausreichende Tiefgarage, oder weniger Geschossfläche.`);
-    }
+    // Nicht in `hinweise`: siehe bindendHinweis unten.
+    const bindendHinweis = bindet
+      ? (`Bindend: unter diesem Baukörper (${Math.round(fp)} m²) fasst ein Untergeschoss rund ${plaetzeJeUgGeschoss} Plätze, das trägt etwa ${Math.round(gnfAusEinemUgM2)} m² Geschossfläche — gerechnet sind aber ${Math.round(gnf)} m². Entweder ${ugGeschosseNoetig} Untergeschosse, eine über den Baukörper hinausreichende Tiefgarage, oder weniger Geschossfläche.`)
+      : null;
     if (!oberirdischPasst) {
       hinweise.push(`Die ${besucherP} Besucherplätze brauchen rund ${Math.round(oberirdischBedarfM2)} m² oberirdisch; frei sind nur ${Math.round(freiflaecheM2)} m². Sie sind nach Art. 26 Abs. 3 nicht von der Pflicht zur unterirdischen Anordnung erfasst und müssen an der Oberfläche untergebracht werden.`);
     }
@@ -116,7 +117,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       tiefgarageBedarfM2, oberirdischBedarfM2,
       fussabdruckM2: fp, freiflaecheM2, oberirdischPasst,
       plaetzeJeUgGeschoss, ugGeschosseNoetig, gnfAusEinemUgM2, bindet,
-      annahmen: A, hinweise,
+      annahmen: A, hinweise, bindendHinweis,
     };
   }
 

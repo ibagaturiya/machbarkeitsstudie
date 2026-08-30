@@ -172,6 +172,7 @@
 #print-doc .c-4555 { grid-template-columns: 44% 1fr; }
 #print-doc .c-5050 { grid-template-columns: 1fr 1fr; }
 #print-doc .c-5545 { grid-template-columns: 55% 1fr; }
+#print-doc .c-7228 { grid-template-columns: 72% 1fr; }
 #print-doc .legend { display: flex; flex-wrap: wrap; gap: 2mm 6mm; margin-top: 3mm; font-size: 7.5pt; color: var(--p-muted); }
 #print-doc .lg { display: flex; align-items: center; gap: 2mm; }
 #print-doc .lg-sw { width: 5mm; height: 2.8mm; display: inline-block; flex: none; }
