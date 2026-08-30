@@ -19,50 +19,153 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
 
 
   // ---- Seitenumbruch ------------------------------------------------------
-  // Ein Blatt ist 420x297 mm und schneidet ab, was nicht hineinpasst
+  // Ein Blatt ist A4 hoch und schneidet ab, was nicht hineinpasst
   // (print.css: .sheet-body overflow hidden — sonst malt der Text über die
-  // Quellenzeile und den Fusszeilenbereich). Abschneiden ist bei Warnungen
-  // aber keine zulässige Antwort: eine Prüfung, die nur halb im Dokument
-  // steht, ist schlimmer als gar keine, weil sie so aussieht, als stünde sie
-  // vollständig da. Deshalb wandert alles, was nicht mehr passt, auf ein
-  // Fortsetzungsblatt statt in den Beschnitt.
+  // Quellenzeile und den Fusszeilenbereich). Abschneiden ist keine zulässige
+  // Antwort: eine Prüfung, die nur halb im Dokument steht, ist schlimmer als
+  // gar keine, weil sie so aussieht, als stünde sie vollständig da.
   //
-  // Jedes Blatt, das umbrochen werden darf, markiert seinen umbrechbaren
-  // Bereich mit [data-flow]. Läuft es über, wandern von hinten so lange
-  // Kinder auf ein neues Blatt, bis es passt; das neue Blatt trägt selbst
-  // wieder [data-flow] und wird in derselben Schleife erneut geprüft — damit
-  // sind auch drei und mehr Fortsetzungen abgedeckt.
-  function splitOverflowingSheets(host, foot) {
-    // Mehrspaltensatz (columns: 2) läuft nicht nach unten, sondern nach
-    // RECHTS aus dem Kasten: eine dritte Spalte entsteht ausserhalb. Beide
-    // Richtungen müssen also geprüft werden, sonst bleibt der Überlauf der
-    // Hinweis- und Quellenblätter unentdeckt.
-    const overflows = (el) =>
-      el.scrollHeight > el.clientHeight + 2 || el.scrollWidth > el.clientWidth + 2;
+  // Bis 30.8.2026 hatten nur DREI der fünfzehn Blätter einen umbrechbaren
+  // Bereich; alle übrigen liefen still in den Beschnitt. Auf dem Blatt
+  // «Parkierung» hat das drei Hinweise gekostet — sie standen unter der
+  // Quellenzeile im Nichts. Deshalb trägt jetzt JEDES Blatt einen
+  // Flussbereich (siehe sheet()), und der Umbruch steigt zusätzlich in
+  // verschachtelte Blöcke ab.
+  //
+  // Der Ablauf je Blatt: solange der Körper überläuft, wandert das letzte
+  // Kind des Flussbereichs auf ein Fortsetzungsblatt. Reicht das nicht, weil
+  // ein EINZELNES Kind schon zu hoch ist (eine lange Spaltenliste etwa),
+  // wird in dieses Kind abgestiegen und es selbst geteilt — die Hülle bleibt
+  // dabei auf beiden Blättern stehen, damit Layout und Bedeutung erhalten
+  // bleiben. Das Fortsetzungsblatt landet direkt hinter dem Original und
+  // wird von derselben Schleife erneut geprüft; drei und mehr Fortsetzungen
+  // sind damit abgedeckt.
+  const overflows = (el) =>
+    el.scrollHeight > el.clientHeight + 2 || el.scrollWidth > el.clientWidth + 2;
 
-    for (let i = 0; i < host.children.length; i++) {
+  // Auf A4 hoch hat `.cols` nur noch EINE Spalte — die Hülle trägt kein
+  // Layout mehr. Sie kostet aber die Feinheit des Umbruchs: als ein einziger
+  // Block wandert sie komplett auf das nächste Blatt und lässt eines zurück,
+  // das zu einem Achtel gefüllt ist. Dasselbe gilt für die klassenlosen
+  // <div> darin — das sind die früheren Rasterfelder, reine Hüllen.
+  //
+  // Beide werden vor dem Umbruch aufgelöst, damit der Fluss eine flache
+  // Folge von Blöcken sieht und blockweise statt spaltenweise umbricht.
+  // Aufgelöst wird nur, was nachweislich keine Bedeutung trägt: ein <div>
+  // ohne jedes Attribut. Alles mit Klasse, id oder data- bleibt unangetastet.
+  function flattenForFlow(flow) {
+    for (let runde = 0; runde < 4; runde++) {
+      let geaendert = false;
+      for (const el of [...flow.children]) {
+        const istRasterHuelle = el.tagName === 'DIV' && el.classList.contains('cols');
+        const istLeereHuelle = el.tagName === 'DIV' && el.attributes.length === 0 && el.children.length > 0;
+        if (istRasterHuelle || istLeereHuelle) {
+          el.replaceWith(...el.childNodes);
+          geaendert = true;
+        }
+      }
+      if (!geaendert) return;
+    }
+  }
+
+  // Eine Überschrift als letzte Zeile eines Blatts, deren Inhalt auf dem
+  // nächsten steht, ist ein Schusterjunge — sie wandert mit.
+  const istUeberschrift = (el) => el && /^H[1-6]$/.test(el.tagName);
+
+  // Nimmt so lange Kinder von hinten aus `flow`, bis `body` passt. Gibt die
+  // entnommenen Knoten in Originalreihenfolge zurück.
+  function peelTrailing(body, flow) {
+    const moved = [];
+    // Ein Kind muss stehen bleiben, sonst entstünde ein leeres Blatt und die
+    // Schleife liefe endlos.
+    while (overflows(body) && flow.children.length > 1) {
+      const last = flow.lastElementChild;
+      flow.removeChild(last);
+      moved.unshift(last);
+    }
+    // Schusterjungen nachziehen: bleibt eine Überschrift als Letztes stehen,
+    // gehört sie zu dem, was gerade weggewandert ist.
+    while (moved.length && flow.children.length > 1 && istUeberschrift(flow.lastElementChild)) {
+      const h = flow.lastElementChild;
+      flow.removeChild(h);
+      moved.unshift(h);
+    }
+    return moved;
+  }
+
+  // Passt der Körper immer noch nicht, obwohl nur ein Kind übrig ist, dann
+  // ist DIESES Kind zu gross. Wir steigen hinein und teilen es: die leere
+  // Hülle (gleiche Klassen) kommt auf das Fortsetzungsblatt, die überzähligen
+  // Enkel wandern hinein. Rekursiv, damit auch zwei Ebenen tief geteilt wird.
+  function splitDeep(body, flow) {
+    if (!overflows(body) || flow.children.length !== 1) return null;
+    const only = flow.firstElementChild;
+    if (!only || only.children.length < 2) return null;
+
+    const innerMoved = peelTrailing(body, only);
+    if (!innerMoved.length) {
+      const tiefer = splitDeep(body, only);
+      if (!tiefer) return null;
+      const huelle = only.cloneNode(false);
+      huelle.appendChild(tiefer);
+      return huelle;
+    }
+    const huelle = only.cloneNode(false);
+    innerMoved.forEach((el) => huelle.appendChild(el));
+    return huelle;
+  }
+
+  function splitOverflowingSheets(host, foot) {
+    // Schutz gegen eine Endlosschleife: ein Blatt, das sich nicht teilen
+    // lässt (ein einzelnes zu grosses Bild etwa), darf den Export nicht
+    // aufhängen. 200 Blätter sind weit jenseits jedes echten Dokuments.
+    const MAX_BLAETTER = 200;
+
+    for (let i = 0; i < host.children.length && host.children.length < MAX_BLAETTER; i++) {
       const sheet = host.children[i];
       const body = sheet.querySelector('.sheet-body');
       const flow = sheet.querySelector('[data-flow]');
       if (!body || !flow) continue;
+      flattenForFlow(flow);
+      if (!overflows(body)) continue;
 
-      const moved = [];
-      // Ein Kind muss stehen bleiben, sonst entstünde ein leeres Blatt und
-      // die Schleife liefe endlos.
-      while (overflows(body) && flow.children.length > 1) {
-        const last = flow.lastElementChild;
-        flow.removeChild(last);
-        moved.unshift(last);
+      let moved = peelTrailing(body, flow);
+      let huelle = null;
+      if (!moved.length) {
+        huelle = splitDeep(body, flow);
+        if (!huelle) continue; // nicht teilbar — die Prüfung unten meldet es
       }
-      if (!moved.length) continue;
 
       const cont = continuationSheet(sheet, foot);
       const contFlow = cont.querySelector('[data-flow]');
-      moved.forEach((el) => contFlow.appendChild(el));
+      if (huelle) contFlow.appendChild(huelle);
+      else moved.forEach((el) => contFlow.appendChild(el));
       host.insertBefore(cont, sheet.nextSibling);
-      // Die Schleife erreicht `cont` als Nächstes und bricht es nötigenfalls
-      // erneut um.
     }
+  }
+
+  // Nach dem Umbruch: beweisen, dass wirklich nichts mehr über den Rand
+  // steht. Ohne diese Prüfung kehrt der Beschnitt beim nächsten längeren
+  // Hinweistext still zurück — genau so ist er entstanden. Gemeldet wird
+  // laut (Konsole + sichtbare Markierung auf dem Blatt), nicht geworfen:
+  // ein unvollständiges Dokument ist schlecht, gar keines ist schlechter.
+  function pruefeKeinUeberlauf(host) {
+    const schuldige = [];
+    for (const sheet of host.children) {
+      const body = sheet.querySelector('.sheet-body');
+      if (!body || !overflows(body)) continue;
+      schuldige.push({
+        titel: sheet.dataset.outlineTitle || '(Titelblatt)',
+        zuvielPx: Math.max(body.scrollHeight - body.clientHeight,
+                           body.scrollWidth - body.clientWidth),
+      });
+      sheet.dataset.ueberlauf = '1';
+    }
+    if (schuldige.length) {
+      console.error('[PDF] Blätter laufen über — Inhalt fehlt im Export:',
+        schuldige.map((s) => `${s.titel} (+${s.zuvielPx}px)`).join(' · '));
+    }
+    return schuldige;
   }
 
   // Das Fortsetzungsblatt trägt denselben Titel mit dem Zusatz
@@ -80,7 +183,12 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     const el = document.createElement('div');
     el.innerHTML = sheet(
       `${title} (Fortsetzung)`, kicker, '',
-      '<div data-cont-slot></div>', foot, '',
+      // `data-flow` am Platzhalter ist kein Zierrat: sheet() legt sonst einen
+      // ZWEITEN Flussbereich darum, der geklonte landet darin verschachtelt,
+      // und der Umbruch fasst danach die aeussere Huelle an — die genau ein
+      // Kind hat und sich nie teilen laesst. Ergebnis waren Fortsetzungen
+      // ohne Ende (die Notbremse bei 200 Blaettern hat es abgefangen).
+      '<div data-cont-slot data-flow></div>', foot, '',
       sourceSheet.dataset.outlineNum || ''
     );
     const cont = el.firstElementChild;
@@ -283,7 +391,9 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
         <h2>${esc(title)}</h2>
         ${intro ? `<p class="sheet-intro">${esc(intro)}</p>` : ''}
       </header>
-      <div class="sheet-body">${bodyHtml}</div>
+      <div class="sheet-body">${/^[\s\S]*\sdata-flow[\s=>]/.test(bodyHtml)
+        ? bodyHtml
+        : `<div data-flow>${bodyHtml}</div>`}</div>
       ${sourcesHtml ? `<div class="sheet-sources">${sourcesHtml}</div>` : ''}
       <footer class="sheet-foot">${footerHtml || ''}</footer>
     </section>`;
@@ -935,6 +1045,8 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
 
     // Erst umbrechen, dann numerieren — der Umbruch erzeugt neue Blätter.
     splitOverflowingSheets(host, foot);
+    // …und dann beweisen, dass keiner mehr überläuft.
+    pruefeKeinUeberlauf(host);
 
     // Number the sheets now that we know how many there are.
     const sheets = host.querySelectorAll('.sheet');

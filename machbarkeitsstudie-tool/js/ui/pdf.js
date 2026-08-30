@@ -47,9 +47,12 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
 (function () {
   const T = window.MachbarkeitTool;
 
-  // A4 quer in PDF-Punkten (1 pt = 1/72 Zoll). Exakte Literale aus
-  // 297 mm bzw. 210 mm — nicht gerundet, sonst driftet das Seitenformat.
-  const A4_LANDSCAPE_PT = { w: (297 / 25.4) * 72, h: (210 / 25.4) * 72 };
+  // A4 HOCH in PDF-Punkten (1 pt = 1/72 Zoll). Exakte Literale aus 210 mm
+  // bzw. 297 mm — nicht gerundet, sonst driftet das Seitenformat. Muss mit
+  // `#print-doc .sheet` in css/print.css uebereinstimmen: die Skalierung
+  // unten rechnet die gemessene Blattbreite auf diese Punktbreite um, ein
+  // Auseinanderlaufen faellt erst im fertigen PDF auf.
+  const A4_PT = { w: (210 / 25.4) * 72, h: (297 / 25.4) * 72 };
   // 2.5× CSS-Pixel ≈ 240 dpi — die Seite ist halb so gross wie das frühere
   // A3, feine Katasterlinien brauchen die höhere Dichte; die Dateigrösse
   // bleibt dank halber Fläche etwa gleich.
@@ -163,9 +166,9 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   async function buildVectorPage(sheetEl, problems) {
     const sheetRect = sheetEl.getBoundingClientRect();
     if (!sheetRect.width || !sheetRect.height) throw new Error('Blatt ohne Ausmasse');
-    const S = A4_LANDSCAPE_PT.w / sheetRect.width;
+    const S = A4_PT.w / sheetRect.width;
     const X = (px) => n2((px - sheetRect.left) * S);
-    const Y = (px) => n2(A4_LANDSCAPE_PT.h - (px - sheetRect.top) * S);
+    const Y = (px) => n2(A4_PT.h - (px - sheetRect.top) * S);
     const label = (sheetEl.querySelector('h2, h1') || {}).textContent || 'Blatt';
     const out = [];
     const images = [];
@@ -412,7 +415,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     }
     if (onProgress) onProgress(sheets.length, sheets.length);
 
-    const blob = buildPdfBlob(pages, A4_LANDSCAPE_PT.w, A4_LANDSCAPE_PT.h, filename,
+    const blob = buildPdfBlob(pages, A4_PT.w, A4_PT.h, filename,
       { ...(meta || {}), bookmarks });
     blob.__pages = pages.length;
     blob.__problems = problems;

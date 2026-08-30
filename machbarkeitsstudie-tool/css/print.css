@@ -13,7 +13,7 @@
   #print-doc { display: block !important; }
   html, body { height: auto; overflow: visible; }
   body { max-width: none; margin: 0; padding: 0; display: block; }
-  @page { size: A4 landscape; margin: 0; }
+  @page { size: A4 portrait; margin: 0; }
 }
 
 /* Waehrend des Exports muss das Dokument ein Layout haben — sonst misst
@@ -21,7 +21,7 @@
    aber nicht zu sehen sein: der Export ist ein Knopfdruck, keine Vorschau.
    Also aus dem Bild geschoben statt display:none. */
 #print-doc.exporting { display: block; position: fixed; left: -20000px; top: 0;
-                       width: 297mm; z-index: -1; pointer-events: none; }
+                       width: 210mm; z-index: -1; pointer-events: none; }
 
 /* Die Klasse "preview" traegt jetzt nur noch der Wrapper, den js/ui/pdf.js
    um das einzelne Blatt baut, bevor es ins <foreignObject> serialisiert
@@ -85,8 +85,8 @@
    gezeigt und auf jedem Buerodrucker gedruckt werden kann — A3 war
    Plansprache, kein Verkaufsdokument. */
 #print-doc .sheet {
-  width: 297mm; height: 210mm; box-sizing: border-box;
-  padding: 10mm 12mm 8mm; background: #fff; color: var(--p-ink);
+  width: 210mm; height: 297mm; box-sizing: border-box;
+  padding: 12mm 14mm 10mm; background: #fff; color: var(--p-ink);
   display: flex; flex-direction: column; overflow: hidden;
   page-break-after: always; break-after: page;
   /* Eine Schrift fuer das ganze Dokument: Helvetica. Vorher standen hier
@@ -178,12 +178,17 @@
   font-size: 6.5pt; color: var(--p-faint); display: flex; justify-content: space-between;
 }
 
-#print-doc .cols { display: grid; gap: 8mm; align-items: start; }
-#print-doc .c-6040 { grid-template-columns: 58% 1fr; }
-#print-doc .c-4555 { grid-template-columns: 44% 1fr; }
-#print-doc .c-5050 { grid-template-columns: 1fr 1fr; }
-#print-doc .c-5545 { grid-template-columns: 55% 1fr; }
-#print-doc .c-7228 { grid-template-columns: 72% 1fr; }
+/* A4 hoch: alles einspaltig. Die alten Verhaeltnisse (58/42, 55/45 …) waren
+   fuer 297 mm Breite gerechnet; auf 210 mm blieben je Spalte gut 90 mm, und
+   darin bricht jede Tabelle und jedes Zitat auseinander. Die Klassennamen
+   bleiben — sie stehen an rund zwanzig Stellen in js/ui/print.js und sagen
+   dort weiterhin, was zusammengehoert; nur die Spaltenzahl ist jetzt eins. */
+#print-doc .cols { display: grid; gap: 6mm; align-items: start; grid-template-columns: 1fr; }
+#print-doc .c-6040, #print-doc .c-4555, #print-doc .c-5050,
+#print-doc .c-5545, #print-doc .c-7228 { grid-template-columns: 1fr; }
+/* Ein Rasterfeld ist von Haus aus min-width:auto und waechst mit seinem
+   laengsten Wort statt umzubrechen — auf schmalem Blatt sofort sichtbar. */
+#print-doc .cols > * { min-width: 0; }
 #print-doc .legend { display: flex; flex-wrap: wrap; gap: 2mm 6mm; margin-top: 3mm; font-size: 7.5pt; color: var(--p-muted); }
 #print-doc .lg { display: flex; align-items: center; gap: 2mm; }
 #print-doc .lg-sw { width: 5mm; height: 2.8mm; display: inline-block; flex: none; }
