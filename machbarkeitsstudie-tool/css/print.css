@@ -89,13 +89,19 @@
   padding: 10mm 12mm 8mm; background: #fff; color: var(--p-ink);
   display: flex; flex-direction: column; overflow: hidden;
   page-break-after: always; break-after: page;
-  /* Eine Schrift fuer das ganze Dokument, dieselbe wie am Bildschirm.
-     Vorher standen hier zwei: Archivo fuer den Text, IBM Plex Mono fuer die
-     Zahlen. Die Trennung hatte einen Grund -- Zahlen in einer Mono stehen
-     in Spalten untereinander und sind von Fliesstext zu unterscheiden --,
-     aber eine Mono fuer ALLES leistet beides: die Spalten stimmen weiterhin,
-     und der Bruch zwischen Bildschirm und Papier faellt weg. */
-  font-family: Menlo, ui-monospace, SFMono-Regular, 'SF Mono', Consolas, 'DejaVu Sans Mono', monospace;
+  /* Eine Schrift fuer das ganze Dokument: Helvetica. Vorher standen hier
+     zwei -- Archivo fuer den Text, IBM Plex Mono fuer die Zahlen.
+     
+     Die Trennung hatte einen Grund: Zahlen in einer Mono stehen in Spalten
+     sauber untereinander. Der faellt hier nicht weg, er erledigt sich --
+     die Ziffern der Helvetica sind gleich breit (Tabellenziffern), also
+     fluchten die Zahlenspalten auch ohne eigene Mono.
+     
+     Zweiter Gewinn, unsichtbar im Browser: Helvetica ist eine der 14
+     Standardschriften, die JEDER PDF-Betrachter mitbringt. js/ui/pdf.js
+     setzt den Vektortext damit in ECHTER Helvetica statt in einer
+     ersatzweise breitgezogenen Courier -- gleiche Datei, saubererer Satz. */
+  font-family: Helvetica, -apple-system, 'Helvetica Neue', Arial, sans-serif;
   -webkit-print-color-adjust: exact; print-color-adjust: exact;
 }
 #print-doc .sheet:last-child { page-break-after: auto; break-after: auto; }
@@ -210,13 +216,7 @@
 #print-doc .note-box.small { font-size: 7.5pt; }
 
 #print-doc .mapwrap { position: relative; width: 100%; aspect-ratio: 1/1; border: 1px solid var(--p-hair); overflow: hidden; }
-#print-doc .mapwrap .layer {
-  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
-  /* Nur Saettigung raus, keine Invertierung: das Blatt ist weiss, die
-     Kacheln sind es auch. Ein Hauch Kontrast, weil Graustufen ohne Farbe
-     flauer wirken als das Original. */
-  filter: grayscale(1) contrast(1.06);
-}
+#print-doc .mapwrap .layer { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 #print-doc .mapwrap .layer.multiply { mix-blend-mode: multiply; }
 #print-doc .mapwrap svg { position: absolute; inset: 0; width: 100%; height: 100%; }
 #print-doc .caption { font-size: 6.5pt; color: var(--p-faint); margin-top: 2.5mm; line-height: 1.4; }

@@ -324,10 +324,10 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   function mapBlock(rings, centerE, centerN, halfSpan, layers, zoneFeatures, w, h) {
     const bbox = T.buildMapBbox(centerE, centerN, halfSpan, w, h);
     const zoning = layers.includes('zoning') && zoneFeatures
-      ? T.buildZonePlanSvg(zoneFeatures, bbox, w, h, true) : '';
+      ? T.buildZonePlanSvg(zoneFeatures, bbox, w, h) : '';
     const cadastre = layers.includes('cadastre')
       ? `<img class="layer ${layers.includes('zoning') ? 'multiply' : ''}" crossorigin="anonymous" src="${T.buildCadastreMapUrl(bbox, w, h)}" alt="Parzellengrenzen">` : '';
-    const overlay = T.buildParcelOverlaySvg(rings, bbox, w, h, true);
+    const overlay = T.buildParcelOverlaySvg(rings, bbox, w, h);
     return `<div class="mapwrap" style="aspect-ratio:${w}/${h}">${zoning}${cadastre}${overlay}</div>`;
   }
 
@@ -345,29 +345,29 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     const out = [];
 
     out.push(`<defs><pattern id="hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-      <line x1="0" y1="0" x2="0" y2="8" stroke="#8a8a8a" stroke-width="3"/></pattern></defs>`);
+      <line x1="0" y1="0" x2="0" y2="8" stroke="#c62828" stroke-width="3"/></pattern></defs>`);
 
     for (const f of (wald.forest || [])) {
       const polys = f.geometry.type === 'Polygon' ? [f.geometry.coordinates] : f.geometry.coordinates;
       for (const p of polys) {
-        out.push(`<path d="${p.map(ringPath).join(' ')}" fill="#b0b0b0" fill-opacity=".85" fill-rule="evenodd" stroke="#7c7c7c" stroke-width="1.5"/>`);
+        out.push(`<path d="${p.map(ringPath).join(' ')}" fill="#9fc38f" fill-opacity=".85" fill-rule="evenodd" stroke="#5f8a52" stroke-width="1.5"/>`);
       }
     }
     if (wald.forbidden) {
       const polys = wald.forbidden.geometry.type === 'Polygon'
         ? [wald.forbidden.geometry.coordinates] : wald.forbidden.geometry.coordinates;
       for (const p of polys) {
-        out.push(`<path d="${p.map(ringPath).join(' ')}" fill="url(#hatch)" fill-opacity=".55" fill-rule="evenodd" stroke="#6f6f6f" stroke-width="1.5"/>`);
+        out.push(`<path d="${p.map(ringPath).join(' ')}" fill="url(#hatch)" fill-opacity=".55" fill-rule="evenodd" stroke="#c62828" stroke-width="1.5"/>`);
       }
     }
     for (const f of (wald.lines || [])) {
       const segs = f.geometry.type === 'LineString' ? [f.geometry.coordinates] : f.geometry.coordinates;
       for (const seg of segs) {
-        out.push(`<path d="${linePath(seg)}" fill="none" stroke="#5a5a5a" stroke-width="3" stroke-dasharray="10 6"/>`);
+        out.push(`<path d="${linePath(seg)}" fill="none" stroke="#2f6b23" stroke-width="3" stroke-dasharray="10 6"/>`);
       }
     }
     for (const ring of rings) {
-      out.push(`<path d="${ringPath(ring)}" fill="none" stroke="#111111" stroke-width="3"/>`);
+      out.push(`<path d="${ringPath(ring)}" fill="none" stroke="#c62828" stroke-width="3"/>`);
     }
     return `<svg class="layer" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">${out.join('')}</svg>`;
   }
@@ -592,7 +592,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
         </div>
         <div>
           ${envelopePng ? `<img class="render" src="${envelopePng}" alt="Isometrie">` : '<div class="empty">Kein Volumen darstellbar.</div>'}
-          ${waldRemoved ? legend([['background:#bdbdbd;', 'zulässige Hüllform'],['background:rgba(85,85,85,.45);border:1px solid #555555;', 'durch Waldabstand entfallen'],['background:transparent;border:1px solid #333;', 'Parzellengrenze']]) : ''}<div class="caption">Maximal zulässige Hüllform, auf die zulässige ${esc(rules.heightMetric)} extrudiert.${waldRemoved ? ' Der rot dargestellte Teil ist durch die boolesche Differenz mit der Waldabstands-Fläche entfallen und in den Zahlen links bereits abgezogen.' : ''} Flaches Dach ist eine Vereinfachung der Darstellung.</div>
+          ${waldRemoved ? legend([['background:#b08b4f;', 'zulässige Hüllform'],['background:rgba(198,40,40,.35);border:1px solid #c62828;', 'durch Waldabstand entfallen'],['background:transparent;border:1px solid #333;', 'Parzellengrenze']]) : ''}<div class="caption">Maximal zulässige Hüllform, auf die zulässige ${esc(rules.heightMetric)} extrudiert.${waldRemoved ? ' Der rot dargestellte Teil ist durch die boolesche Differenz mit der Waldabstands-Fläche entfallen und in den Zahlen links bereits abgezogen.' : ''} Flaches Dach ist eine Vereinfachung der Darstellung.</div>
         </div>
       </div>
       ${variantsHtml}`, foot,
@@ -638,8 +638,8 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
               : (footprintRect ? `<tr><td>Kleinstes Rechteck (L × B)</td><td><b>${fmt(footprintRect.lengthM)} × ${fmt(footprintRect.widthM)} m</b>${lengthLimitM != null ? ' — eingehalten' : ''}</td></tr>` : '')}
           </table>
           ${legend([
-            ['background:#c9c9c9;border:1px solid #4a4a4a;', 'bebaubare Grundfläche'],
-            ...(waldRemoved ? [['background:repeating-linear-gradient(45deg,#8a8a8a 0 3px,transparent 3px 6px);border:1px dashed #8a8a8a;', 'durch Waldabstand entfallen']] : []),
+            ['background:#d9a066;border:1px solid #8a4b08;', 'bebaubare Grundfläche'],
+            ...(waldRemoved ? [['background:repeating-linear-gradient(45deg,#c62828 0 3px,transparent 3px 6px);border:1px dashed #c62828;', 'durch Waldabstand entfallen']] : []),
             ['background:#fafafa;border:1px solid #333;', 'Parzelle'],
           ])}
           <div class="note-box small">
@@ -708,10 +708,10 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
                 ${restrictionMapSvg(wald, rings, rmBbox, rmW, rmH)}
               </div>
               ${legend([
-                ['background:#b0b0b0;border:1px solid #7c7c7c;', 'Waldareal'],
-                ['background:transparent;border-top:3px dashed #5a5a5a;height:0;margin-top:6px;', 'Waldabstandslinie'],
-                ['background:repeating-linear-gradient(45deg,#8a8a8a 0 3px,transparent 3px 6px);border:1px solid #6f6f6f;', 'nicht bebaubar (Waldseite)'],
-                ['background:transparent;border:2px solid #111111;', multi ? 'gewählte Parzellen' : 'Parzelle'],
+                ['background:#9fc38f;border:1px solid #5f8a52;', 'Waldareal'],
+                ['background:transparent;border-top:3px dashed #2f6b23;height:0;margin-top:6px;', 'Waldabstandslinie'],
+                ['background:repeating-linear-gradient(45deg,#c62828 0 3px,transparent 3px 6px);border:1px solid #c62828;', 'nicht bebaubar (Waldseite)'],
+                ['background:transparent;border:2px solid #c62828;', multi ? 'gewählte Parzellen' : 'Parzelle'],
               ])}
             </div>
             <div>

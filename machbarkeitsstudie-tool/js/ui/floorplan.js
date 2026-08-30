@@ -85,13 +85,9 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     light: {
       bg: '#ffffff', parcelFill: '#fafafa', parcelStroke: '#333',
       dimStroke: '#666', dimText: '#444', dimHalo: '#fff',
-      blockStroke: '#4a4a4a', blockText: '#2b2b2b', blockLabel: '#111111',
-      scaleStroke: '#333', facadeOther: '#9a9a9a', clearStroke: '#6f6f6f', clearText: '#3d3d3d',
-      contour: '#b4b4b4',
-      hatch: '#8a8a8a', removedStroke: '#8a8a8a',
-      hullFill: '#d0d0d0', hullStroke: '#8f8f8f',
-      blockFill: '#c9c9c9', blockFillStroke: '#4a4a4a',
-      over: '#111111', under: '#8a8a8a', accent: '#111111',
+      blockStroke: '#7a6a55', blockText: '#5b4d3c', blockLabel: '#6d3d07',
+      scaleStroke: '#333', facadeOther: '#8a8a8a', clearStroke: '#4a7ba6', clearText: '#2f5a80',
+      contour: '#a08b6a',
     },
     dark: {
       bg: '#1b1b1f', parcelFill: '#232327', parcelStroke: '#cfcfcf',
@@ -99,10 +95,6 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       blockStroke: '#c9b48a', blockText: '#f0e4c8', blockLabel: '#ffcf9e',
       scaleStroke: '#cfcfcf', facadeOther: '#77746f', clearStroke: '#7ab0e0', clearText: '#a8d0f0',
       contour: '#8e7d61',
-      hatch: '#c62828', removedStroke: '#c62828',
-      hullFill: '#8a6a3a', hullStroke: '#b09a72',
-      blockFill: '#d9a066', blockFillStroke: '#8a4b08',
-      over: '#c62828', under: '#4a7d3f', accent: '#e8792e',
     },
   };
 
@@ -164,7 +156,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
 
     const out = [];
     out.push(`<defs><pattern id="fp-hatch" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-      <line x1="0" y1="0" x2="0" y2="7" stroke="${pal.hatch}" stroke-width="2.5"/></pattern></defs>`);
+      <line x1="0" y1="0" x2="0" y2="7" stroke="#c62828" stroke-width="2.5"/></pattern></defs>`);
     out.push(`<rect width="${widthPx}" height="${heightPx}" fill="${pal.bg}"/>`);
 
     // Parcel
@@ -208,12 +200,12 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     // attention-grabbing shape; this is deliberately just an outline plus a
     // faint fill, not competing with it.
     if (hullFeature) {
-      out.push(`<path d="${path(allRingsOf(hullFeature))}" fill="${pal.hullFill}" fill-opacity=".14" fill-rule="evenodd" stroke="${pal.hullStroke}" stroke-width="1.2" stroke-dasharray="4 3"/>`);
+      out.push(`<path d="${path(allRingsOf(hullFeature))}" fill="${dark ? '#8a6a3a' : '#d9c9a8'}" fill-opacity=".14" fill-rule="evenodd" stroke="${dark ? '#b09a72' : '#8a7a5a'}" stroke-width="1.2" stroke-dasharray="4 3"/>`);
     }
 
     // What the Waldabstand cut removed
     if (removedFeature) {
-      out.push(`<path d="${path(allRingsOf(removedFeature))}" fill="url(#fp-hatch)" fill-opacity=".5" fill-rule="evenodd" stroke="${pal.removedStroke}" stroke-width="1.4" stroke-dasharray="6 4"/>`);
+      out.push(`<path d="${path(allRingsOf(removedFeature))}" fill="url(#fp-hatch)" fill-opacity=".5" fill-rule="evenodd" stroke="#c62828" stroke-width="1.4" stroke-dasharray="6 4"/>`);
     }
 
     // The smallest enclosing rectangle of the UNDIVIDED buildable area -- the
@@ -223,7 +215,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     // labelled below, showing this too just duplicates it.
     if (lengthRect && lengthRect.corners) {
       const over = lengthLimitM != null && lengthRect.lengthM > lengthLimitM + 0.05 && !lengthResolved;
-      const col = over ? pal.over : pal.under;
+      const col = over ? '#c62828' : '#4a7d3f';
       out.push(`<path d="${path([lengthRect.corners])}" fill="none" stroke="${col}" stroke-width="1.6" stroke-dasharray="9 5"/>`);
       const mid = px(lengthRect.corners[0]).map((v, i) => (v + px(lengthRect.corners[2])[i]) / 2);
       out.push(`<text x="${mid[0].toFixed(1)}" y="${(mid[1] - 4).toFixed(1)}" text-anchor="middle" font-size="12.5" font-family="Helvetica,Arial" fill="${col}" paint-order="stroke" stroke="${pal.dimHalo}" stroke-width="3.5">Ungeteilter Bereich: L = ${lengthRect.lengthM.toFixed(1)} m${lengthResolved ? ` → ${blockCount} Baukörper (max. ${lengthLimitM} m)` : (lengthLimitM != null ? ` (max. ${lengthLimitM} m)` : '')}</text>`);
@@ -242,7 +234,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
           : []);
 
     parts.forEach((part, i) => {
-      out.push(`<path class="baukoerper-path" data-block-index="${i}" d="${path(allRingsOf(part))}" fill="${pal.blockFill}" fill-opacity=".62" fill-rule="evenodd" stroke="${pal.blockFillStroke}" stroke-width="2.4" ${dragEnabled ? 'style="cursor:move"' : ''}/>`);
+      out.push(`<path class="baukoerper-path" data-block-index="${i}" d="${path(allRingsOf(part))}" fill="#d9a066" fill-opacity=".62" fill-rule="evenodd" stroke="#8a4b08" stroke-width="2.4" ${dragEnabled ? 'style="cursor:move"' : ''}/>`);
 
       const rect = T.minAreaRectangleLV95(part);
       if (!rect) return;
@@ -309,13 +301,13 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
         // thin grey edges are easy to click.
         out.push(line(14, 'transparent', null, ''));
         out.push(isChosen
-          ? line(4, `var(--accent, ${pal.accent})`, null, '')
+          ? line(4, 'var(--accent, #e8792e)', null, '')
           : line(2, pal.facadeOther, '5 4', ''));
         if (isChosen) {
           const mid = [(p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2];
           const ang = Math.atan2(p2[1] - p1[1], p2[0] - p1[0]);
           const deg = (Math.abs(ang) > Math.PI / 2 ? ang + Math.PI : ang) * 180 / Math.PI;
-          out.push(`<text x="${mid[0].toFixed(1)}" y="${(mid[1] - 8).toFixed(1)}" text-anchor="middle" font-size="12" font-family="Helvetica,Arial" font-weight="600" fill="var(--accent, #e0e0e0)" paint-order="stroke" stroke="${pal.dimHalo}" stroke-width="3.5" transform="rotate(${deg.toFixed(1)} ${mid[0].toFixed(1)} ${(mid[1] - 8).toFixed(1)})" pointer-events="none">Hauptfassade — grosser Grenzabstand ${grosserGrenzabstandM} m</text>`);
+          out.push(`<text x="${mid[0].toFixed(1)}" y="${(mid[1] - 8).toFixed(1)}" text-anchor="middle" font-size="12" font-family="Helvetica,Arial" font-weight="600" fill="var(--accent, #e8792e)" paint-order="stroke" stroke="${pal.dimHalo}" stroke-width="3.5" transform="rotate(${deg.toFixed(1)} ${mid[0].toFixed(1)} ${(mid[1] - 8).toFixed(1)})" pointer-events="none">Hauptfassade — grosser Grenzabstand ${grosserGrenzabstandM} m</text>`);
         }
       });
     }
