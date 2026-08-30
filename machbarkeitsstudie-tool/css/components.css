@@ -14,24 +14,24 @@
 #screen-detail textarea, #screen-detail button {
   font-family: var(--font-ui);
 }
-#screen-detail { font-size: 12px; line-height: 1.5; color: var(--txt2); }
+#screen-detail { font-size: 14.5px; line-height: 1.5; color: var(--txt2); }
 #screen-detail table.numbers td:nth-child(2),
 #screen-detail .nk-wert, #screen-detail .nk-verlust {
-  font-family: var(--font-num); font-size: 11.5px; color: var(--txt);
+  font-family: var(--font-num); font-size: 14px; color: var(--txt);
 }
 #screen-detail button {
   padding: 5px 12px; cursor: pointer; border-radius: 999px;
   border: 1px solid var(--hair); background: rgba(255,255,255,.05); color: var(--txt2);
-  font: 600 10px/1 var(--font-ui); letter-spacing: .08em;
+  font: 700 13px/1 var(--font-ui); letter-spacing: .08em;
 }
 #screen-detail button:hover { background: color-mix(in srgb, var(--acc) 16%, transparent); color: var(--acc); }
 #screen-detail input[type=text], #screen-detail input[type=number], #screen-detail textarea {
   background: rgba(0,0,0,.3); color: var(--txt);
   border: 1px solid var(--hair); border-radius: 8px; padding: 5px 8px;
-  font: 400 11.5px/1.4 var(--font-num);
+  font: 700 14px/1.4 var(--font-num);
 }
 #screen-detail a { color: var(--acc); }
-.pane-hint { font-weight: 400; color: var(--txt3); font-size: 10px; letter-spacing: .04em; }
+.pane-hint { font-weight: 700; color: var(--txt3); font-size: 13px; letter-spacing: .04em; }
 #pane-ablauf > summary { color: var(--txt2); }
 
 /* ---- Parkierung -------------------------------------------------------
@@ -41,13 +41,13 @@
    Ausnuetzungsziffer das Volumen begrenzt. */
 #parkierung:empty { display: none; }
 #parkierung { margin: 1.1rem 0 0.6rem; }
-.sub-head { font-size: 0.9rem; margin: 0 0 0.4rem; display: flex; align-items: baseline; gap: 0.4rem; }
-.sub-note { font-weight: 400; font-size: 0.78rem; color: var(--text-muted); }
+.sub-head { font-size: 1.05rem; margin: 0 0 0.4rem; display: flex; align-items: baseline; gap: 0.4rem; }
+.sub-note { font-weight: 700; font-size: 0.92rem; color: var(--text-muted); }
 /* Werkzeug-Annahmen tragen ueberall dieselbe, zurueckhaltende Auszeichnung:
    sie duerfen nie wie ein zitierter Rechtswert aussehen. */
-.assumption { font-size: 0.76rem; color: var(--text-faint); font-style: italic; }
-.flag.flag-binding { background: var(--flag-bg); border-color: var(--flag-badge); color: var(--flag-badge); font-weight: 600; }
-#parkierung input[type=number] { padding: 0.15rem 0.3rem; font-size: 0.85rem;
+.assumption { font-size: 0.9rem; color: var(--text-faint); font-style: italic; }
+.flag.flag-binding { background: var(--flag-bg); border-color: var(--flag-badge); color: var(--flag-badge); font-weight: 700; }
+#parkierung input[type=number] { padding: 0.15rem 0.3rem; font-size: 1rem;
    background: var(--bg-pane); color: var(--text); border: 1px solid var(--border); border-radius: 3px; }
 
 /* ---- Ablauf & Normkette ---------------------------------------------
@@ -62,7 +62,7 @@
                padding: 0.4rem 0.8rem 0.5rem; }
 #pane-ablauf > summary { cursor: pointer; list-style: none; display: flex;
                justify-content: space-between; align-items: baseline; gap: 0.5rem;
-               font-size: 0.72rem; text-transform: lowercase; letter-spacing: .09em;
+               font-size: 0.86rem; text-transform: lowercase; letter-spacing: .09em;
                color: var(--accent); padding: 0.2rem 0; }
 #pane-ablauf > summary::-webkit-details-marker { display: none; }
 #pane-ablauf > summary::before { content: '\25B8'; margin-right: 0.35rem; transition: transform .15s; }
@@ -72,13 +72,13 @@
 @media (max-width: 1100px) { .ablauf-body { grid-template-columns: 1fr; } }
 .nk-stage { border: 1px solid var(--border); border-radius: 4px; background: var(--bg-raised); }
 .nk-stage svg { display: block; border-radius: 4px; }
-.nk-caption { font-size: 0.78rem; color: var(--text-muted); margin: 0.3rem 0; min-height: 1.1em; }
-#nk-play { font-size: 0.78rem; padding: 0.25rem 0.6rem; }
+.nk-caption { font-size: 0.92rem; color: var(--text-muted); margin: 0.3rem 0; min-height: 1.1em; }
+#nk-play { font-size: 0.92rem; padding: 0.25rem 0.6rem; }
 .nk-legend { margin-top: 0.5rem; display: flex; flex-wrap: wrap; gap: 0.25rem; }
-.nk-ebene, .nk-rang { font-size: 0.66rem; text-transform: lowercase; letter-spacing: .05em;
+.nk-ebene, .nk-rang { font-size: 0.8rem; text-transform: lowercase; letter-spacing: .05em;
                padding: 0.08rem 0.32rem; border-radius: 3px; white-space: nowrap;
                color: var(--nk-col); border: 1px solid var(--nk-col); background: transparent; }
-.nk-live { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.72rem;
+.nk-live { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.86rem;
            color: var(--text-muted); background: var(--bg-sunken); border: 1px solid var(--border-soft);
            border-radius: 4px; padding: 0.3rem 0.45rem; max-height: 7.5em; overflow-y: auto;
            margin-bottom: 0.5rem; }
@@ -92,20 +92,20 @@
 .nk-step.is-current { background: var(--accent-soft); outline: 1px solid var(--accent); }
 .nk-rang { flex: none; }
 .nk-body { min-width: 0; display: flex; flex-wrap: wrap; gap: 0.2rem 0.5rem; align-items: baseline; }
-.nk-titel { font-size: 0.84rem; font-weight: 600; }
-.nk-wert { font-size: 0.8rem; color: var(--text); }
-.nk-verlust { font-size: 0.78rem; color: var(--flag-badge); font-variant-numeric: tabular-nums; }
+.nk-titel { font-size: 0.98rem; font-weight: 700; }
+.nk-wert { font-size: 0.95rem; color: var(--text); }
+.nk-verlust { font-size: 0.92rem; color: var(--flag-badge); font-variant-numeric: tabular-nums; }
 /* Messweise ueber Wert: die hoehere Norm sagt WIE gemessen wird, die tiefere
    sagt WIEVIEL. Untereinander gesetzt ist die Ableitung PBG/ABV -> BZO an
    jedem Schritt ablesbar, statt in einer Zeile zu verschwimmen. */
-.nk-messweise, .nk-grundlage { flex-basis: 100%; font-size: 0.74rem; color: var(--text-faint); }
+.nk-messweise, .nk-grundlage { flex-basis: 100%; font-size: 0.88rem; color: var(--text-faint); }
 .nk-messweise i, .nk-grundlage i {
   display: inline-block; min-width: 4.4em; font-style: normal;
-  font-size: 0.66rem; letter-spacing: .06em; text-transform: lowercase;
+  font-size: 0.8rem; letter-spacing: .06em; text-transform: lowercase;
   color: var(--text-faint); opacity: .7;
 }
-.nk-step .sich { margin-left: 2px; font-size: 0.78rem; }
-.nk-detail { flex-basis: 100%; font-size: 0.76rem; color: var(--text-muted); }
+.nk-step .sich { margin-left: 2px; font-size: 0.92rem; }
+.nk-detail { flex-basis: 100%; font-size: 0.9rem; color: var(--text-muted); }
 /* Ein Ausfall wird nie gruen dargestellt (REGELN.md 2/3.17) -- 'review'
    traegt hier dieselbe Farbe wie in der Checkliste. */
 .nk-step.nk-review { background: var(--review-bg); }
@@ -152,7 +152,7 @@
 /* Selection styling (leaflet-drawn polygons) uses inline SVG colours from
    JS, not CSS, so it is unaffected by the tile invert filter above. */
 
-.version-banner { background: var(--warn-bg); border: 1px solid var(--warn-border); color: var(--warn-text); padding: 0.75rem 1rem; border-radius: 6px; margin-bottom: 1rem; font-size: 0.9rem; }
+.version-banner { background: var(--warn-bg); border: 1px solid var(--warn-border); color: var(--warn-text); padding: 0.75rem 1rem; border-radius: 6px; margin-bottom: 1rem; font-size: 1.05rem; }
 .binding { background: var(--pass-bg); border: 1px solid var(--pass-badge); border-radius: 6px; padding: 1rem; margin-bottom: 1rem; }
 .binding.zero { background: var(--flag-bg); border-color: var(--flag-badge); }
 
@@ -160,28 +160,28 @@
    the result panel rather than sitting as one row among thirty. */
 .zone-headline { background: var(--accent-soft); border: 1px solid var(--accent);
   border-radius: 6px; padding: 0.7rem 0.9rem; margin-bottom: 0.8rem; }
-.zone-headline .zone-code { font-size: 1.5rem; font-weight: 700; line-height: 1.1;
+.zone-headline .zone-code { font-size: 1.65rem; font-weight: 700; line-height: 1.1;
   display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
-.zone-headline .zone-label { font-size: 0.95rem; margin-top: 0.15rem; }
-.zone-headline .zone-meta { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.3rem; }
+.zone-headline .zone-label { font-size: 1.1rem; margin-top: 0.15rem; }
+.zone-headline .zone-meta { font-size: 0.95rem; color: var(--text-muted); margin-top: 0.3rem; }
 /* Sits next to the zone code: the derivation and the Grundmasse live in the
    Zonenplan tab, this is the way there. */
-.zone-proof-btn { font-size: 0.68rem; font-weight: 600; letter-spacing: 0.02em; text-transform: lowercase;
+.zone-proof-btn { font-size: 0.82rem; font-weight: 700; letter-spacing: 0.02em; text-transform: lowercase;
   border: 1px solid var(--accent); background: transparent; color: var(--accent);
   border-radius: 3px; padding: 0.15rem 0.4rem; cursor: pointer; }
 .zone-proof-btn:hover { background: var(--accent-soft); }
-.steckbrief-h { font-size: 0.85rem; text-transform: lowercase; letter-spacing: 0.04em;
+.steckbrief-h { font-size: 1rem; text-transform: lowercase; letter-spacing: 0.04em;
   color: var(--text-muted); margin: 1.1rem 0 0.35rem; }
 table.numbers { border-collapse: collapse; margin-bottom: 1rem; }
 table.numbers td { padding: 0.25rem 0.75rem 0.25rem 0; }
 table.numbers td:first-child { color: var(--text-muted); }
-.caption-line { font-size: 0.85rem; color: var(--text-muted); margin: 0 0 1.2rem; }
-.flag { background: var(--warn-bg); border: 1px solid var(--warn-border); color: var(--warn-text); border-radius: 4px; padding: 0.5rem 0.75rem; margin-bottom: 0.5rem; font-size: 0.9rem; }
+.caption-line { font-size: 1rem; color: var(--text-muted); margin: 0 0 1.2rem; }
+.flag { background: var(--warn-bg); border: 1px solid var(--warn-border); color: var(--warn-text); border-radius: 4px; padding: 0.5rem 0.75rem; margin-bottom: 0.5rem; font-size: 1.05rem; }
 
 .checklist-tier { margin-bottom: 1rem; }
-.checklist-tier h3 { font-size: 0.95rem; margin-bottom: 0.4rem; }
-.checklist-item { display: flex; gap: 0.5rem; padding: 0.4rem 0.6rem; border-radius: 4px; margin-bottom: 0.3rem; font-size: 0.9rem; align-items: baseline; }
-.checklist-item .badge { flex-shrink: 0; font-weight: bold; font-size: 0.75rem; padding: 0.1rem 0.4rem; border-radius: 3px; color: #fff; }
+.checklist-tier h3 { font-size: 1.1rem; margin-bottom: 0.4rem; }
+.checklist-item { display: flex; gap: 0.5rem; padding: 0.4rem 0.6rem; border-radius: 4px; margin-bottom: 0.3rem; font-size: 1.05rem; align-items: baseline; }
+.checklist-item .badge { flex-shrink: 0; font-weight: bold; font-size: 0.88rem; padding: 0.1rem 0.4rem; border-radius: 3px; color: #fff; }
 .checklist-item.pass { background: var(--pass-bg); }
 .checklist-item.pass .badge { background: var(--pass-badge); }
 .checklist-item.flag { background: var(--flag-bg); }
@@ -192,22 +192,22 @@ table.numbers td:first-child { color: var(--text-muted); }
 .tier-b { border-left: 3px solid var(--accent); padding-left: 0.75rem; }
 
 .grundbuch-form { background: var(--bg-raised); border: 1px solid var(--border); border-radius: 6px; padding: 1rem; margin-bottom: 1rem; }
-.grundbuch-form h3 { font-size: 0.95rem; margin-top: 0; margin-bottom: 0.75rem; }
-.grundbuch-form p.hint { font-size: 0.8rem; color: var(--text-muted); margin-top: -0.5rem; margin-bottom: 0.75rem; }
+.grundbuch-form h3 { font-size: 1.1rem; margin-top: 0; margin-bottom: 0.75rem; }
+.grundbuch-form p.hint { font-size: 0.95rem; color: var(--text-muted); margin-top: -0.5rem; margin-bottom: 0.75rem; }
 .grundbuch-form .field-group { margin-bottom: 0.75rem; }
-.grundbuch-form label { display: block; font-size: 0.9rem; margin-bottom: 0.25rem; }
+.grundbuch-form label { display: block; font-size: 1.05rem; margin-bottom: 0.25rem; }
 .grundbuch-form .sub-fields { display: none; margin-top: 0.4rem; padding-left: 1.25rem; }
 .grundbuch-form .sub-fields.visible { display: block; }
-.grundbuch-form input[type=text], .grundbuch-form textarea { width: 100%; padding: 0.4rem; font-size: 0.9rem; box-sizing: border-box; font-family: inherit; background: var(--bg-pane); color: var(--text); border: 1px solid var(--border); }
+.grundbuch-form input[type=text], .grundbuch-form textarea { width: 100%; padding: 0.4rem; font-size: 1.05rem; box-sizing: border-box; font-family: inherit; background: var(--bg-pane); color: var(--text); border: 1px solid var(--border); }
 .grundbuch-form textarea { min-height: 3rem; resize: vertical; }
 
 .zoning-map { position: relative; display: inline-block; margin-bottom: 1rem; border: 1px solid var(--border); background: #fff; }
-.sources-section { margin-bottom: 1rem; font-size: 0.9rem; }
+.sources-section { margin-bottom: 1rem; font-size: 1.05rem; }
 .sources-section .source-row { padding: 0.4rem 0; border-bottom: 1px solid var(--border-soft); }
-.sources-section .source-row .article { color: var(--text-muted); font-size: 0.8rem; }
+.sources-section .source-row .article { color: var(--text-muted); font-size: 0.95rem; }
 .cost-estimate { background: var(--bg-raised); border: 1px solid var(--border); border-radius: 6px; padding: 1rem; margin-bottom: 1rem; }
-.cost-estimate .total { font-size: 1.3rem; font-weight: bold; color: var(--accent); }
-.cost-estimate .note { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem; }
+.cost-estimate .total { font-size: 1.45rem; font-weight: bold; color: var(--accent); }
+.cost-estimate .note { font-size: 0.95rem; color: var(--text-muted); margin-top: 0.5rem; }
 /* Kein display:none mehr. Der Knopf steht jetzt fest in der Kopfzeile und
    wird bei fehlender Analyse deaktiviert statt ausgeblendet — ausgeblendet
    liess er die Kopfzeile bei jeder Suche springen. Das display:none hier

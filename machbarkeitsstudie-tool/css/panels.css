@@ -15,7 +15,7 @@
   flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 3px 14px;
   min-height: 28px; padding: 6px 14px;
   border-bottom: 1px solid var(--hair-soft);
-  font: 400 10px/1.4 var(--font-num); color: var(--txt3);
+  font: 700 13px/1.4 var(--font-num); color: var(--txt3);
 }
 #log-filter .lf-acc { color: var(--acc); }
 #log-filter .lf-warn { color: var(--assume); }
@@ -27,11 +27,11 @@
   display: grid; grid-template-columns: 88px 30px minmax(0, 1fr);
   align-items: baseline; gap: 4px;
   padding: 1px 6px; border-radius: var(--r-row);
-  font: 400 11px/1.35 var(--font-num);
+  font: 700 13.5px/1.35 var(--font-num);
 }
 .log-line:hover { background: rgba(255, 255, 255, .05); }
 .log-line .t { color: var(--faint); }
-.log-line .b { font-weight: 600; }
+.log-line .b { font-weight: 700; }
 .log-line .m { overflow-wrap: anywhere; }
 
 .log-line.step .b { color: var(--lbl); }   .log-line.step .m { color: var(--txt2); }
@@ -42,11 +42,11 @@
 #log-sources {
   flex: none; padding: 7px 14px 8px;
   border-top: 1px solid var(--hair-soft);
-  font: 400 9.5px/1.5 var(--font-num); color: var(--txt3);
+  font: 700 12.5px/1.5 var(--font-num); color: var(--txt3);
 }
 #log-sources .ls-k {
   display: block; margin-bottom: 3px;
-  font: 600 9px/1 var(--font-ui); letter-spacing: .16em; color: var(--lbl);
+  font: 700 12px/1 var(--font-ui); letter-spacing: .11em; color: var(--lbl);
 }
 #log-sources .ls-row { display: flex; gap: 8px; }
 #log-sources .ls-row .d { margin-left: auto; color: var(--faint); }
@@ -62,12 +62,12 @@
 .kw-group-head {
   display: flex; align-items: baseline; gap: 8px;
   padding: 7px 8px 3px;
-  font: 600 9px/1 var(--font-ui); letter-spacing: .16em; color: var(--acc);
+  font: 700 12px/1 var(--font-ui); letter-spacing: .11em; color: var(--acc);
   text-transform: lowercase;
 }
 .kw-group-head .note {
   margin-left: auto; letter-spacing: .02em; text-transform: none;
-  font: 400 9.5px/1 var(--font-num); color: var(--txt3);
+  font: 700 12.5px/1 var(--font-num); color: var(--txt3);
 }
 
 /* --- Sicherheitsstufen (js/core/sicherheit.js) ---------------------------
@@ -79,7 +79,7 @@
    Stufe hat ein eigenes Zeichen (§ ≈ ~ ?) und bleibt damit lesbar, wenn das
    Blatt schwarzweiss gedruckt wird oder der Leser Farben nicht unterscheidet. */
 .sich {
-  font: 700 10px/1.25 var(--font-num);
+  font: 700 13px/1.25 var(--font-num);
   text-align: center; cursor: help; user-select: none;
 }
 .s-BELEGT { color: var(--ok); }
@@ -102,15 +102,15 @@
    aber lesbar, welche Norm auf welcher Stufe fehlt. */
 .nicht-gerechnet { padding: 10px 10px 12px; }
 .ng-head {
-  font: 600 11px/1.3 var(--font-ui); color: var(--txt);
+  font: 700 13.5px/1.3 var(--font-ui); color: var(--txt);
   letter-spacing: .04em; text-transform: lowercase; margin-bottom: 5px;
 }
 .ng-intro, .ng-foot, .ng-none {
-  font: 400 10px/1.45 var(--font-ui); color: var(--txt2); margin: 0 0 9px;
+  font: 700 13px/1.45 var(--font-ui); color: var(--txt2); margin: 0 0 9px;
 }
 .ng-foot { color: var(--txt3); margin-top: 9px; margin-bottom: 0; }
 .ng-sec h4 {
-  font: 600 8.5px/1.3 var(--font-num); color: var(--txt3);
+  font: 700 12px/1.3 var(--font-num); color: var(--txt3);
   letter-spacing: .07em; text-transform: lowercase;
   margin: 0 0 3px; padding-top: 6px; border-top: 1px solid var(--row-rule);
 }
@@ -119,17 +119,17 @@
   display: grid; grid-template-columns: 13px minmax(0, 1fr) minmax(0, 1.15fr);
   gap: 5px; align-items: baseline; padding: 2px 0;
 }
-.ng-lb { font: 400 10px/1.3 var(--font-ui); color: var(--txt2); }
+.ng-lb { font: 700 13px/1.3 var(--font-ui); color: var(--txt2); }
 .ng-lb.ng-wide { grid-column: 2 / -1; }
-.ng-src { font: 400 8.5px/1.35 var(--font-num); color: var(--txt3); text-align: right; }
+.ng-src { font: 700 12px/1.35 var(--font-num); color: var(--txt3); text-align: right; }
 
 .sich-legende {
   display: flex; flex-wrap: wrap; gap: 4px 10px;
   padding: 4px 8px 5px;
-  font: 400 8.5px/1.3 var(--font-num); color: var(--txt3);
+  font: 700 12px/1.3 var(--font-num); color: var(--txt3);
 }
 .sich-legende span { display: inline-flex; align-items: center; gap: 3px; }
-.sich-legende .sich { font-size: 9.5px; font-style: normal; }
+.sich-legende .sich { font-size: 12.5px; font-style: normal; }
 
 /* Herleitung als Popover neben der Zeile: in der einen Fussleiste passte
    eine lange Formel nie hinein. Schwebt links neben der Kennwerte-Tafel,
@@ -140,12 +140,12 @@
   background: rgba(22, 22, 22, .96);
   box-shadow: var(--shadow-panel);
   padding: 8px 11px 9px;
-  font: 400 10.5px/1.55 var(--font-num); color: var(--txt2);
+  font: 700 13px/1.55 var(--font-num); color: var(--txt2);
   pointer-events: none; white-space: pre-line;
 }
 
 .kw-row {
-  display: grid; grid-template-columns: 13px minmax(0, 1fr) 104px 74px;
+  display: grid; grid-template-columns: 15px minmax(0, 1fr) 124px 106px;
   align-items: baseline; gap: 5px;
   padding: 2px 8px 3px; border-radius: var(--r-row);
   border-top: 1px solid var(--row-rule);
@@ -153,16 +153,18 @@
   cursor: default;
 }
 .kw-row:hover { background: color-mix(in srgb, var(--acc) 9%, transparent); }
-.kw-row .lb { font: 400 10.5px/1.25 var(--font-ui); color: var(--txt2); }
+.kw-row .lb { font: 700 13px/1.25 var(--font-ui); color: var(--txt2); }
 .kw-row .vl {
-  font: 500 11px/1.25 var(--font-num); color: var(--txt);
-  text-align: right; overflow-wrap: anywhere;
+  font: 700 13.5px/1.25 var(--font-num); color: var(--txt);
+  text-align: right; overflow-wrap: break-word;
 }
 .kw-row .bg {
-  font: 400 8.5px/1.2 var(--font-num); text-align: right;
+  font: 700 11.5px/1.25 var(--font-num); text-align: right;
   /* Umbrechen statt abschneiden: "Art. 17/18 BZO Zumikon" auf zwei Zeilen
-     ist lesbar, "Art. 17/18 BZ…" ist es nicht. */
-  overflow-wrap: anywhere;
+     ist lesbar, "Art. 17/18 BZ…" ist es nicht. Aber `break-word` statt
+     `anywhere`: letzteres trennte auch mitten im Wort, sobald die Schrift
+     groesser wurde. */
+  overflow-wrap: break-word;
 }
 /* § references in the accent, plain dataset names in tertiary: the eye can
    tell a legal citation from a data source without reading either. */
@@ -173,7 +175,7 @@
    die man ueberfliegt, nicht liest. */
 .kw-row .kd {
   grid-column: 4; text-align: right;
-  font: 600 7.5px/1.25 var(--font-num); letter-spacing: .06em;
+  font: 700 11.5px/1.25 var(--font-num); letter-spacing: .06em;
 }
 .kd-GEHOLT { color: var(--txt3); }
 .kd-BERECHNET { color: var(--acc2); }
@@ -182,14 +184,14 @@
 .kd-ENTWURF { color: var(--txt2); }
 
 /* The § evidence button rides along inside the Beleg cell. */
-.kw-row .prov-btn { padding: 0 3px; font-size: 9px; line-height: 1.2; }
+.kw-row .prov-btn { padding: 0 3px; font-size: 12px; line-height: 1.2; }
 
 /* Wenn nichts darstellbar ist: der Grund, mittig, statt eines leeren
    Rahmens, der wie ein Ladefehler aussieht. */
 .pane-empty {
   position: absolute; inset: 0; margin: 0;
   display: grid; place-items: center; text-align: center; padding: 24px;
-  font: 400 12px/1.5 var(--font-num); color: var(--assume);
+  font: 700 14.5px/1.5 var(--font-num); color: var(--assume);
 }
 
 /* ---- 3. overlays on the drawings --------------------------------------
@@ -214,20 +216,20 @@
 .ovl:not(:hover) .o-k { margin-bottom: 0; }
 .ovl .o-k {
   display: block; margin-bottom: 6px;
-  font: 600 9px/1 var(--font-ui); letter-spacing: .16em; color: var(--lbl);
+  font: 700 12px/1 var(--font-ui); letter-spacing: .11em; color: var(--lbl);
   text-transform: lowercase;
 }
 .ovl .o-row {
   display: flex; gap: 7px; align-items: baseline;
-  font: 400 10px/1.5 var(--font-num); color: var(--txt2);
+  font: 700 13px/1.5 var(--font-num); color: var(--txt2);
 }
 .ovl .o-row .g { flex: none; width: 9px; }
-.ovl .o-row .p { margin-left: auto; color: var(--faint); font-size: 9px; }
+.ovl .o-row .p { margin-left: auto; color: var(--faint); font-size: 12px; }
 .ovl .o-row.is-ok .g { color: var(--ok); }
 /* Eine Warnzeile muss als Warnung LESBAR sein, nicht nur einen anderen
    Glyphen tragen: amber, halbfett, eigener Grund hinter der ganzen Zeile. */
 .ovl .o-row.is-assume {
-  color: var(--assume); font-weight: 600;
+  color: var(--assume); font-weight: 700;
   background: color-mix(in srgb, var(--assume) 14%, transparent);
   border-radius: 6px; padding: 2px 6px; margin: 2px 0;
 }
@@ -238,7 +240,7 @@
 /* Bottom-left, not top-left: the model/plan sits centred in the pane, and
    the other corners are taken (iso readout bottom-right, controls and zoom
    top-right, north arrow top-left). */
-#ovl-modell { bottom: 14px; left: 14px; }
+#ovl-modell { top: 44px; left: 14px; }
 #ovl-plan { bottom: 14px; left: 14px; max-width: 268px; }
 
 /* ---- 4. isometry controls --------------------------------------------- */
@@ -254,14 +256,14 @@
   background: var(--overlay-box); color: var(--txt2);
   cursor: pointer; transition: background .15s, color .15s;
 }
-#iso-controls button.wide { width: auto; padding: 0 11px; font: 600 9px/1 var(--font-ui); letter-spacing: .12em; }
+#iso-controls button.wide { width: auto; padding: 0 11px; font: 700 12px/1 var(--font-ui); letter-spacing: .12em; }
 #iso-controls button:hover { background: color-mix(in srgb, var(--acc) 16%, transparent); color: var(--acc); }
 #iso-controls svg { width: 14px; height: 14px; stroke-width: 1.5; }
 
 #iso-readout {
   position: absolute; z-index: 7; right: 14px; bottom: 12px;
-  font: 400 10px/1 var(--font-num); color: var(--txt3);
-  background: var(--overlay-box); border-radius: 999px; padding: 5px 11px;
+  font: 700 11.5px/1 var(--font-num); color: var(--txt3);
+  background: var(--overlay-box); border-radius: 999px; padding: 5px 10px;
   pointer-events: none;
 }
 
@@ -280,8 +282,8 @@
   transition: background .15s;
 }
 .variant:first-child { border-left: none; }
-.variant .n { font: 600 10px/1.2 var(--font-ui); color: var(--txt2); }
-.variant .d { font: 400 9.5px/1.3 var(--font-num); color: var(--txt3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.variant .n { font: 700 13px/1.2 var(--font-ui); color: var(--txt2); }
+.variant .d { font: 700 12.5px/1.3 var(--font-num); color: var(--txt3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .variant:hover { background: color-mix(in srgb, var(--acc) 9%, transparent); }
 .variant.active { background: color-mix(in srgb, var(--acc) 14%, transparent); }
 .variant.active .n { color: var(--acc); }
@@ -314,7 +316,7 @@
 }
 #map .leaflet-control-attribution {
   background: var(--overlay-box); color: var(--faint);
-  font-family: var(--font-num); font-size: 8px;
+  font-family: var(--font-num); font-size: 11.5px;
 }
 #map .leaflet-control-attribution a { color: var(--txt3); }
 
@@ -322,7 +324,7 @@
 
 .plan-zoom { position: absolute; z-index: 7; top: 38px; right: 14px; display: flex; flex-direction: column; gap: 4px; }
 .plan-zoom button {
-  width: 26px; height: 26px; padding: 0; font: 400 14px/1 var(--font-num);
+  width: 26px; height: 26px; padding: 0; font: 700 16.5px/1 var(--font-num);
   border-radius: 999px; border: 1px solid var(--hair);
   background: var(--overlay-box); color: var(--txt2); cursor: pointer;
 }
@@ -344,23 +346,23 @@
 .combo-opt {
   display: flex; align-items: baseline; gap: 8px; padding: 5px 8px;
   border-radius: var(--r-row); cursor: pointer;
-  font: 400 11.5px/1.3 var(--font-num); color: var(--txt2);
+  font: 700 14px/1.3 var(--font-num); color: var(--txt2);
 }
 .combo-opt[aria-selected="true"], .combo-opt:hover {
   background: color-mix(in srgb, var(--acc) 14%, transparent); color: var(--txt);
 }
 .combo-opt .opt-kind {
-  flex: none; font: 600 8px/1.5 var(--font-ui); letter-spacing: .1em;
+  flex: none; font: 700 11.5px/1.5 var(--font-ui); letter-spacing: .1em;
   text-transform: lowercase; color: var(--lbl);
 }
 .combo-opt .opt-main { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.combo-opt .opt-sub { flex: none; color: var(--faint); font-size: 10px; }
-.combo-empty { padding: 6px 8px; font: 400 11px/1.3 var(--font-num); color: var(--faint); }
+.combo-opt .opt-sub { flex: none; color: var(--faint); font-size: 13px; }
+.combo-empty { padding: 6px 8px; font: 700 13.5px/1.3 var(--font-num); color: var(--faint); }
 
 /* Gemeinde override: a bare select in the header cell, no chrome until hover. */
 #gemeinde-select {
   border: none; background: none; appearance: none; -webkit-appearance: none;
-  font: 400 10px/1 var(--font-num); color: var(--lbl); cursor: pointer; padding: 0;
+  font: 700 13px/1 var(--font-num); color: var(--lbl); cursor: pointer; padding: 0;
 }
 #gemeinde-select:hover { color: var(--txt2); }
 #gemeinde-select option { background: #1a1a1a; color: var(--txt); }

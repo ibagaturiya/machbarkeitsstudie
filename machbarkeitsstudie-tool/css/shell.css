@@ -102,23 +102,23 @@ body.detail-open { overflow: auto; }
   flex: none;
   border-radius: var(--r-inner) var(--r-inner) 0 0;
   display: flex; align-items: center; gap: 8px;
-  padding: 0 14px; height: 30px;
-  font: 600 9px/1 var(--font-ui); letter-spacing: .16em; text-transform: lowercase;
+  padding: 0 15px; height: 36px;
+  font: 700 12px/1 var(--font-ui); letter-spacing: .11em; text-transform: lowercase;
   color: var(--lbl);
   border-bottom: 1px solid var(--hair-soft);
   background: rgba(255, 255, 255, .02);
 }
 .panel-title .t-note {
   margin-left: auto; letter-spacing: .04em; text-transform: none;
-  font: 400 10px/1 var(--font-num); color: var(--txt3);
+  font: 700 13px/1 var(--font-num); color: var(--txt3);
 }
 .panel-body { flex: 1 1 auto; min-height: 0; position: relative; }
 
 .panel-foot {
   flex: none; display: flex; align-items: center; gap: 10px;
-  padding: 0 14px; height: 28px;
+  padding: 0 15px; height: 32px;
   border-top: 1px solid var(--hair-soft);
-  font: 400 10px/1 var(--font-num); color: var(--txt3);
+  font: 700 13px/1 var(--font-num); color: var(--txt3);
 }
 .panel-foot .f-right { margin-left: auto; color: var(--txt2); }
 .panel-foot .f-acc { color: var(--acc); }
@@ -127,7 +127,7 @@ body.detail-open { overflow: auto; }
 
 /* .panel is a column; the header is the one panel laid out across. */
 #topbar {
-  flex: none; height: 60px;
+  flex: none; height: 70px;
   flex-direction: row; align-items: stretch; gap: 0;
 }
 
@@ -137,8 +137,8 @@ body.detail-open { overflow: auto; }
   background: var(--acc); color: #0c0c0c;
   display: flex; flex-direction: column; justify-content: center; gap: 2px;
 }
-#brand .b-name { font: 800 13px/1 var(--font-ui); letter-spacing: .1em; }
-#brand .b-sub { font: 600 9px/1 var(--font-num); letter-spacing: .14em; opacity: .82; }
+#brand .b-name { font: 800 15.5px/1 var(--font-ui); letter-spacing: .1em; }
+#brand .b-sub { font: 700 12px/1 var(--font-num); letter-spacing: .1em; opacity: .82; }
 
 /* Header cells: a kicker over a value, flush left, hairline between. */
 .hcell {
@@ -149,9 +149,9 @@ body.detail-open { overflow: auto; }
 .hcell:first-of-type { border-left: none; }
 .hcell .k {
   display: flex; align-items: baseline; gap: 8px;
-  font: 600 9px/1 var(--font-ui); letter-spacing: .18em; color: var(--lbl); text-transform: lowercase;
+  font: 700 12px/1 var(--font-ui); letter-spacing: .1em; color: var(--lbl); text-transform: lowercase;
 }
-.hcell .v { font: 500 15px/1.2 var(--font-num); color: var(--txt); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hcell .v { font: 700 17.5px/1.2 var(--font-num); color: var(--txt); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hcell .v .acc { color: var(--acc); }
 #hcell-adresse { flex: 1 1 auto; margin-left: 14px; }
 #hcell-auswahl { flex: 0 1 300px; }
@@ -161,7 +161,7 @@ body.detail-open { overflow: auto; }
 #address-form { display: contents; margin: 0; }
 #address-input {
   width: 100%; padding: 0; border: none; background: none;
-  font: 500 15px/1.2 var(--font-num); color: var(--txt);
+  font: 700 17.5px/1.2 var(--font-num); color: var(--txt);
 }
 #address-input::placeholder { color: var(--faint); }
 #address-input:focus { outline: none; }
@@ -171,14 +171,14 @@ body.detail-open { overflow: auto; }
   flex: none; margin: 9px 8px; border: none; cursor: pointer;
   border-radius: 999px;
   display: flex; align-items: center; padding: 0 18px;
-  font: 800 13px/1 var(--font-ui); letter-spacing: .1em;
+  font: 800 15.5px/1 var(--font-ui); letter-spacing: .1em;
   transition: background .15s, color .15s;
 }
 #analyse-btn { width: 186px; background: var(--acc); color: #0c0c0c; }
 #analyse-btn:hover:not([disabled]) { background: var(--acc2); }
 #pdf-btn, #detail-btn { background: #212121; color: var(--txt2); }
 #pdf-btn { width: 150px; }
-#detail-btn { width: 116px; font-size: 11px; }
+#detail-btn { width: 116px; font-size: 13.5px; }
 #pdf-btn:hover:not([disabled]), #detail-btn:hover:not([disabled]) {
   background: color-mix(in srgb, var(--acc) 16%, transparent); color: var(--acc);
 }
@@ -186,7 +186,7 @@ body.detail-open { overflow: auto; }
 
 /* ---- 4. KPI strip ----------------------------------------------------- */
 
-#kpis { flex: none; flex-direction: row; height: 76px; }
+#kpis { flex: none; flex-direction: row; height: 90px; }
 .kpi {
   flex: 1 1 0; min-width: 0;
   display: flex; flex-direction: column; justify-content: center; gap: 2px;
@@ -194,9 +194,9 @@ body.detail-open { overflow: auto; }
   border-left: 1px solid var(--hair-soft);
 }
 .kpi:first-child { border-left: none; background: color-mix(in srgb, var(--acc) 10%, transparent); }
-.kpi .k { font: 600 9px/1 var(--font-ui); letter-spacing: .18em; color: var(--lbl); text-transform: lowercase; }
-.kpi .v { font: 500 25px/1.1 var(--font-num); color: var(--txt); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.kpi .s { font: 400 10px/1.2 var(--font-num); color: var(--txt3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kpi .k { font: 700 12px/1 var(--font-ui); letter-spacing: .1em; color: var(--lbl); text-transform: lowercase; }
+.kpi .v { font: 700 29px/1.1 var(--font-num); color: var(--txt); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kpi .s { font: 700 13px/1.2 var(--font-num); color: var(--txt3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .kpi:first-child .v { color: var(--acc); }
 
 /* ---- 5. body: three columns ------------------------------------------- */
@@ -236,10 +236,10 @@ body.detail-open { overflow: auto; }
 /* ---- 7. status bar ---------------------------------------------------- */
 
 #statusbar {
-  flex: none; height: 30px; flex-direction: row; align-items: center;
+  flex: none; height: 34px; flex-direction: row; align-items: center;
   gap: 0; padding: 0 14px;
   background: var(--status-glass);
-  font: 400 10px/1 var(--font-num); color: var(--txt3);
+  font: 700 13px/1 var(--font-num); color: var(--txt3);
   overflow: hidden;
 }
 /* The bright-paper switch: deliberately tiny and unlabelled. Leftmost so
@@ -280,11 +280,11 @@ body.detail-open #kpis { display: none; }
 #screen-detail .panel { flex: none; }
 #screen-detail .panel-body { padding: 16px 18px 20px; overflow: visible; }
 #screen-detail h2 {
-  font: 600 11px/1.3 var(--font-ui); letter-spacing: .16em; text-transform: lowercase;
+  font: 700 13.5px/1.3 var(--font-ui); letter-spacing: .11em; text-transform: lowercase;
   color: var(--lbl); margin: 1.4rem 0 .5rem;
 }
 #screen-detail .panel-body > h2:first-child { margin-top: 0; }
-#screen-detail h3 { font: 600 12px/1.3 var(--font-ui); color: var(--txt); margin: 1rem 0 .4rem; }
+#screen-detail h3 { font: 700 14.5px/1.3 var(--font-ui); color: var(--txt); margin: 1rem 0 .4rem; }
 
 /* ---- 9. print ---------------------------------------------------------- */
 
@@ -344,8 +344,18 @@ body.detail-open #kpis { display: none; }
   #iso-controls button, .plan-zoom button { width: 34px; height: 34px; }
 
   /* iOS Safari zoomt beim Fokussieren in jedes Eingabefeld unter 16 px —
-     16 px unterbindet genau diesen Sprung. */
-  #address-input { font-size: 16px; }
+     ab 16 px unterbleibt genau dieser Sprung. Die 16 sind hier also eine
+     UNTERGRENZE mit Wirkung, kein Schriftgrad nach Geschmack: beim
+     Hochskalieren der Oberflaeche wurde daraus 18.5, was die Bedingung
+     weiter erfuellt — unter 16 darf dieser Wert nie fallen. */
+  #address-input { font-size: 18px; }
+
+  /* Auf schmalem Schirm stehen die Kennzahlen zu zweit nebeneinander. Bei
+     29 px passte «1761.9 m³» nicht mehr in die halbe Breite, und abge-
+     schnitten wurde ausgerechnet die EINHEIT — eine Zahl ohne Einheit ist
+     in diesem Werkzeug keine Aussage. Lieber etwas kleiner und vollstaendig. */
+  .kpi .v { font-size: 23px; }
+  .hcell .v { font-size: 17px; }
 }
 
 /* ---- 9. Kapitälchen ----------------------------------------------------
