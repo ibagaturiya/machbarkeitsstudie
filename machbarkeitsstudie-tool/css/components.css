@@ -62,7 +62,7 @@
                padding: 0.4rem 0.8rem 0.5rem; }
 #pane-ablauf > summary { cursor: pointer; list-style: none; display: flex;
                justify-content: space-between; align-items: baseline; gap: 0.5rem;
-               font-size: 0.72rem; text-transform: uppercase; letter-spacing: .09em;
+               font-size: 0.72rem; text-transform: lowercase; letter-spacing: .09em;
                color: var(--accent); padding: 0.2rem 0; }
 #pane-ablauf > summary::-webkit-details-marker { display: none; }
 #pane-ablauf > summary::before { content: '\25B8'; margin-right: 0.35rem; transition: transform .15s; }
@@ -75,7 +75,7 @@
 .nk-caption { font-size: 0.78rem; color: var(--text-muted); margin: 0.3rem 0; min-height: 1.1em; }
 #nk-play { font-size: 0.78rem; padding: 0.25rem 0.6rem; }
 .nk-legend { margin-top: 0.5rem; display: flex; flex-wrap: wrap; gap: 0.25rem; }
-.nk-ebene, .nk-rang { font-size: 0.66rem; text-transform: uppercase; letter-spacing: .05em;
+.nk-ebene, .nk-rang { font-size: 0.66rem; text-transform: lowercase; letter-spacing: .05em;
                padding: 0.08rem 0.32rem; border-radius: 3px; white-space: nowrap;
                color: var(--nk-col); border: 1px solid var(--nk-col); background: transparent; }
 .nk-live { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.72rem;
@@ -101,7 +101,7 @@
 .nk-messweise, .nk-grundlage { flex-basis: 100%; font-size: 0.74rem; color: var(--text-faint); }
 .nk-messweise i, .nk-grundlage i {
   display: inline-block; min-width: 4.4em; font-style: normal;
-  font-size: 0.66rem; letter-spacing: .06em; text-transform: uppercase;
+  font-size: 0.66rem; letter-spacing: .06em; text-transform: lowercase;
   color: var(--text-faint); opacity: .7;
 }
 .nk-step .sich { margin-left: 2px; font-size: 0.78rem; }
@@ -166,11 +166,11 @@
 .zone-headline .zone-meta { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.3rem; }
 /* Sits next to the zone code: the derivation and the Grundmasse live in the
    Zonenplan tab, this is the way there. */
-.zone-proof-btn { font-size: 0.68rem; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase;
+.zone-proof-btn { font-size: 0.68rem; font-weight: 600; letter-spacing: 0.02em; text-transform: lowercase;
   border: 1px solid var(--accent); background: transparent; color: var(--accent);
   border-radius: 3px; padding: 0.15rem 0.4rem; cursor: pointer; }
 .zone-proof-btn:hover { background: var(--accent-soft); }
-.steckbrief-h { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.04em;
+.steckbrief-h { font-size: 0.85rem; text-transform: lowercase; letter-spacing: 0.04em;
   color: var(--text-muted); margin: 1.1rem 0 0.35rem; }
 table.numbers { border-collapse: collapse; margin-bottom: 1rem; }
 table.numbers td { padding: 0.25rem 0.75rem 0.25rem 0; }

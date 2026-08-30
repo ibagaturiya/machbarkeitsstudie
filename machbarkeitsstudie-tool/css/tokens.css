@@ -23,10 +23,24 @@
      a drawing: glass behind a map or a 3D scene turns to mud. */
   --canvas: #0e0f10;
   --draw: #141516;
-  --glass: rgba(20, 20, 20, .72);
-  --bar-glass: rgba(30, 27, 24, .74);
-  --status-glass: rgba(18, 18, 18, .62);
-  --overlay-box: rgba(28, 28, 28, .6);
+  /* Glas, durchgehend und durchscheinend. Die Werte lagen bei .72/.74/.62 --
+     praktisch undurchsichtig; vom Millimeterpapier darunter war nie etwas zu
+     sehen.
+
+     Entscheidend war nicht nur die Deckung, sondern die FARBE: ein dunkler
+     Anflug auf fast schwarzem Grund (#0e0f10) bleibt unsichtbar, auch bei
+     20 % Deckung -- rechnerisch durchscheinend, sichtbar unveraendert. Glas
+     liest sich auf dunklem Grund erst, wenn die Scheibe HELLER ist als das,
+     worauf sie liegt. Deshalb jetzt ein heller Anflug bei ~8 % Deckung: die
+     Flaeche hebt sich als Scheibe ab, und das Raster darunter scheint durch.
+
+     Lesbar bleibt es durch --blur-glass: der Backdrop-Blur nimmt dem
+     Untergrund den Kontrast, bevor Text darauf liegt. Ohne den Blur waere
+     diese Deckung unbenutzbar. */
+  --glass: rgba(255, 255, 255, .085);
+  --bar-glass: rgba(255, 255, 255, .10);
+  --status-glass: rgba(255, 255, 255, .07);
+  --overlay-box: rgba(28, 28, 28, .38);
 
   /* ---- text, five steps ------------------------------------------------ */
   --txt: #eceae8;
@@ -65,10 +79,22 @@
   --blur-overlay: blur(20px);
 
   /* ---- type ------------------------------------------------------------
-     Archivo for labels and headings; IBM Plex Mono for EVERY number, id,
-     timestamp and log line. A number set in Archivo is a bug. */
-  --font-ui: 'Archivo', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-num: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+     Eine Schrift fuer die ganze Oberflaeche: Menlo. Vorher standen hier
+     zwei (Archivo fuer Beschriftungen, IBM Plex Mono fuer Zahlen); beide
+     Tokens zeigen jetzt auf dieselbe Familie, damit die Trennung an EINER
+     Stelle wieder aufgemacht werden kann, statt sie durch 1300 Zeilen CSS
+     zurueckzusuchen.
+
+     Menlo liegt auf jedem Mac bereit und wird NICHT mitgeliefert -- der
+     Verdrahtungstest besteht darauf, dass die App ohne fremde Hosts laeuft,
+     und eine Systemschrift verletzt das nicht. Die Kette dahinter faengt
+     Windows und Linux ab, wo es Menlo nicht gibt.
+
+     Das Exportdokument ist davon unberuehrt: css/print.css setzt seine
+     Schriften selbst (Archivo/IBM Plex Mono) und liest diese Tokens nicht --
+     Papier ist ein anderes Medium als der Bildschirm. */
+  --font-ui: Menlo, ui-monospace, SFMono-Regular, 'SF Mono', Consolas, 'DejaVu Sans Mono', monospace;
+  --font-num: Menlo, ui-monospace, SFMono-Regular, 'SF Mono', Consolas, 'DejaVu Sans Mono', monospace;
 
   /* ---- legacy token names ----------------------------------------------
      css/components.css, css/print.css and the evidence overlay were written
