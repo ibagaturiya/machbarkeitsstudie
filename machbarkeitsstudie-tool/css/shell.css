@@ -411,3 +411,81 @@ body.detail-open #kpis { display: none; }
 #status-stand, #status-timings, #status-msg {
   text-transform: none;
 }
+
+/* ---- 10. Glaskante -----------------------------------------------------
+   Die Lichtbrechung selbst (js/ui/liquid-glass.js) traegt nur Chromium: ein
+   SVG-Filter als `backdrop-filter` ist sonst nirgends implementiert. Was
+   eine Scheibe ausserdem als Scheibe lesbar macht, laesst sich aber ohne
+   Filter bauen und laeuft ueberall — auch in Safari:
+
+     .panel::before  die Fase. Ein heller Verlauf oben links, ein dunkler
+                     unten rechts, nur im Randstreifen sichtbar. Gemacht mit
+                     zwei uebereinandergelegten Verlaeufen und einer Maske
+                     aus zwei Farbverlaeufen, damit die Mitte frei bleibt.
+     .panel::after   die Lichtkante: ein 1 px schmaler Streifen entlang der
+                     Oberkante, wo eine echte Scheibe das Licht spiegelt.
+
+   Beide liegen ueber dem Inhalt und muessen daher pointer-events: none
+   tragen — sonst faengt die Fase Klicks ab, die der Karte darunter gelten.
+   Beide sind rein dekorativ und deshalb aria-hidden von Natur aus
+   (Pseudoelemente ohne Inhalt tauchen im Accessibility-Baum nicht auf). */
+.panel { position: relative; }
+
+.panel::before,
+.panel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 3;
+}
+
+/* Fase: hell von oben links, dunkel nach unten rechts. Die Maske schneidet
+   alles bis auf den Randstreifen weg — ohne sie liegt ein Schleier ueber
+   dem ganzen Fenster statt einer Kante an seinem Rand. */
+.panel::before {
+  background:
+    linear-gradient(145deg,
+      rgba(255, 255, 255, .34) 0%,
+      rgba(255, 255, 255, .05) 22%,
+      rgba(255, 255, 255, 0) 42%,
+      rgba(0, 0, 0, 0) 58%,
+      rgba(0, 0, 0, .16) 82%,
+      rgba(0, 0, 0, .3) 100%);
+  -webkit-mask:
+    linear-gradient(#000, #000) content-box,
+    linear-gradient(#000, #000);
+  mask:
+    linear-gradient(#000, #000) content-box,
+    linear-gradient(#000, #000);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  padding: 1.5px;
+}
+
+/* Lichtkante oben — eine Scheibe faengt das Licht an ihrer Oberkante.
+   Schmal und kurz: ueber die volle Breite gezogen wirkt sie wie ein Strich,
+   nicht wie eine Spiegelung. */
+.panel::after {
+  background:
+    linear-gradient(to bottom,
+      rgba(255, 255, 255, .5) 0, rgba(255, 255, 255, 0) 1.2px),
+    radial-gradient(120% 60% at 50% 0%,
+      rgba(255, 255, 255, .1) 0%, rgba(255, 255, 255, 0) 70%);
+  opacity: .9;
+}
+
+/* Innenschatten und Tiefe. Der Schlagschatten stand schon in .panel; hier
+   kommt die Innenkante dazu, die dem Fenster Dicke gibt. */
+.panel {
+  box-shadow:
+    var(--shadow-panel),
+    inset 0 1px 0 rgba(255, 255, 255, .07),
+    inset 0 -1px 0 rgba(0, 0, 0, .28);
+}
+
+/* Laeuft die echte Brechung, darf die gemalte Fase zurueckhaltender sein --
+   sonst liegen zwei Kanten uebereinander. Die Klasse setzt
+   js/ui/liquid-glass.js, nachdem es sich fuer zustaendig erklaert hat. */
+.has-liquid-glass .panel::before { opacity: .62; }
