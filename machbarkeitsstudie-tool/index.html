@@ -30,7 +30,7 @@
 <script src="vendor/turf-6.5.0/turf.min.js"></script>
 <script src="vendor/three-0.160.0/three.min.js"></script>
 </head>
-<body>
+<body class="start">
 
 <!-- Ehemals stand hier die #too-narrow-Sperre ("braucht ein breites
      Fenster"). Entfernt: unter 980 px stapelt das Layout jetzt auf EINE
@@ -44,6 +44,16 @@
     <span class="b-sub">MAX. VOLUMEN · KT. ZÜRICH</span>
   </div>
 
+  <!-- Nur im Startbild sichtbar (body.start). Steht IM Kopf, damit es
+       dasselbe Eingabefeld benutzt wie die Kopfzeile danach — ein zweites
+       Feld waere ein zweiter Zustand, der auseinanderlaufen kann. -->
+  <div id="start-lead">
+    <h1>Was darf hier gebaut werden?</h1>
+    <p>Adresse oder Parzellennummer eingeben. Das Werkzeug rechnet Fläche, Geschosse,
+       Volumen und eine erste Kostenschätzung nach der Bau- und Zonenordnung der
+       Gemeinde — jede Zahl nennt ihre Quelle.</p>
+  </div>
+
   <form id="address-form" autocomplete="off">
     <div class="hcell" id="hcell-adresse">
       <span class="k">
@@ -55,8 +65,7 @@
       <div class="combo" id="address-combo">
         <input type="text" id="address-input" role="combobox" aria-expanded="false" aria-controls="address-options"
                aria-autocomplete="list" autocomplete="off" spellcheck="false"
-               placeholder="Adresse oder Parzellennummer"
-               value="Haldenstrasse 5, 8126 Zumikon">
+               placeholder="Adresse oder Parzellennummer">
         <ul id="address-options" class="combo-list" role="listbox" hidden></ul>
       </div>
     </div>
@@ -64,6 +73,13 @@
     <div class="hcell" id="hcell-auswahl">
       <span class="k">Auswahl</span>
       <span class="v" id="auswahl-value">—</span>
+      <!-- Nur bei mehreren Parzellen sichtbar (js/app.js). Angehakt =
+           Arealmodus: die Parzellen gelten als EIN Baugrundstueck. Ohne
+           Haken rechnet jede fuer sich, mit eigenen Grenzabstaenden. -->
+      <label class="hcell-opt" id="areal-opt" hidden>
+        <input type="checkbox" id="areal-toggle" checked>
+        <span>Areal — zusammengefasst rechnen</span>
+      </label>
     </div>
 
     <button type="submit" id="analyse-btn" class="btn-capsule">ANALYSIEREN</button>
@@ -126,6 +142,9 @@
           <div id="iso-readout" hidden></div>
         </div>
         <div id="variants"></div>
+        <!-- Nur im getrennten Modus gefuellt (body.modus-einzeln): je Parzelle
+             eine Zeile mit den Schlagzahlen ihrer EIGENEN Auswertung. -->
+        <div id="einzeln"></div>
       </section>
 
       <section class="panel is-drawing" id="pane-plan">

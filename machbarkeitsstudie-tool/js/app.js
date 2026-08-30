@@ -37,6 +37,9 @@
   const form = $('address-form');
   const gemeindeSelect = $('gemeinde-select');
   const auswahlValueEl = $('auswahl-value');
+  const arealOptEl = $('areal-opt');
+  const arealToggleEl = $('areal-toggle');
+  const einzelnEl = $('einzeln');
   const analyseBtn = $('analyse-btn');
   const previewPdfBtn = $('pdf-btn');
   const detailBtn = $('detail-btn');
@@ -96,10 +99,80 @@
   // parcel shape.
   let southFacadeIndex = null;
 
+  // ---- Arealmodus -------------------------------------------------------
+  // Angehakt (Voreinstellung): die gewaehlten Parzellen gelten als EIN
+  // Baugrundstueck — gemeinsame Ausnuetzung, keine Grenzabstaende an den
+  // inneren Grenzen. Das setzt rechtlich eine Vereinigung oder eine im
+  // Grundbuch gesicherte Uebertragung voraus; darauf weist die Auswertung
+  // seit jeher hin (siehe den Vorbehalt zur Zusammenrechnung).
+  //
+  // Ohne Haken rechnet JEDE Parzelle fuer sich, mit ihren eigenen
+  // Grenzabstaenden ringsum. Das ist der Zustand ohne Vereinigung und
+  // liefert regelmaessig weniger Geschossflaeche — die Summe der Einzelnen
+  // ist kleiner als das Areal, weil die inneren Abstaende zweimal kosten.
+  let arealModus = true;
+  // Im getrennten Modus das vollstaendige Ergebnis JE Parzelle; im
+  // Arealmodus genau ein Eintrag. lastResult bleibt das, was der Bildschirm
+  // im Detail zeigt (die erste Parzelle) — daran haengen Viewer, Grundriss
+  // und der Beleg-Betrachter.
+  let lastResults = [];
+
+  // Drei Werte sind bisher IN render() entstanden, obwohl sie Berechnung
+  // sind und keine Darstellung: die Kennwerte-Tafel, die Parkierung und die
+  // Hinweise. Solange genau ein Ergebnis gerendert wurde, fiel das nicht
+  // auf. Im getrennten Modus werden n Ergebnisse gerechnet und nur EINES
+  // gerendert — den uebrigen fehlten dadurch im Export das Blatt
+  // «Belastbarkeit der Zahlen» und das Parkierungsblatt, und ihre
+  // Hinweisseite haette die Hinweise der ersten Parzelle getragen.
+  //
+  // Hier werden sie nachgezogen, und zwar nur, was fehlt: das gerenderte
+  // Ergebnis bringt seine Werte schon mit.
+  function ergaenzeAbleitungen(r) {
+    if (!r.parkierung) {
+      try {
+        r.parkierung = T.computeParkierung({
+          rules: r.rules,
+          gnfM2: r.massingModel ? r.massingModel.nutzflaecheTotalM2 : 0,
+          fussabdruckM2: r.massingModel ? r.massingModel.floorplateM2 : 0,
+          parzelleM2: r.anrechenbareFlaecheM2,
+          wohnungen: null,
+        });
+      } catch (e) {
+        r.parkierung = { erfasst: false, grund: `Parkierung nicht berechenbar: ${e.message}` };
+      }
+    }
+    if (!r.flags) r.flags = baueFlags(r);
+    if (!r.kennwerte) r.kennwerte = T.buildKennwerte(r, { provFor, storeyCountLabel, compassLabel });
+    return r;
+  }
+
   async function composePrintDoc() {
     if (!lastResult) return false;
-    await T.buildPrintDocument(lastResult, lastFlags, buildGrundbuchFootnote());
+    const liste = lastResults.length ? lastResults : [lastResult];
+    liste.forEach(ergaenzeAbleitungen);
+    await T.buildPrintDocument(liste, buildGrundbuchFootnote());
     return true;
+  }
+
+  // Je Parzelle eine Zeile mit ihren Schlagzahlen, darunter die Summe.
+  // Ohne diese Liste waere «getrennt gerechnet» am Bildschirm eine blosse
+  // Behauptung: die Tafeln darueber zeigen immer nur die erste Parzelle.
+  function renderEinzelliste(results) {
+    if (!results || results.length < 2) { einzelnEl.innerHTML = ''; return; }
+    const zeile = (r, i) => {
+      const p = r.selection[0];
+      return `<div class="ez-row${i === 0 ? ' is-anchor' : ''}">`
+        + `<span class="ez-p">Parzelle ${esc(p.parcelNumber || p.egrid)}</span>`
+        + `<span>${fmt(r.reconciled.parcelAreaM2, 0)} m²</span>`
+        + `<span>${fmt(r.reconciled.usableFootprintAreaM2, 0)} m² Fussabdruck</span>`
+        + `<span>${fmt(r.reconciled.maxGfaM2, 0)} m² GF</span></div>`;
+    };
+    const sum = (f) => results.reduce((a, r) => a + f(r), 0);
+    einzelnEl.innerHTML = results.map(zeile).join('')
+      + `<div class="ez-row is-total"><span class="ez-p">Summe — getrennt gerechnet</span>`
+      + `<span>${fmt(sum((r) => r.reconciled.parcelAreaM2), 0)} m²</span>`
+      + `<span>${fmt(sum((r) => r.reconciled.usableFootprintAreaM2), 0)} m² Fussabdruck</span>`
+      + `<span>${fmt(sum((r) => r.reconciled.maxGfaM2), 0)} m² GF</span></div>`;
   }
 
   // ---- One theme, and one screen at a time ---------------------------
@@ -1896,111 +1969,14 @@
       : 'kein Volumen darstellbar';
   }
 
-  function render(r) {
-    // Parkierung haengt an der GEBAUTEN Geschossflaeche, also am Ergebnis der
-    // Kette, nicht an ihren Zwischenschritten -- deshalb hier und nicht in
-    // deriveFootprint(). Vor setResult(), weil die Normkette sie ausweist.
-    try {
-      r.parkierung = T.computeParkierung({
-        rules: r.rules,
-        gnfM2: r.massingModel ? r.massingModel.nutzflaecheTotalM2 : 0,
-        fussabdruckM2: r.massingModel ? r.massingModel.floorplateM2 : 0,
-        parzelleM2: r.anrechenbareFlaecheM2,
-        wohnungen: wohnungenChoice,
-      });
-    } catch (e) {
-      // Eine unbrauchbare Parkierungsdatei darf die Analyse nicht toeten,
-      // aber auch nicht als "keine Pflicht" durchgehen.
-      r.parkierung = { erfasst: false, grund: `Parkierung nicht berechenbar: ${e.message}` };
-    }
-    ablaufPanel.setResult(r);
+  // Baut die Hinweiszeilen einer Auswertung. Reine Ableitung aus r --
+  // keine Anzeige, kein Zustand ausser dem, was an r haengt.
+  function baueFlags(r) {
+    // Dieselbe Zerlegung wie in render() — die Hinweise wurden von dort
+    // herausgeloest und lasen ihre Bezugsgroessen aus jenem Geltungsbereich.
     const { selection, anchor, rules, rulesData, merged, isSingleShape,
             setbackFootprint, reconciled, terrainHeight, restrictions, checklist } = r;
     const multi = selection.length > 1;
-
-    versionBannerEl.textContent =
-      `${rules.gemeinde} — Basis: ${rulesData.version}, ${rulesData.article_grundmasse} — Daten zuletzt geprüft: ${rulesData.data_last_verified}`;
-
-    // The zone leads the panel: every number underneath is derived from it,
-    // so it must be readable without hunting through the table.
-    // Two different questions hang on it, and they need two different proofs:
-    // WHICH zone this parcel is in (a point query against the cantonal
-    // dataset — the Steckbrief in the Zonenplan tab shows that derivation),
-    // and WHAT that zone permits (the BZO article — the § button opens the
-    // page with the Grundmasse table highlighted).
-    provRegistry = [];
-    const otherZonesInSelection = [...new Set(selection.map((p) => p.zone))].filter((z) => z !== anchor.zone);
-    const zoneGrundmasseProv = provFor(rules, 'ausnuetzungsziffer_max_pct', 'vollgeschosse_max', 'gebaeudehoehe_max_m');
-    zoneHeadlineEl.innerHTML =
-      `<div class="zone-code">Zone ${esc(anchor.zone)}${withProv('', zoneGrundmasseProv)}` +
-      `<button type="button" class="zone-proof-btn" id="zone-proof-btn" title="Herleitung der Zonenzuordnung und alle Grundmasse dieser Zone">Zonen-Beleg</button></div>` +
-      (anchor.zoneLabel ? `<div class="zone-label">${esc(capitalize(anchor.zoneLabel))}</div>` : '') +
-      `<div class="zone-meta">Gemeinde ${esc(rules.gemeinde)}` +
-      ` · Rechtsstatus ${esc(anchor.zoneSource ? anchor.zoneSource.rechtsstatus : 'inKraft')}` +
-      ` · kantonale Nutzungsplanung (ogd-0156)` +
-      (otherZonesInSelection.length
-        ? ` · Auswahl enthält auch ${esc(otherZonesInSelection.join(', '))} — gerechnet wird durchgehend mit ${esc(anchor.zone)}`
-        : '') +
-      `</div>`;
-    wireProvButtons(zoneHeadlineEl);
-    // "Zonen-Beleg" fuehrt zum Steckbrief statt eine zweite Art von Fenster
-    // zu oeffnen: die Herleitung, die Grundmasse und der Plan gehoeren
-    // zusammen, und das ist der Detailbildschirm.
-    const zoneProofBtn = document.getElementById('zone-proof-btn');
-    if (zoneProofBtn) {
-      zoneProofBtn.addEventListener('click', () => zoningMapEl.scrollIntoView({ block: 'nearest' }));
-    }
-
-    bindingSummaryEl.className = reconciled.usableFootprintAreaM2 <= 0 ? 'binding zero' : 'binding';
-    const mm = r.massingModel;
-    bindingSummaryEl.textContent = reconciled.usableFootprintAreaM2 <= 0 || !mm
-      ? `Kein bebaubares Volumen: Grundabstand und/oder Grünflächenziffer beanspruchen die gesamte Fläche. Bindend: ${BINDING_LABELS[reconciled.bindingConstraint]}.`
-      : `${storeyCountLabel(mm.ordinaryStoreys, mm.attikaStoreys)} à ${fmt(mm.floorplateM2)} m² — `
-        + `${fmt(mm.gfaUsedM2)} m² Geschossfläche. Bindend: ${BINDING_LABELS[reconciled.bindingConstraint]}.`;
-
-    // ---- Geschossvarianten, unter der Isometrie ------------------------
-    // Die Geschosszahl ist eine Entwurfsentscheidung: jede Zahl zwischen dem
-    // Minimum, das die zulaessige Geschossflaeche noch fasst, und dem
-    // Zonenmaximum ist gleich zulaessig -- nur die Ueberbauung unterscheidet
-    // sich. Deshalb steht die Reihe unter dem Modell, das sich beim Klick
-    // aendert, und nicht in der Zahlentafel, die Ergebnisse zeigt.
-    // Die Zahlen je Variante kommen aus T.storeyVariantData (js/core/
-    // envelope.js) — dieselbe Quelle, aus der auch der PDF-Export seine
-    // Variantenreihe baut. AZ wird nur von den Vollgeschossen verbraucht
-    // (§ 255 Abs. 2/3 PBG); die Arithmetik steht dort, nicht hier.
-    const variantData = T.storeyVariantData(mm, reconciled);
-    if (variantData.length) {
-      variantsEl.innerHTML = variantData.map((v) => {
-        return `<button type="button" class="variant${v.active ? ' active' : ''}${v.suppressed ? ' unavailable' : ''}" data-storeys="${v.n}"`
-          + ` title="${esc(v.suppressed ? `${attikaSuppressReason(mm)} — gerechnet mit ${storeyCountLabel(v.ordinary, 0)}` : 'Freie Entwurfsentscheidung — die Ausnützungsziffer begrenzt die Geschossfläche, nicht die Geschosszahl.')}">`
-          + `<span class="n">${esc(storeyCountLabel(v.ordinary, v.attika))}</span>`
-          // Der gesperrten Karte gehoert ihre Begruendung, nicht dieselben
-          // Zahlen wie der Nachbarkarte — die erklaeren das Verbot nicht.
-          + `<span class="d">${esc(v.suppressed ? attikaSuppressShort(mm) : `${fmt(v.plateM2)} m²/G · ${fmt(v.coveragePct, 0)} % üb. · ${fmt(v.heightM)} m`)}</span>`
-          + `</button>`;
-      }).join('');
-      variantsEl.querySelectorAll('.variant').forEach((btn) => btn.addEventListener('click', () => {
-        storeyChoice = Number(btn.dataset.storeys);
-        rerenderWithChoices();
-      }));
-    } else {
-      variantsEl.innerHTML = '';
-    }
-
-    // NOT reset here: the zone headline above already registered its § button
-    // against this same registry, and clearing it left that button pointing
-    // at a citation that no longer existed.
-    const regimeTag = (key) => (rules.regimeOverrides && rules.regimeOverrides[key]
-      ? ' <span class="regime-tag" title="Strengerer Wert der in Kraft stehenden BZO 2016 (negative Vorwirkung, § 234 PBG)">BZO 2016</span>' : '');
-
-    // ---- Kennwerte, Kopfzahlen, Regelfahnen ----------------------------
-    r.kennwerte = T.buildKennwerte(r, { provFor, storeyCountLabel, compassLabel });
-    renderKennwerte(r.kennwerte);
-    renderKpis(r);
-    renderOverlays(r);
-
-    renderParkierung(r);
-
     const flags = [];
     // Upstream sources that failed — these change what the numbers mean, so
     // they come first.
@@ -2124,6 +2100,122 @@
     }
     flags.push(...parkierungFlags);
     r.parkierungFlags = parkierungFlags;
+    return flags;
+  }
+
+  function render(r) {
+    // Parkierung haengt an der GEBAUTEN Geschossflaeche, also am Ergebnis der
+    // Kette, nicht an ihren Zwischenschritten -- deshalb hier und nicht in
+    // deriveFootprint(). Vor setResult(), weil die Normkette sie ausweist.
+    try {
+      r.parkierung = T.computeParkierung({
+        rules: r.rules,
+        gnfM2: r.massingModel ? r.massingModel.nutzflaecheTotalM2 : 0,
+        fussabdruckM2: r.massingModel ? r.massingModel.floorplateM2 : 0,
+        parzelleM2: r.anrechenbareFlaecheM2,
+        wohnungen: wohnungenChoice,
+      });
+    } catch (e) {
+      // Eine unbrauchbare Parkierungsdatei darf die Analyse nicht toeten,
+      // aber auch nicht als "keine Pflicht" durchgehen.
+      r.parkierung = { erfasst: false, grund: `Parkierung nicht berechenbar: ${e.message}` };
+    }
+    ablaufPanel.setResult(r);
+    const { selection, anchor, rules, rulesData, merged, isSingleShape,
+            setbackFootprint, reconciled, terrainHeight, restrictions, checklist } = r;
+    const multi = selection.length > 1;
+
+    versionBannerEl.textContent =
+      `${rules.gemeinde} — Basis: ${rulesData.version}, ${rulesData.article_grundmasse} — Daten zuletzt geprüft: ${rulesData.data_last_verified}`;
+
+    // The zone leads the panel: every number underneath is derived from it,
+    // so it must be readable without hunting through the table.
+    // Two different questions hang on it, and they need two different proofs:
+    // WHICH zone this parcel is in (a point query against the cantonal
+    // dataset — the Steckbrief in the Zonenplan tab shows that derivation),
+    // and WHAT that zone permits (the BZO article — the § button opens the
+    // page with the Grundmasse table highlighted).
+    provRegistry = [];
+    const otherZonesInSelection = [...new Set(selection.map((p) => p.zone))].filter((z) => z !== anchor.zone);
+    const zoneGrundmasseProv = provFor(rules, 'ausnuetzungsziffer_max_pct', 'vollgeschosse_max', 'gebaeudehoehe_max_m');
+    zoneHeadlineEl.innerHTML =
+      `<div class="zone-code">Zone ${esc(anchor.zone)}${withProv('', zoneGrundmasseProv)}` +
+      `<button type="button" class="zone-proof-btn" id="zone-proof-btn" title="Herleitung der Zonenzuordnung und alle Grundmasse dieser Zone">Zonen-Beleg</button></div>` +
+      (anchor.zoneLabel ? `<div class="zone-label">${esc(capitalize(anchor.zoneLabel))}</div>` : '') +
+      `<div class="zone-meta">Gemeinde ${esc(rules.gemeinde)}` +
+      ` · Rechtsstatus ${esc(anchor.zoneSource ? anchor.zoneSource.rechtsstatus : 'inKraft')}` +
+      ` · kantonale Nutzungsplanung (ogd-0156)` +
+      (otherZonesInSelection.length
+        ? ` · Auswahl enthält auch ${esc(otherZonesInSelection.join(', '))} — gerechnet wird durchgehend mit ${esc(anchor.zone)}`
+        : '') +
+      `</div>`;
+    wireProvButtons(zoneHeadlineEl);
+    // "Zonen-Beleg" fuehrt zum Steckbrief statt eine zweite Art von Fenster
+    // zu oeffnen: die Herleitung, die Grundmasse und der Plan gehoeren
+    // zusammen, und das ist der Detailbildschirm.
+    const zoneProofBtn = document.getElementById('zone-proof-btn');
+    if (zoneProofBtn) {
+      zoneProofBtn.addEventListener('click', () => zoningMapEl.scrollIntoView({ block: 'nearest' }));
+    }
+
+    bindingSummaryEl.className = reconciled.usableFootprintAreaM2 <= 0 ? 'binding zero' : 'binding';
+    const mm = r.massingModel;
+    bindingSummaryEl.textContent = reconciled.usableFootprintAreaM2 <= 0 || !mm
+      ? `Kein bebaubares Volumen: Grundabstand und/oder Grünflächenziffer beanspruchen die gesamte Fläche. Bindend: ${BINDING_LABELS[reconciled.bindingConstraint]}.`
+      : `${storeyCountLabel(mm.ordinaryStoreys, mm.attikaStoreys)} à ${fmt(mm.floorplateM2)} m² — `
+        + `${fmt(mm.gfaUsedM2)} m² Geschossfläche. Bindend: ${BINDING_LABELS[reconciled.bindingConstraint]}.`;
+
+    // ---- Geschossvarianten, unter der Isometrie ------------------------
+    // Die Geschosszahl ist eine Entwurfsentscheidung: jede Zahl zwischen dem
+    // Minimum, das die zulaessige Geschossflaeche noch fasst, und dem
+    // Zonenmaximum ist gleich zulaessig -- nur die Ueberbauung unterscheidet
+    // sich. Deshalb steht die Reihe unter dem Modell, das sich beim Klick
+    // aendert, und nicht in der Zahlentafel, die Ergebnisse zeigt.
+    // Die Zahlen je Variante kommen aus T.storeyVariantData (js/core/
+    // envelope.js) — dieselbe Quelle, aus der auch der PDF-Export seine
+    // Variantenreihe baut. AZ wird nur von den Vollgeschossen verbraucht
+    // (§ 255 Abs. 2/3 PBG); die Arithmetik steht dort, nicht hier.
+    const variantData = T.storeyVariantData(mm, reconciled);
+    if (variantData.length) {
+      variantsEl.innerHTML = variantData.map((v) => {
+        return `<button type="button" class="variant${v.active ? ' active' : ''}${v.suppressed ? ' unavailable' : ''}" data-storeys="${v.n}"`
+          + ` title="${esc(v.suppressed ? `${attikaSuppressReason(mm)} — gerechnet mit ${storeyCountLabel(v.ordinary, 0)}` : 'Freie Entwurfsentscheidung — die Ausnützungsziffer begrenzt die Geschossfläche, nicht die Geschosszahl.')}">`
+          + `<span class="n">${esc(storeyCountLabel(v.ordinary, v.attika))}</span>`
+          // Der gesperrten Karte gehoert ihre Begruendung, nicht dieselben
+          // Zahlen wie der Nachbarkarte — die erklaeren das Verbot nicht.
+          + `<span class="d">${esc(v.suppressed ? attikaSuppressShort(mm) : `${fmt(v.plateM2)} m²/G · ${fmt(v.coveragePct, 0)} % üb. · ${fmt(v.heightM)} m`)}</span>`
+          + `</button>`;
+      }).join('');
+      variantsEl.querySelectorAll('.variant').forEach((btn) => btn.addEventListener('click', () => {
+        storeyChoice = Number(btn.dataset.storeys);
+        rerenderWithChoices();
+      }));
+    } else {
+      variantsEl.innerHTML = '';
+    }
+
+    // NOT reset here: the zone headline above already registered its § button
+    // against this same registry, and clearing it left that button pointing
+    // at a citation that no longer existed.
+    const regimeTag = (key) => (rules.regimeOverrides && rules.regimeOverrides[key]
+      ? ' <span class="regime-tag" title="Strengerer Wert der in Kraft stehenden BZO 2016 (negative Vorwirkung, § 234 PBG)">BZO 2016</span>' : '');
+
+    // ---- Kennwerte, Kopfzahlen, Regelfahnen ----------------------------
+    r.kennwerte = T.buildKennwerte(r, { provFor, storeyCountLabel, compassLabel });
+    renderKennwerte(r.kennwerte);
+    renderKpis(r);
+    renderOverlays(r);
+
+    renderParkierung(r);
+
+    // Die Hinweise entstehen aus dem Ergebnis, nicht aus der Anzeige --
+    // deshalb stehen sie an r und werden ueber baueFlags() gebaut. Solange
+    // nur EIN Ergebnis gerendert wurde, fiel der Unterschied nicht auf; im
+    // getrennten Modus werden n Ergebnisse gerechnet und nur eines
+    // gerendert, und die uebrigen haetten sonst die Hinweise der ERSTEN
+    // Parzelle getragen -- fremde Hinweise unter eigenen Zahlen.
+    const flags = baueFlags(r);
+    r.flags = flags;
     flagsEl.innerHTML = flags.map((f) => `<div class="flag">⚠ ${f}</div>`).join('');
     lastResult = r;
     lastFlags = flags;
@@ -2311,6 +2403,9 @@
     }, 0);
     const ids = selection.map((p) => p.parcelNumber).join(' + ');
     auswahlValueEl.innerHTML = `<span class="acc">${esc(ids)}</span> · ${fmt(totalM2, 0)} m²`;
+    // Bei einer einzigen Parzelle gibt es nichts zusammenzufassen — ein
+    // Schalter ohne Wirkung ist schlimmer als keiner.
+    arealOptEl.hidden = selection.length < 2;
     mapSelEl.textContent = `${selection.length} Parzelle${selection.length === 1 ? '' : 'n'} · ${fmt(totalM2, 0)} m²`;
   }
 
@@ -2344,10 +2439,29 @@
     P.step(`selection ${selection.map((p) => p.parcelNumber).join(' + ')} → Analyse startet`);
     setStatus('Berechne…');
     try {
-      const result = await analyse(selection, P);
+      // Arealmodus: EIN Lauf ueber die vereinigte Flaeche. Getrennt: ein
+      // Lauf JE Parzelle. analyse() nimmt ohnehin eine Auswahl entgegen —
+      // die Trennung kostet deshalb keine zweite Rechenkette, nur n Aufrufe.
+      const einzeln = !arealModus && selection.length > 1;
+      let results;
+      if (einzeln) {
+        results = [];
+        for (const p of selection) {
+          P.step(`getrennt — Parzelle ${p.parcelNumber || p.egrid}`);
+          results.push(await analyse([p], P));
+          if (myToken !== runToken) return;
+        }
+      } else {
+        results = [await analyse(selection, P)];
+      }
       if (myToken !== runToken) return;
       setStatus('');
-      render(result);
+      lastResults = results;
+      document.body.classList.toggle('modus-einzeln', einzeln);
+      renderEinzelliste(einzeln ? results : null);
+      // Der Bildschirm zeigt im Detail die erste Parzelle; die Liste unter
+      // der Isometrie traegt die uebrigen.
+      render(results[0]);
     } catch (err) {
       if (myToken !== runToken) return;
       // Ein Abbruch ist ein Ergebnis des Laufs und gehoert ins Protokoll,
@@ -2365,8 +2479,19 @@
     }
   }
 
+  // Der Haken aendert das Ergebnis, nicht die Darstellung — also neu rechnen.
+  arealToggleEl.addEventListener('change', () => {
+    arealModus = arealToggleEl.checked;
+    const sel = T.parcelMap && T.parcelMap.getSelection ? T.parcelMap.getSelection() : [];
+    if (sel.length) refresh(sel);
+  });
+
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
+    // Vom Startbild (grosses Suchfeld, sonst nichts) ins Arbeitsbild. Der
+    // Wechsel passiert beim ABSCHICKEN, nicht erst beim Ergebnis: sonst
+    // stuende die Suche mehrere Sekunden lang ohne jede Regung da.
+    document.body.classList.remove('start');
     previewPdfBtn.disabled = true;
     detailBtn.disabled = true;
     clearResultPanels();

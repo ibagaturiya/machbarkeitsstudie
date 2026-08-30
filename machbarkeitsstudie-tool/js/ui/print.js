@@ -502,7 +502,12 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
 
   // r = the result object from app.js analyse(); flags = the rendered flag
   // strings; grundbuchFootnote may be null.
-  async function buildPrintDocument(r, flags, grundbuchFootnote) {
+  // Baut die Blaetter EINER Auswertung und gibt sie in vier Gruppen zurueck,
+  // damit der Aufrufer sie fuer mehrere Parzellen zusammensetzen kann.
+  async function buildSheetsForResult(r, grundbuchFootnote) {
+    // Die Hinweise haengen am Ergebnis, nicht am Aufruf: bei mehreren
+    // Parzellen traegt sonst jede die Hinweise der ersten.
+    const flags = r.flags || [];
     const { selection, anchor, rules, rulesData, reconciled, terrainHeight,
             checklist, merged, setbackFootprint, waldLossInFootprintM2, footprintBeforeWaldM2, wald,
             waldRemoved, lengthLimitM, footprintRect, lengthExceeded, massing, areaRect,
@@ -1039,7 +1044,40 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     // Geordnete Blattfolge (CLAUDE.md Carve-out 3): die Erzählung eines
     // Verkaufsdokuments — Ergebnis, Potenzial, Ort, Recht, dann der Anhang
     // mit Belastbarkeit und Wortlaut. Umgestellt am 29.8.2026 (v1.1).
-    const html = [titleSheet(r, foot), s1, s2, s2b, s3, sWald, sPk, s5, sBel, s4b, sAbg, s6].join('');
+    //
+    // In vier Gruppen statt einer Zeichenkette, damit mehrere Parzellen in
+    // EIN Dokument passen (siehe buildPrintDocument):
+    //   titel   — einmal, ganz vorn
+    //   koerper — je Parzelle: Ergebnis, Potenzial, Ort, Recht, Kosten
+    //   belege  — je Parzelle: Belastbarkeit (A.1) und Hinweise (A.2).
+    //             Beide gehoeren ZUR PARZELLE: A.1 stuft deren Werte ein,
+    //             A.2 traegt deren Hinweise. Ein einziges Exemplar am Ende
+    //             wuerde die Zahlen einer Parzelle fuer alle ausgeben.
+    //   schluss — einmal am Ende: Abgrenzung (A.3) und Quellen (A.4). Die
+    //             gelten fuer das ganze Dokument und sind wortgleich.
+    return {
+      foot,
+      titel: titleSheet(r, foot),
+      koerper: [s1, s2, s2b, s3, sWald, sPk, s5].join(''),
+      belege: [sBel, s4b].join(''),
+      schluss: [sAbg, s6].join(''),
+    };
+  }
+
+  // Setzt das Dokument aus einer oder mehreren Auswertungen zusammen.
+  // Eine Auswertung = Arealmodus (Parzellen als ein Baugrundstueck).
+  // Mehrere = getrennt gerechnet, jede Parzelle mit eigener Studie, in
+  // einer durchlaufenden Datei.
+  async function buildPrintDocument(results, grundbuchFootnote) {
+    const liste = Array.isArray(results) ? results : [results];
+    const teile = [];
+    for (const r of liste) teile.push(await buildSheetsForResult(r, grundbuchFootnote));
+
+    const foot = teile[0].foot;
+    const html = teile[0].titel
+      + teile.map((t) => t.koerper + t.belege).join('')
+      + teile[0].schluss;
+
     const host = document.getElementById('print-doc');
     host.innerHTML = html;
 
@@ -1055,14 +1093,18 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       f.innerHTML = `<span>${f.innerHTML}</span><span>Seite ${i + 1} / ${sheets.length}</span>`;
     });
     // Seitenzahlen ins Mini-Inhaltsverzeichnis — erst JETZT sind sie bekannt.
+    // Bei mehreren Parzellen zeigt jedes Verzeichnis auf die Blaetter SEINES
+    // Abschnitts: gesucht wird ab dem eigenen Blatt vorwaerts, nicht global.
     host.querySelectorAll('.toc-row').forEach((row) => {
       const num = row.dataset.tocFor;
-      const target = num === 'A'
-        ? host.querySelector('.sheet[data-outline-num^="A."]')
-        : host.querySelector(`.sheet[data-outline-num="${num}"]`);
+      const eigenesBlatt = row.closest('.sheet');
+      const ab = [...sheets].indexOf(eigenesBlatt);
+      const passt = (s) => (num === 'A'
+        ? (s.dataset.outlineNum || '').startsWith('A.')
+        : s.dataset.outlineNum === num);
+      const target = [...sheets].slice(ab + 1).find(passt) || [...sheets].find(passt);
       if (!target) { row.remove(); return; }
-      const page = [...sheets].indexOf(target) + 1;
-      row.querySelector('.t-page').textContent = `Seite ${page}`;
+      row.querySelector('.t-page').textContent = `Seite ${[...sheets].indexOf(target) + 1}`;
     });
 
     await waitForImages(host);

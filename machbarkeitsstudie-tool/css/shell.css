@@ -457,12 +457,12 @@ body.detail-open #kpis { display: none; }
 .panel::before {
   background:
     linear-gradient(145deg,
-      rgba(255, 255, 255, .34) 0%,
-      rgba(255, 255, 255, .05) 22%,
+      rgba(255, 255, 255, .17) 0%,
+      rgba(255, 255, 255, .03) 22%,
       rgba(255, 255, 255, 0) 42%,
       rgba(0, 0, 0, 0) 58%,
-      rgba(0, 0, 0, .16) 82%,
-      rgba(0, 0, 0, .3) 100%);
+      rgba(0, 0, 0, .08) 82%,
+      rgba(0, 0, 0, .15) 100%);
   -webkit-mask:
     linear-gradient(#000, #000) content-box,
     linear-gradient(#000, #000);
@@ -480,9 +480,9 @@ body.detail-open #kpis { display: none; }
 .panel::after {
   background:
     linear-gradient(to bottom,
-      rgba(255, 255, 255, .5) 0, rgba(255, 255, 255, 0) 1.2px),
+      rgba(255, 255, 255, .26) 0, rgba(255, 255, 255, 0) 1.2px),
     radial-gradient(120% 60% at 50% 0%,
-      rgba(255, 255, 255, .1) 0%, rgba(255, 255, 255, 0) 70%);
+      rgba(255, 255, 255, .05) 0%, rgba(255, 255, 255, 0) 70%);
   opacity: .9;
 }
 
@@ -491,11 +491,97 @@ body.detail-open #kpis { display: none; }
 .panel {
   box-shadow:
     var(--shadow-panel),
-    inset 0 1px 0 rgba(255, 255, 255, .07),
-    inset 0 -1px 0 rgba(0, 0, 0, .28);
+    inset 0 1px 0 rgba(255, 255, 255, .04),
+    inset 0 -1px 0 rgba(0, 0, 0, .18);
 }
 
 /* Laeuft die echte Brechung, darf die gemalte Fase zurueckhaltender sein --
    sonst liegen zwei Kanten uebereinander. Die Klasse setzt
    js/ui/liquid-glass.js, nachdem es sich fuer zustaendig erklaert hat. */
-.has-liquid-glass .panel::before { opacity: .62; }
+.has-liquid-glass .panel::before { opacity: .5; }
+
+/* ---- 11. Startbild -----------------------------------------------------
+   Vor der ersten Suche fuellt das Adressfeld den Schirm. Danach ruecken
+   Kopfzeile und Auswertung an ihren Platz — dieselben Elemente, nur anders
+   angeordnet: `#address-form` gibt sein `display: contents` auf und wird
+   zur Spalte. Es gibt bewusst KEIN zweites Eingabefeld fuer das Startbild;
+   zwei Felder waeren zwei Zustaende, die auseinanderlaufen koennen. */
+#start-lead { display: none; }
+
+body.start { justify-content: center; align-items: center; }
+body.start #screen-analyse,
+body.start #screen-detail,
+body.start #statusbar { display: none !important; }
+
+body.start #topbar {
+  height: auto; flex-direction: column; align-items: stretch;
+  width: min(760px, 100%); padding: 34px 34px 30px; gap: 20px;
+}
+body.start #brand { align-self: flex-start; margin: 0; padding: 8px 16px; }
+
+body.start #start-lead { display: block; }
+body.start #start-lead h1 {
+  margin: 0 0 10px; font: 800 30px/1.15 var(--font-ui); letter-spacing: .01em;
+  color: var(--txt); font-variant-caps: normal; text-transform: none;
+}
+body.start #start-lead p {
+  margin: 0; max-width: 62ch;
+  font: 700 14.5px/1.55 var(--font-ui); color: var(--txt3);
+  font-variant-caps: normal; text-transform: none;
+}
+
+/* Die Kopfzeile ist eine Reihe, das Startbild eine Spalte. */
+body.start #address-form { display: flex; flex-direction: column; gap: 14px; }
+body.start #hcell-auswahl,
+body.start #pdf-btn,
+body.start #detail-btn { display: none; }
+
+body.start #hcell-adresse {
+  flex: none; margin: 0; padding: 14px 18px;
+  border: 1px solid var(--hair); border-radius: 16px;
+  background: rgba(255, 255, 255, .04);
+}
+body.start #hcell-adresse:focus-within { border-color: var(--acc); background: rgba(255, 255, 255, .05); }
+/* Das grosse Feld ist der Grund, warum dieses Bild existiert. */
+body.start #address-input { font-size: 26px; line-height: 1.25; }
+body.start #analyse-btn {
+  width: 100%; margin: 0; justify-content: center; height: 52px;
+}
+/* Die Vorschlagsliste haengt am Feld und muss die neue Breite mitnehmen. */
+body.start .combo-list { font-size: 15px; }
+
+@media (max-width: 980px) {
+  body.start #topbar { padding: 24px 20px 22px; }
+  body.start #start-lead h1 { font-size: 23px; }
+  body.start #address-input { font-size: 20px; }
+}
+
+/* ---- 12. Arealmodus ----------------------------------------------------
+   Der Haken sitzt in der Auswahl-Zelle und erscheint erst, wenn mehr als
+   eine Parzelle gewaehlt ist — bei einer einzigen gaebe es nichts
+   zusammenzufassen, und ein Schalter ohne Wirkung ist schlimmer als keiner. */
+.hcell-opt {
+  display: flex; align-items: center; gap: 7px; margin-top: 4px;
+  font: 700 12px/1 var(--font-ui); letter-spacing: .05em;
+  color: var(--txt3); cursor: pointer; user-select: none;
+  font-variant-caps: small-caps; text-transform: lowercase;
+}
+.hcell-opt input { accent-color: var(--acc); width: 14px; height: 14px; margin: 0; cursor: pointer; }
+.hcell-opt:hover { color: var(--txt2); }
+#hcell-auswahl:has(#areal-opt:not([hidden])) { justify-content: center; }
+
+/* Die Einzelauswertungen als kompakte Reihe: je Parzelle eine Zeile mit den
+   Schlagzahlen, damit «getrennt gerechnet» am Bildschirm nicht bloss eine
+   Behauptung ist. */
+#einzeln { display: none; }
+body.modus-einzeln #einzeln { display: block; }
+#einzeln .ez-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) repeat(3, auto);
+  gap: 4px 16px; align-items: baseline;
+  padding: 5px 0; border-top: 1px solid var(--row-rule);
+  font: 700 13px/1.3 var(--font-num); color: var(--txt2);
+}
+#einzeln .ez-row:first-child { border-top: none; }
+#einzeln .ez-row.is-total { color: var(--txt); border-top: 1px solid var(--hair); margin-top: 3px; }
+#einzeln .ez-p { color: var(--txt3); }
+#einzeln .ez-row.is-anchor .ez-p { color: var(--acc); }

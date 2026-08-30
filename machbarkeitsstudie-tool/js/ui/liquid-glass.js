@@ -41,9 +41,9 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   // genannten Bereichs (Fase 8-16 px, Versatz 20-40 px) war deshalb kaum
   // etwas zu sehen; am oberen Ende steht die Kante, ohne dass der Text
   // darueber leidet -- gebrochen wird der Untergrund, nicht der Inhalt.
-  const BEZEL_PX = 16;
+  const BEZEL_PX = 11;
   const N_GLAS = 1.5;
-  const SCALE_PX = 36;
+  const SCALE_PX = 16;
   // Über dieser Kantenlänge wird die Karte in Schritten gerundet, damit
   // nicht jede Pixelbreite beim Ziehen des Fensters eine neue Karte kostet.
   const GROESSEN_RASTER = 24;
@@ -220,7 +220,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   // Der Weichzeichner bleibt: die Brechung allein macht den Untergrund nicht
   // ruhig genug, um Text darueber zu lesen. Steht vor seiner Verwendung --
   // `const` kennt kein Hoisting (CLAUDE.md §1, Carve-out 2).
-  const BLUR = 'blur(14px) saturate(150%)';
+  const BLUR = 'blur(20px) saturate(115%)';
 
   const raster = (v) => Math.max(GROESSEN_RASTER,
     Math.round(v / GROESSEN_RASTER) * GROESSEN_RASTER);
