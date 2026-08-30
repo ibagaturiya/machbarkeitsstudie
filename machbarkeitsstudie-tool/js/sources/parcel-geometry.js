@@ -6,6 +6,9 @@
 window.MachbarkeitTool = window.MachbarkeitTool || {};
 
 (function () {
+  // Netzabrufe laufen ueber T.fetchQuelle (js/core/netz.js): faellt eine
+  // Quelle aus, nennt der Fehler sie beim Namen statt «Load failed».
+  const T = window.MachbarkeitTool;
   const HEIGHT_URL = 'https://api3.geo.admin.ch/rest/services/height';
 
   // geometryLV95 = the Esri-style "rings" array from identifyParcel(), which
@@ -17,7 +20,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
 
   async function getTerrainHeight(easting, northing) {
     const params = new URLSearchParams({ easting: String(easting), northing: String(northing) });
-    const res = await fetch(`${HEIGHT_URL}?${params}`);
+    const res = await T.fetchQuelle('Höhenmodell swissALTI3D', `${HEIGHT_URL}?${params}`);
     if (!res.ok) throw new Error(`height service HTTP ${res.status}`);
     const data = await res.json();
     const height = parseFloat(data.height);

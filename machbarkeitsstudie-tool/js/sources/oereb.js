@@ -18,6 +18,9 @@
 window.MachbarkeitTool = window.MachbarkeitTool || {};
 
 (function () {
+  // Netzabrufe laufen ueber T.fetchQuelle (js/core/netz.js): faellt eine
+  // Quelle aus, nennt der Fehler sie beim Namen statt «Load failed».
+  const T = window.MachbarkeitTool;
   const OEREB_BASE = 'https://maps.zh.ch/oereb/v2/extract/json';
 
   // Verified against two real extracts 2026-08-21: an unaffected parcel
@@ -37,7 +40,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   };
 
   async function fetchOerebExtract(egrid) {
-    const res = await fetch(`${OEREB_BASE}?EGRID=${encodeURIComponent(egrid)}`);
+    const res = await T.fetchQuelle('ÖREB-Kataster', `${OEREB_BASE}?EGRID=${encodeURIComponent(egrid)}`);
     if (!res.ok) throw new Error(`ÖREB webservice HTTP ${res.status} for EGRID ${egrid}`);
     const data = await res.json();
     if (!data.GetExtractByIdResponse) {

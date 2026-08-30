@@ -5,6 +5,9 @@
 window.MachbarkeitTool = window.MachbarkeitTool || {};
 
 (function () {
+  // Netzabrufe laufen ueber T.fetchQuelle (js/core/netz.js): faellt eine
+  // Quelle aus, nennt der Fehler sie beim Namen statt «Load failed».
+  const T = window.MachbarkeitTool;
   const WFS_BASE = 'https://www.ogd.stadt-zuerich.ch/wfs/geoportal/Nutzungsplanung___kommunale_Bau__und_Zonenordnung__BZO_';
   const DENKMAL_WFS_BASE = 'https://www.ogd.stadt-zuerich.ch/wfs/geoportal/Denkmalpflege_Inventar';
 
@@ -15,7 +18,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       BBOX: `${minE},${minN},${maxE},${maxN},EPSG:2056`,
       outputFormat: 'application/vnd.geo+json',
     });
-    const res = await fetch(`${base}?${params}`);
+    const res = await T.fetchQuelle(`Eigentumsbeschränkung (${typeName})`, `${base}?${params}`);
     if (!res.ok) throw new Error(`WFS HTTP ${res.status} (${typeName})`);
     return res.json();
   }

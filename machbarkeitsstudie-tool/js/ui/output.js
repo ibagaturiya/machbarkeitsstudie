@@ -4,6 +4,9 @@
 window.MachbarkeitTool = window.MachbarkeitTool || {};
 
 (function () {
+  // Netzabrufe laufen ueber T.fetchQuelle (js/core/netz.js): faellt eine
+  // Quelle aus, nennt der Fehler sie beim Namen statt «Load failed».
+  const T = window.MachbarkeitTool;
 
   // CHF/m³ benchmark, BKP 2 (Gebäudekosten) only -- excludes land and
   // Baunebenkosten (BKP 1/4/5), which typically add another 25-40% on top
@@ -45,7 +48,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       BBOX: `${bbox.join(',')},EPSG:2056`,
       outputFormat: 'application/json',
     });
-    const res = await fetch(`${ZONE_WFS}?${params}`);
+    const res = await T.fetchQuelle('Zonenplan (Kartenausschnitt)', `${ZONE_WFS}?${params}`);
     if (!res.ok) return [];
     const fc = await res.json();
     return fc.features || [];

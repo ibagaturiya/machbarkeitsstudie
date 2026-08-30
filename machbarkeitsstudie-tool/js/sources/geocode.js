@@ -3,13 +3,16 @@
 window.MachbarkeitTool = window.MachbarkeitTool || {};
 
 (function () {
+  // Netzabrufe laufen ueber T.fetchQuelle (js/core/netz.js): faellt eine
+  // Quelle aus, nennt der Fehler sie beim Namen statt «Load failed».
+  const T = window.MachbarkeitTool;
   const SEARCH_URL = 'https://api3.geo.admin.ch/rest/services/api/SearchServer';
   const IDENTIFY_URL = 'https://api3.geo.admin.ch/rest/services/api/MapServer/identify';
   const PARCEL_LAYER = 'ch.swisstopo-vd.amtliche-vermessung';
 
   async function geocodeAddress(address) {
     const url = `${SEARCH_URL}?searchText=${encodeURIComponent(address)}&type=locations&origins=address&limit=1&sr=2056`;
-    const res = await fetch(url);
+    const res = await T.fetchQuelle('Adresssuche', url);
     if (!res.ok) throw new Error(`SearchServer HTTP ${res.status}`);
     const data = await res.json();
     if (!data.results || data.results.length === 0) {
@@ -41,7 +44,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       tolerance: '5',
       sr: '2056',
     });
-    const res = await fetch(`${IDENTIFY_URL}?${params}`);
+    const res = await T.fetchQuelle('Amtliche Vermessung (Parzelle)', `${IDENTIFY_URL}?${params}`);
     if (!res.ok) throw new Error(`MapServer identify HTTP ${res.status}`);
     const data = await res.json();
     if (!data.results || data.results.length === 0) {
@@ -81,7 +84,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   async function searchOrigin(text, origin, limit) {
     const url = `${SEARCH_URL}?searchText=${encodeURIComponent(text)}&type=locations`
       + `&origins=${origin}&limit=${limit}&sr=2056`;
-    const res = await fetch(url);
+    const res = await T.fetchQuelle('Adresssuche (Vorschläge)', url);
     if (!res.ok) return [];
     const data = await res.json();
     return data.results || [];

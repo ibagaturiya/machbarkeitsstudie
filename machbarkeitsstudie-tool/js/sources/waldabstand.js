@@ -81,7 +81,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       BBOX: `${minE},${minN},${maxE},${maxN},EPSG:2056`,
       outputFormat: 'application/json',
     });
-    const res = await fetch(`${WFS}?${params}`);
+    const res = await T.fetchQuelle(`Waldabstand (${typeName})`, `${WFS}?${params}`);
     if (!res.ok) throw new Error(`${typeName}: HTTP ${res.status}`);
     const fc = await res.json();
     return fc.features || [];

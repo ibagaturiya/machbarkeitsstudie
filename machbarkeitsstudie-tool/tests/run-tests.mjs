@@ -35,7 +35,9 @@ globalThis.fetch = async (url) => {
 // zu. Die UMD nimmt in ESM den globalThis-Zweig.
 (0, eval)(await readFile(join(root, 'vendor/turf-6.5.0/turf.min.js'), 'utf8'));
 
-for (const f of ['js/core/format.js', 'js/core/sicherheit.js', 'js/core/parkierung.js', 'js/core/normkette.js', 'js/sources/checklist.js', 'js/core/envelope.js', 'js/core/rules.js', 'js/ui/kennwerte.js', 'js/core/coordinates.js', 'js/sources/waldabstand.js']) {
+// netz.js vor allem, was eine Quelle abruft (rules.js, checklist.js,
+// waldabstand.js) — es stellt T.fetchQuelle bereit.
+for (const f of ['js/core/format.js', 'js/core/netz.js', 'js/core/sicherheit.js', 'js/core/parkierung.js', 'js/core/normkette.js', 'js/sources/checklist.js', 'js/core/envelope.js', 'js/core/rules.js', 'js/ui/kennwerte.js', 'js/core/coordinates.js', 'js/sources/waldabstand.js']) {
   // Plain scripts attaching to window.MachbarkeitTool — evaluate in order.
   // eslint-disable-next-line no-eval
   (0, eval)(await readFile(join(root, f), 'utf8'));
@@ -53,6 +55,46 @@ function check(name, actual, expected, tol = 0.01) {
   } else {
     console.log(`ok   ${name}`);
   }
+}
+
+// ---------------------------------------------------------------------------
+// 0000) Ausgefallene Quelle wird BENANNT — js/core/netz.js
+//      Anlass: eine Studie brach mit «Fehler: Load failed» ab. Das ist
+//      Safaris Wortlaut fuer ein fetch(), das nie zustande kam, und er sagt
+//      nicht, welcher der sieben Dienste ausgefallen ist. REGELN.md §2
+//      verlangt, dass eine ausgefallene Datenquelle als solche sichtbar
+//      bleibt — dazu muss sie erst einmal einen Namen tragen.
+// ---------------------------------------------------------------------------
+{
+  const echtesFetch = globalThis.fetch;
+  globalThis.fetch = async () => { throw new TypeError('Load failed'); };
+  let gefangen = null;
+  try {
+    await T.fetchQuelle('Waldabstand (ogd-0152)', 'https://maps.zh.ch/wfs/OGDZHWFS?x=1');
+  } catch (e) { gefangen = e; }
+  globalThis.fetch = echtesFetch;
+
+  check('Netzfehler wird als Quellenausfall typisiert',
+    gefangen && gefangen.name, 'QuelleNichtErreichbarError');
+  check('die Meldung nennt die Quelle',
+    !!(gefangen && gefangen.message.includes('Waldabstand (ogd-0152)')), true);
+  check('die Meldung nennt den Host',
+    !!(gefangen && gefangen.message.includes('maps.zh.ch')), true);
+  check('die urspruengliche Meldung bleibt erhalten',
+    !!(gefangen && gefangen.message.includes('Load failed')), true);
+  check('Quelle und Host stehen auch strukturiert bereit',
+    gefangen && gefangen.quelle + ' @ ' + gefangen.host,
+    'Waldabstand (ogd-0152) @ maps.zh.ch');
+
+  // Ein gewollter Abbruch ist kein Quellenausfall und darf nicht als solcher
+  // gemeldet werden — sonst meldet jeder Nutzerabbruch einen toten Dienst.
+  globalThis.fetch = async () => { const e = new Error('aborted'); e.name = 'AbortError'; throw e; };
+  let abbruch = null;
+  try {
+    await T.fetchQuelle('Adresssuche', 'https://api3.geo.admin.ch/x');
+  } catch (e) { abbruch = e; }
+  globalThis.fetch = echtesFetch;
+  check('AbortError bleibt AbortError', abbruch && abbruch.name, 'AbortError');
 }
 
 // ---------------------------------------------------------------------------

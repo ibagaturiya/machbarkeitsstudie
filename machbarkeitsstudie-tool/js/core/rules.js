@@ -9,6 +9,9 @@
 window.MachbarkeitTool = window.MachbarkeitTool || {};
 
 (function () {
+  // Netzabrufe laufen ueber T.fetchQuelle (js/core/netz.js): faellt eine
+  // Quelle aus, nennt der Fehler sie beim Namen statt «Load failed».
+  const T = window.MachbarkeitTool;
   // Which values ONLY the communal BZO can supply, and what each one is needed
   // for in the pipeline of REGELN.md §3. Without them there is no footprint and
   // no floor area — the run stops (CLAUDE.md §2), but it stops with a named
@@ -83,7 +86,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       }
       throw new GemeindeNichtHinterlegtError(gemeinde, vorhanden, availableGemeinden());
     }
-    const res = await fetch(url);
+    const res = await T.fetchQuelle(`BZO ${gemeinde}`, url);
     if (!res.ok) throw new Error(`Konnte ${url} nicht laden: HTTP ${res.status}`);
     cache[gemeinde] = await res.json();
     return cache[gemeinde];
@@ -91,7 +94,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
 
   async function loadKantonalesRecht() {
     if (kantonalCache) return kantonalCache;
-    const res = await fetch(KANTONAL_FILE);
+    const res = await T.fetchQuelle('Kantonale Abstandsvorschriften', KANTONAL_FILE);
     if (!res.ok) throw new Error(`Konnte ${KANTONAL_FILE} nicht laden: HTTP ${res.status}`);
     kantonalCache = await res.json();
     return kantonalCache;

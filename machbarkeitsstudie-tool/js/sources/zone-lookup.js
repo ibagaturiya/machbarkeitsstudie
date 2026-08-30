@@ -16,6 +16,9 @@
 window.MachbarkeitTool = window.MachbarkeitTool || {};
 
 (function () {
+  // Netzabrufe laufen ueber T.fetchQuelle (js/core/netz.js): faellt eine
+  // Quelle aus, nennt der Fehler sie beim Namen statt «Load failed».
+  const T = window.MachbarkeitTool;
   const WFS_BASE = 'https://maps.zh.ch/wfs/OGDZHWFS';
   const TYPENAME = 'ogd-0156_arv_basis_np_gn_zonenflaeche_f';
   const BBOX_HALFWIDTH_M = 30;
@@ -28,7 +31,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       BBOX: `${easting - d},${northing - d},${easting + d},${northing + d},EPSG:2056`,
       outputFormat: 'application/json',
     });
-    const res = await fetch(`${WFS_BASE}?${params}`);
+    const res = await T.fetchQuelle('Kantonale Nutzungsplanung', `${WFS_BASE}?${params}`);
     if (!res.ok) throw new Error(`Kantonale Nutzungsplanung: HTTP ${res.status}`);
     const fc = await res.json();
 
