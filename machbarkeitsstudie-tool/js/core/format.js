@@ -67,7 +67,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   // Absender des Exports: Titelblatt-Signatur und /Author der PDF-Metadaten.
   // EINE Konstante statt eines im Blattaufbau vergrabenen Strings — wer das
   // Werkzeug unter eigenem Namen nutzt, aendert genau diese Zeile.
-  window.MachbarkeitTool.ABSENDER = 'Ivan Bagaturia';
+  window.MachbarkeitTool.ABSENDER = 'ivan bagaturiya';
 
   // Version des Werkzeugs, wie sie im PDF-Dateinamen und auf dem Titelblatt
   // des Exports erscheint. Hier, weil format.js als erstes Modul laedt und
@@ -80,7 +80,10 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   //       als Zahl, gemeinsamer Anhang statt dreifacher Wiederholung.
   // v1.4: nutzbare Geschossflaeche als eigene Spalte, keine Einzelfall-
   //       Behauptung im gemeinsamen Anhang, kein Kostenblatt ohne Baukoerper.
-  window.MachbarkeitTool.WERKZEUG_VERSION = 'v1.4';
+  // v1.5: Absender-Schreibweise korrigiert, Uebersichtstabelle und
+  //       Parkierungsblatt tragen bei "faktisch nicht bebaubar" keine
+  //       Kennzahl mehr, die einen Baukoerper voraussetzt.
+  window.MachbarkeitTool.WERKZEUG_VERSION = 'v1.5';
 
   // Every user- and API-sourced string passes through here before innerHTML.
   // Escapes the single quote too, so a value is safe in a single-quoted

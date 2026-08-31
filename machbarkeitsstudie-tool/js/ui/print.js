@@ -427,7 +427,21 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   // am Bildschirm, auf Papier kam allenfalls eine Warnzeile an.
   // Es wird weiterhin NICHTS vom Fussabdruck abgezogen — ob die Garage
   // zweigeschossig wird oder das Haus kleiner, ist eine Entwurfsentscheidung.
-  function parkierungSheetBody(pk, rules, gem) {
+  function parkierungSheetBody(pk, rules, gem, nichtBebaubarJa) {
+    // Gleiche Regel wie bei den Kosten (s5 unten): Pflichtplaetze, Flaechen-
+    // bedarf und «bindend» setzen einen Baukoerper voraus. Ist die Parzelle
+    // fuer sich allein faktisch nicht bebaubar, gibt es diesen Baukoerper
+    // nicht — die Zahlen (3 Pflichtplaetze, 56 m² Tiefgarage, «Bindend») sind
+    // dann eine Aussage ueber ein Gebaeude, das laut Blatt 1 selbst nicht
+    // existiert. Das Parkierungsblatt bleibt als Abschnitt bestehen (anders
+    // als das entfallende Kostenblatt), zeigt aber nur den Kurzhinweis.
+    if (nichtBebaubarJa) {
+      return `<div class="hero">
+        <div class="hero-label">Parkierung</div>
+        <div class="hero-value">— (nicht bebaubar)</div>
+        <div class="hero-sub">Der Parkplatzbedarf entsteht erst im Arealszenario und ist dort zu rechnen.</div>
+      </div>`;
+    }
     if (!pk.erfasst) {
       return `<div class="cols c-5050">
         <div>
@@ -1136,15 +1150,21 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     // aus dem die Kosten gerechnet werden — sie gehört zwischen beide.
     // (`pk` ist oben bei der Nummernvergabe deklariert.)
     const sPk = pk
-      ? sheet('Parkierung', pk.erfasst && pk.bindet
-          ? 'Wann die Garage das Volumen begrenzt — nicht die Ausnützungsziffer'
-          : 'Pflichtplätze und ihr Flächenbedarf',
-          'Wie viele Parkplätze die Bauordnung verlangt, wie viel Fläche sie brauchen — und ab wann die Garage statt der Ausnützungsziffer das Volumen begrenzt.',
-          parkierungSheetBody(pk, rules, gem), foot,
-          pk.erfasst
-            ? sourcesLine(rules, [['Parkierung', 'parkierung']])
-              + ' · <b>Werkzeug-Annahme (kein Rechtswert):</b> Fläche je Abstellplatz.'
-            : '<b>Quellen:</b> § 242 PBG überlässt die Zahl der Abstellplätze der kommunalen Regelung; diese liegt dem Werkzeug für diese Gemeinde nicht vor — deshalb keine Zahl.',
+      ? sheet('Parkierung', nichtBebaubar.ja
+          ? 'Entfällt — kein Baukörper'
+          : (pk.erfasst && pk.bindet
+            ? 'Wann die Garage das Volumen begrenzt — nicht die Ausnützungsziffer'
+            : 'Pflichtplätze und ihr Flächenbedarf'),
+          nichtBebaubar.ja
+            ? 'Auf diesem Streifen steht kein Gebäude — deshalb kein Parkplatzbedarf für sich allein.'
+            : 'Wie viele Parkplätze die Bauordnung verlangt, wie viel Fläche sie brauchen — und ab wann die Garage statt der Ausnützungsziffer das Volumen begrenzt.',
+          parkierungSheetBody(pk, rules, gem, nichtBebaubar.ja), foot,
+          nichtBebaubar.ja
+            ? ''
+            : (pk.erfasst
+              ? sourcesLine(rules, [['Parkierung', 'parkierung']])
+                + ' · <b>Werkzeug-Annahme (kein Rechtswert):</b> Fläche je Abstellplatz.'
+              : '<b>Quellen:</b> § 242 PBG überlässt die Zahl der Abstellplätze der kommunalen Regelung; diese liegt dem Werkzeug für diese Gemeinde nicht vor — deshalb keine Zahl.'),
           numPk)
       : '';
 
@@ -1518,8 +1538,19 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       weitereMassings: liste.slice(1).map((r) => r.massingModel),
     }, 1400, 1000) : null;
 
+    // «Bebaubar als» darf hier nie optimistischer klingen als das Detailblatt
+    // (Blatt 1, Abschnitt 3 «Situation & Grundriss»): eine rechnerisch
+    // bestehende Geschosszahl auf einem Streifen, der kein Baufeld ist
+    // (T.faktischNichtBebaubar), bekommt den Zusatz «(rechnerisch)» plus
+    // Fussnotenzeichen, statt unkommentiert wie eine reguläre Zeile zu wirken.
+    let anyNichtBebaubar = false;
     const zeilen = liste.map((r) => {
       const mm = r.massingModel;
+      const nb = T.faktischNichtBebaubar(r);
+      if (nb.ja) anyNichtBebaubar = true;
+      const bebaubarAls = mm
+        ? storeyLabel(mm.ordinaryStoreys, mm.attikaStoreys) + (nb.ja ? ' (rechnerisch)*' : '')
+        : '—';
       // Adresse UND Nummer in einer Zelle (T.grundstueckLabel): die Trennseiten
       // benennen die Grundstuecke mit ihrer Adresse, diese Tabelle trug bisher
       // nur die Nummer — derselbe Gegenstand unter zwei Namen im selben
@@ -1529,7 +1560,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
         + `<td>${fmt(r.reconciled.usableFootprintAreaM2, 0)} m²</td>`
         + `<td>${fmt(r.reconciled.maxGfaM2, 0)} m²</td>`
         + `<td>${mm ? fmt(mm.nutzflaecheTotalM2, 0) + ' m²' : '—'}</td>`
-        + `<td>${mm ? storeyLabel(mm.ordinaryStoreys, mm.attikaStoreys) : '—'}</td></tr>`;
+        + `<td>${esc(bebaubarAls)}</td></tr>`;
     }).join('');
     const summeVon = (f) => liste.reduce((a, r) => a + f(r), 0);
     const summe = (f) => fmt(summeVon(f), 0);
@@ -1601,6 +1632,9 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
            <td>${summe(nutzVon)} m²</td><td>—</td></tr>
          ${arealZeilen}
        </table>
+       ${anyNichtBebaubar
+         ? `<div class="note-box small">* Für sich allein faktisch nicht bebaubar, siehe Abschnitt 3.</div>`
+         : ''}
        <div class="note-box small">
          Die Summe ist die getrennte Rechnung: jede Parzelle mit ihren eigenen
          Grenzabständen ringsum. Als EIN Areal zusammengefasst fällt der
