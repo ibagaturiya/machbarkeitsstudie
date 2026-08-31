@@ -73,10 +73,33 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   //    bei der Parzellennummer. Ein unbebautes Grundstueck HAT keine
   //    Adresse; eine aus der Nachbarschaft geliehene waere eine erfundene
   //    Angabe in einem Dokument, das seine Quellen nennt (CLAUDE.md §2).
-  // 2. Mehrere Gebaeude auf einer Parzelle ergeben mehrere Adressen. Zurueck
-  //    kommt die Liste, nicht die erste — «Haldenstrasse 5a + 5b» ist die
-  //    richtige Antwort, «Haldenstrasse 5a» waere die halbe.
+  // 2. Auf einer Parzelle stehen oft MEHRERE Eintraege, und die meisten
+  //    davon sind nicht die gesuchte Adresse. Zwei Merkmale des Registers
+  //    trennen sie — beide sind dokumentierte GWR-Codes, keine Heuristik:
+  //
+  //    gkat (Gebaeudekategorie): 1020 = Gebaeude mit Wohnnutzung,
+  //      1080 = Gebaeude OHNE Wohnnutzung (Garage, Schopf, Nebenbau).
+  //      Ein Nebenbau traegt haeufig die Stammadresse der Parzelle
+  //      («Haldenstrasse 5»), waehrend das Wohnhaus daneben «5b» heisst.
+  //      Ohne diesen Filter gewinnt der Schopf.
+  //
+  //    gstat (Gebaeudestatus): 1001 projektiert, 1002 bewilligt,
+  //      1003 im Bau, 1004 bestehend, 1005 nicht nutzbar, 1007 abgebrochen.
+  //      Bewilligt/geplant geht VOR bestehend. Das passt zur Aussage dieses
+  //      Werkzeugs: es rechnet unbebautes Land, Bestand und Abbruch sind
+  //      ausdruecklich nicht beruecksichtigt (Anhang A.3). Die neu
+  //      bewilligte Adresse gehoert zum kuenftigen Zustand, den die Studie
+  //      beschreibt; die bestehende zum Haus, das sie wegdenkt.
+  //
+  //    Beobachtet an Haldenstrasse 5a/5b/5c (Zumikon, 31.8.2026): die drei
+  //    Parzellen 5028/5029/5030 sind eine junge Unterteilung der frueheren
+  //    Parzelle 2999, und das Register fuehrt sie alle noch unter
+  //    lparz 2999 — die Parzellennummer taugt hier also NICHT zur
+  //    Zuordnung, die Geometrie schon.
   const GWR_LAYER = 'ch.bfs.gebaeude_wohnungs_register';
+  const GWR_WOHNNUTZUNG = 1020;
+  // Je kleiner, desto lieber. Bestehendes kommt zuletzt.
+  const GWR_STATUS_RANG = { 1003: 0, 1002: 1, 1001: 2, 1004: 3, 1005: 4, 1007: 5 };
 
   async function addressesForParcel(geometryLV95) {
     const ring = geometryLV95 && geometryLV95[0];
@@ -124,9 +147,25 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       const ort = a.dplzname || a.plzname || '';
       if (!strasse) continue;
       const voll = `${strasse}${hausnr && !String(strasse).includes(String(hausnr)) ? ' ' + hausnr : ''}`.trim();
-      if (voll && !treffer.some((t) => t.voll === voll)) treffer.push({ voll, plz, ort });
+      if (!voll || treffer.some((t) => t.voll === voll)) continue;
+      treffer.push({
+        voll, plz, ort,
+        wohn: Number(a.gkat) === GWR_WOHNNUTZUNG,
+        rang: GWR_STATUS_RANG[Number(a.gstat)] ?? 9,
+      });
     }
     if (!treffer.length) return null;
+
+    // Nebenbauten nur dann, wenn es sonst gar nichts gibt — eine Garage ist
+    // keine Adresse fuer eine Machbarkeitsstudie, aber besser als nichts.
+    const wohn = treffer.filter((t) => t.wohn);
+    let engere = wohn.length ? wohn : treffer;
+    // Unter den verbliebenen der beste Status; gleichrangige bleiben alle.
+    const bester = Math.min(...engere.map((t) => t.rang));
+    engere = engere.filter((t) => t.rang === bester);
+    treffer.length = 0;
+    treffer.push(...engere);
+
     // Natuerlich sortieren, damit 5a vor 5b vor 5c steht und 10 nach 9.
     treffer.sort((x, y) => x.voll.localeCompare(y.voll, 'de', { numeric: true }));
     const ortTeil = treffer[0].plz || treffer[0].ort

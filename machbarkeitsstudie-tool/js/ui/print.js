@@ -405,12 +405,19 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   // Folgeblaettern.
   // Ein Grundstueck als Zeile: Adresse, sonst die Parzellennummer.
   function betreffVon(r) {
-    // Reihenfolge: die eingetippte Adresse, sonst die im Adressregister
-    // gefundene, sonst die Parzellennummer. Nie etwas Erfundenes.
-    if (r.anchor.address) return r.anchor.address;
+    // Reihenfolge: das Adressregister zuerst, dann die eingetippte Adresse,
+    // zuletzt die Parzellennummer. Nie etwas Erfundenes.
+    //
+    // Das Register geht VOR der Eingabe, weil die Eingabe nur zur Parzelle
+    // fuehrt, nicht zu ihrer Adresse: wer «Haldenstrasse 5» sucht, landet
+    // auf Parzelle 5030 — deren Wohnhaus aber «Haldenstrasse 5c» heisst,
+    // waehrend «Haldenstrasse 5» das bestehende Haus daneben ist. Bei drei
+    // nebeneinanderliegenden Grundstuecken trugen sonst alle drei dieselbe
+    // eingetippte Adresse.
     const ausRegister = r.selection
       .map((p) => (p.adressen && p.adressen.label) || null).filter(Boolean);
     if (ausRegister.length) return ausRegister.join(' · ');
+    if (r.anchor.address) return r.anchor.address;
     return r.selection.map((p) => `Parzelle ${p.parcelNumber}`).join(' + ');
   }
 

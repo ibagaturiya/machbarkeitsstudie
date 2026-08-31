@@ -228,8 +228,10 @@
       const ausRegister = r.selection
         .map((p) => (p.adressen && p.adressen.liste && p.adressen.liste[0]) || null)
         .filter(Boolean);
-      betreff = r.anchor.address
-        || ausRegister[0]
+      // Gleiche Reihenfolge wie im Dokument (betreffVon in js/ui/print.js):
+      // Register vor Eingabe, damit Datei und Titelblatt dasselbe sagen.
+      betreff = ausRegister[0]
+        || r.anchor.address
         || r.selection.map((p) => `Parzelle-${p.parcelNumber}`).join('_');
       // Mehrere Grundstuecke in einer Datei: die erste Adresse plus die Zahl
       // der uebrigen. Alle aneinanderzuhaengen ergaebe bei drei Adressen
