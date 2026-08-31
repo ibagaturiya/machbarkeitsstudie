@@ -26,6 +26,18 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   // ring per disconnected part.
   const exteriorRingsOf = T.exteriorRingsOf; // js/core/coordinates.js
 
+  // Die Zoomgrenzen der Szene, an EINER Stelle. Rad, Knopf und eine von
+  // aussen gesetzte Kameralage (view.zoom aus dem PDF-Export) muessen
+  // dieselben Anschlaege haben — eine zweite Kopie der Zahlen ist genau der
+  // Weg, auf dem ein Export irgendwann naeher heranfaehrt, als das Rad je
+  // koennte.
+  const ZOOM_MIN = 0.4, ZOOM_MAX = 6;
+  function clampZoom(z) { return Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z)); }
+  // Dieselbe Ueberlegung fuer die Neigung: knapp vor Senkrechte und Horizont,
+  // damit das Modell nicht umklappt.
+  const POLAR_MIN = 0.05, POLAR_MAX = Math.PI / 2 - 0.02;
+  function clampPolar(p) { return Math.max(POLAR_MIN, Math.min(POLAR_MAX, p)); }
+
   // Scene frame: X = East, Y = up, Z = SOUTH (i.e. -north). Three.js is
   // right-handed with Y up, so east/up/north would be a LEFT-handed basis --
   // the whole scene then renders as its own mirror image (compass directions
@@ -91,11 +103,21 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     return { obj: g, sprite: label };
   }
 
+  // Der Beschriftungschip: Schriftgrad und Innenrand des Canvas, aus dem die
+  // Sprite-Textur entsteht. Modulweit, weil die Untergrenze fuer den PDF-Export
+  // (minLabelPx, siehe renderEnvelope) aus genau diesem Verhaeltnis rechnet:
+  // eine Sprite-Welthoehe h zeigt einen Schriftgrad von h * LABEL_EM_ANTEIL.
+  // Zweitkopien dieser Zahlen waeren die uebliche Art, wie so ein Verhaeltnis
+  // auseinanderlaeuft.
+  const LABEL_FONT_PX = 42;
+  const LABEL_PAD_PX = 10;
+  const LABEL_EM_ANTEIL = LABEL_FONT_PX / (LABEL_FONT_PX + 2 * LABEL_PAD_PX);
+
   // Text as a camera-facing sprite: readable at any orbit angle, which a
   // mesh-based label would not be. Italic per the drawing convention for
   // dimension figures; black-on-white or white-on-dark depending on theme.
   function makeLabel(text, position, worldHeight = 2, dark = false) {
-    const pad = 10, font = 42;
+    const pad = LABEL_PAD_PX, font = LABEL_FONT_PX;
     const cv = document.createElement('canvas');
     const ctx = cv.getContext('2d');
     ctx.font = `italic 600 ${font}px Helvetica, Arial, sans-serif`;
@@ -160,7 +182,16 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   // weil buildSolidGroup ALLE Ringe auf DIESELBE Hoehe zieht: Parzellen in
   // verschiedenen Zonen stuenden dann falsch hoch da, ohne dass es auffiele.
   // Sie sind Beiwerk — nicht anfassbar, nicht ziehbar, gedaempft gezeichnet.
-  function renderEnvelope(container, { footprintFeature, parcelFeature, heightM, removedFeature, massing = null, weitereMassings = null, interactive = false, dark = false, draggable = false, buildableArea = null, blockGapM = 0, waldLinien = null, onMove = null, onCamera = null }) {
+  // `view`: eine bereits eingestellte Kameralage (cameraState() weiter unten),
+  // mit der diese Szene STATT der Ausgangs-Isometrie aufgebaut wird. Damit
+  // zeigt der PDF-Export denselben Blick, den am Bildschirm jemand gedreht,
+  // gezoomt und verschoben hat. Alle Werte darin sind szenenrelativ — `zoom`
+  // als Vielfaches der Einpassung, das Ziel als Bruchteil von viewSize —,
+  // deshalb passen sie auch auf eine Szene mit anderem Massstab.
+  //
+  // `minLabelPx`: Untergrenze fuer den Schriftgrad der Bemassung, in Pixeln
+  // des GERENDERTEN Bildes. 0 (Bildschirm) laesst die Groesse unangetastet.
+  function renderEnvelope(container, { footprintFeature, parcelFeature, heightM, removedFeature, massing = null, weitereMassings = null, interactive = false, dark = false, draggable = false, buildableArea = null, blockGapM = 0, waldLinien = null, onMove = null, onCamera = null, view = null, minLabelPx = 0 }) {
     const pal = dark ? PALETTE.dark : PALETTE.light;
     const footprintRings = exteriorRingsOf(footprintFeature);
     const parcelRings = exteriorRingsOf(parcelFeature);
@@ -255,12 +286,46 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     let meshBlockIndex = new Map(); // mesh -> which block (ring) it belongs to, for per-block dragging
     let blockPolygons = [];     // turf Polygon per block, current positions -- dragging moves exactly one
     let alignedLabels = [];     // {sprite, p1, p2} kept upright to their edge, updated every draw
-    const extent = Math.max(...allFootprintPoints.map(([e, n]) => Math.hypot(e - centerE, n - centerN))) * 2;
+    // Der Bildausschnitt steht VOR der Bemassung: die Untergrenze fuer den
+    // Schriftgrad (minLabelPx) rechnet Welt- in Bildpixel um und braucht dazu
+    // die vertikale Spanne der Kamera (viewSize/zoom) und die Bildhoehe. Die
+    // Kamera selbst wird weiter unten daraus gebaut — hier stehen nur die
+    // Masse, keine Lage. (const/let kennen kein Hoisting, deshalb wirklich
+    // hier und nicht erst bei der Kamera.)
+    const width = container.clientWidth || 600;
+    const height = container.clientHeight || 450;
+    const aspect = width / height;
+    // viewSize is the camera's VERTICAL span; horizontal span is
+    // viewSize * aspect. In a pane narrower than tall (aspect < 1) a fit
+    // computed from the radius alone loses its sides, so divide by aspect
+    // there to guarantee the whole model stays inside the visible frame.
+    const fitRadius = Math.max(...allFootprintPoints.map(([e, n]) => Math.hypot(e - centerE, n - centerN)));
+    const viewSize = Math.max(40, (fitRadius * 3) / Math.min(1, aspect));
+    // Szenenrelativ: 1 ist die Einpassung oben, 2.6 heisst «2.6-mal so gross
+    // wie eingepasst» — unabhaengig davon, wie gross das Modell in Metern ist.
+    // Genau deshalb laesst sich ein am Bildschirm eingestellter Zoom auf eine
+    // andere Parzelle uebertragen, ohne dass sie aus dem Bild faellt.
+    let zoom = view && Number.isFinite(view.zoom) ? clampZoom(view.zoom) : 1;
+
+    const extent = fitRadius * 2;
     const out = Math.max(0.6, extent * 0.02);
     // Deliberately small relative to the model: dimension figures are there
     // to be read once, not to compete with the massing. At the earlier size
     // the long storey-breakdown chip was taller than the building itself.
     const labelH = Math.max(0.5, extent * 0.011);
+    // Untergrenze in WELTMETERN, aus der geforderten Schriftgroesse im Bild
+    // zurueckgerechnet: ein Sprite der Welthoehe h erscheint mit
+    // h * LABEL_EM_ANTEIL * height / (viewSize/zoom) Pixeln Schriftgrad.
+    // Am Bildschirm ist minLabelPx 0 und diese Schranke damit wirkungslos —
+    // die Bemassung dort bleibt Pixel fuer Pixel, wie sie war.
+    const minLabelH = minLabelPx > 0
+      ? (minLabelPx * (viewSize / zoom)) / (height * LABEL_EM_ANTEIL)
+      : 0;
+    // Die Abstufung der Beschriftungen (Attika-Flaeche kleiner, die lange
+    // Geschosszeile noch kleiner) bleibt erhalten, solange sie ueber der
+    // Schranke liegt — darunter gilt die Schranke, sonst waere gerade die
+    // Zeile mit dem meisten Inhalt die einzige unlesbare.
+    const labelWorldH = (faktor) => Math.max(labelH * faktor, minLabelH);
     const MIN_EDGE_M = 1.2; // shorter than this is a construction sliver, not a facade
 
     function buildSolidGroup(liveMassing) {
@@ -359,11 +424,11 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
             const probe = turf.point([mx + nx * 0.5, my + ny * 0.5]);
             if (turf.booleanPointInPolygon(probe, poly)) { nx = -nx; ny = -ny; }
             const offset = new THREE.Vector3(nx * out, 0, -(ny * out));
-            addDim(v(a), v(b), `${len.toFixed(1)} m`, offset, labelH);
+            addDim(v(a), v(b), `${len.toFixed(1)} m`, offset, labelWorldH(1));
           }
 
           const areaM2 = T.planarAreaLV95([ring]);
-          const areaLabel = makeLabel(`${areaM2.toFixed(1)} m²`, v(centroidPt, solidHeight + labelH * 2.4), labelH, dark);
+          const areaLabel = makeLabel(`${areaM2.toFixed(1)} m²`, v(centroidPt, solidHeight + labelWorldH(1) * 2.4), labelWorldH(1), dark);
           areaLabel.renderOrder = 11;
           // The Attika's own (smaller, profile-constrained) footprint area, labelled
           // separately right at its own level -- otherwise the only number
@@ -371,7 +436,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
           if (attikaRing) {
             const attikaCentroid = turf.centroid(turf.polygon([attikaRing])).geometry.coordinates;
             const attikaAreaM2 = T.planarAreaLV95([attikaRing]);
-            const attikaAreaLabel = makeLabel(`Attika ${attikaAreaM2.toFixed(1)} m²`, v(attikaCentroid, baseHeight + attikaHeight + labelH * 1.1), labelH * 0.85, dark);
+            const attikaAreaLabel = makeLabel(`Attika ${attikaAreaM2.toFixed(1)} m²`, v(attikaCentroid, baseHeight + attikaHeight + labelWorldH(0.85) * 1.1), labelWorldH(0.85), dark);
             attikaAreaLabel.renderOrder = 11;
             group.add(attikaAreaLabel);
           }
@@ -394,7 +459,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
           const storeyPart = parts.length ? ` (${parts.join(' + ')})` : '';
           // Smaller again: this one carries the whole storey breakdown, so its
           // chip is many times wider than any edge dimension at the same height.
-          addDim(hCorner, hCorner.clone().setY(solidHeight), `${solidHeight.toFixed(1)} m${storeyPart}`, hOut, labelH * 0.75);
+          addDim(hCorner, hCorner.clone().setY(solidHeight), `${solidHeight.toFixed(1)} m${storeyPart}`, hOut, labelWorldH(0.75));
         }
       });
 
@@ -441,16 +506,6 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     sun.position.set(50, 80, 30);
     scene.add(sun);
 
-    const width = container.clientWidth || 600;
-    const height = container.clientHeight || 450;
-    const aspect = width / height;
-    // viewSize is the camera's VERTICAL span; horizontal span is
-    // viewSize * aspect. In a pane narrower than tall (aspect < 1) a fit
-    // computed from the radius alone loses its sides, so divide by aspect
-    // there to guarantee the whole model stays inside the visible frame.
-    const fitRadius = Math.max(...allFootprintPoints.map(([e, n]) => Math.hypot(e - centerE, n - centerN)));
-    const viewSize = Math.max(40, (fitRadius * 3) / Math.min(1, aspect));
-    let zoom = 1;
     const camera = new THREE.OrthographicCamera(
       (-viewSize * aspect) / 2, (viewSize * aspect) / 2,
       viewSize / 2, -viewSize / 2,
@@ -465,22 +520,44 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     const dist = viewSize * 1.5;
     const AZIMUTH_0 = Math.PI / 4;               // 45°, the classic isometric plan angle
     const POLAR_0 = Math.atan(1 / Math.SQRT2);   // ~35.26°, true isometric elevation
-    let azimuth = AZIMUTH_0;                     // around the vertical axis
-    let polar = POLAR_0;
+    // Eine mitgegebene Kameralage (`view`) tritt an die Stelle der
+    // Ausgangs-Isometrie. Uebernommen wird jeder Wert EINZELN und nur, wenn er
+    // endlich ist: eine halb gefuellte Lage darf keinen NaN in die
+    // Kameramatrix tragen, sondern faellt Feld fuer Feld auf den Startwert
+    // zurueck.
+    const ausSicht = (wert, start) => (view && Number.isFinite(wert) ? wert : start);
+    let azimuth = ausSicht(view && view.azimuth, AZIMUTH_0);   // around the vertical axis
+    let polar = clampPolar(ausSicht(view && view.polar, POLAR_0));
     // Resting look-at point sits a little below the ground plane: the model
     // then rides in the upper part of the frame, clear of the § overlay that
     // occupies the pane's lower-left corner. RESET returns here too.
     const TARGET_0_Y = -viewSize * 0.1;
-    const target = new THREE.Vector3(0, TARGET_0_Y, 0);
+    // Das Ziel kommt als BRUCHTEIL von viewSize herein und wird hier mit der
+    // viewSize DIESER Szene multipliziert. So bleibt eine am Bildschirm
+    // verschobene Ansicht auf einer groesseren oder kleineren Parzelle
+    // gleich ausgerichtet, statt sie aus dem Bild zu schieben.
+    const target = new THREE.Vector3(
+      ausSicht(view && view.targetX, 0) * (view ? viewSize : 1),
+      view && Number.isFinite(view.targetY) ? view.targetY * viewSize : TARGET_0_Y,
+      ausSicht(view && view.targetZ, 0) * (view ? viewSize : 1)
+    );
 
     // The camera's own numbers, handed back so the panel can print them.
     // Reported as they really are -- azimuth and elevation in degrees, zoom
     // as a factor -- rather than as the mock's scaleY percentage, which was
     // a property of a flattened SVG and has no counterpart on a real camera.
+    //
+    // Dazu die Lage in ihrer vollen Genauigkeit (Bogenmass, Ziel als
+    // Bruchteil von viewSize): die Ableseleiste braucht die gerundeten Grade,
+    // der PDF-Export braucht die Lage selbst. Beides aus EINER Quelle, damit
+    // die Zahl auf dem Schirm und der Blick im Dokument nicht auseinander
+    // laufen koennen.
     const cameraState = () => ({
       azimuthDeg: ((Math.round((azimuth * 180) / Math.PI) % 360) + 360) % 360,
       polarDeg: Math.round((polar * 180) / Math.PI),
       zoom,
+      azimuth, polar,
+      targetX: target.x / viewSize, targetY: target.y / viewSize, targetZ: target.z / viewSize,
     });
     const reportCamera = () => { if (onCamera) onCamera(cameraState()); };
 
@@ -655,7 +732,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
         if (!dragging) return;
         azimuth -= (e.clientX - lastX) * 0.01;
         // Clamp just short of straight down/horizon so the model never flips.
-        polar = Math.max(0.05, Math.min(Math.PI / 2 - 0.02, polar + (e.clientY - lastY) * 0.01));
+        polar = clampPolar(polar + (e.clientY - lastY) * 0.01);
         lastX = e.clientX; lastY = e.clientY;
         applyCamera(); draw();
       });
@@ -667,7 +744,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       el.addEventListener('pointercancel', stop);
       el.addEventListener('wheel', (e) => {
         e.preventDefault();
-        zoom = Math.max(0.4, Math.min(6, zoom * (e.deltaY < 0 ? 1.1 : 1 / 1.1)));
+        zoom = clampZoom(zoom * (e.deltaY < 0 ? 1.1 : 1 / 1.1));
         applyCamera(); draw();
       }, { passive: false });
     }
@@ -679,7 +756,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     const orbit = {
       state: cameraState,
       stepAzimuth(deg) { azimuth += (deg * Math.PI) / 180; applyCamera(); draw(); },
-      zoomBy(factor) { zoom = Math.max(0.4, Math.min(6, zoom * factor)); applyCamera(); draw(); },
+      zoomBy(factor) { zoom = clampZoom(zoom * factor); applyCamera(); draw(); },
       reset() {
         azimuth = AZIMUTH_0; polar = POLAR_0; zoom = 1;
         target.set(0, TARGET_0_Y, 0);

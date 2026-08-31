@@ -203,7 +203,7 @@
     const liste = lastResults.length ? lastResults : [lastResult];
     liste.forEach(ergaenzeAbleitungen);
     const areal = await arealVergleich(liste);
-    await T.buildPrintDocument(liste, buildGrundbuchFootnote(), areal);
+    await T.buildPrintDocument(liste, buildGrundbuchFootnote(), areal, isoAnsicht);
     return true;
   }
 
@@ -1641,6 +1641,10 @@
   // baut die Szene bei jeder Aenderung neu, und ein pro Aufbau neu
   // registrierter Listener haette sich mit jedem Rendern vervielfacht.
   let isoOrbit = null;
+  // Die zuletzt von der Szene gemeldete Kameralage (viewer.js cameraState).
+  // Null, solange nichts gerendert wurde — der Export nimmt dann die
+  // Ausgangs-Isometrie, statt eine Lage zu erfinden.
+  let isoAnsicht = null;
   function wireIsoControls(orbit) {
     isoOrbit = orbit;
     if (isoControlsEl.dataset.wired) return;
@@ -1693,8 +1697,13 @@
         renderFloorPlan(r);
       },
       // Die Kamera meldet ihre eigenen Zahlen zurueck; die Ableseleiste
-      // erfindet nichts und rechnet nichts nach.
+      // erfindet nichts und rechnet nichts nach. Dieselbe Meldung wird
+      // gemerkt: der PDF-Export baut seine Isometrie mit GENAU dieser Lage
+      // (composePrintDoc), statt jedes Mal auf die Ausgangs-Isometrie
+      // zurueckzufallen. Wer den Baukoerper dreht, um eine Ecke zu zeigen,
+      // bekam bis dahin im Dokument einen anderen Blick als auf dem Schirm.
       onCamera: (c) => {
+        isoAnsicht = c;
         isoReadoutEl.textContent = `Azimut ${c.azimuthDeg}° · Neigung ${c.polarDeg}° · ${c.zoom.toFixed(2)}×`;
       },
     });

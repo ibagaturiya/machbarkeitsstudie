@@ -715,11 +715,28 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       <span><b>${esc(i.label)}</b><br>${esc(i.text)}</span></div>`).join('');
   }
 
+  // ---- Lesbare Bemassung in der Isometrie ---------------------------------
+  // Das Isometriebild wird gross gerendert und auf dem Blatt klein
+  // dargestellt: `.render` in css/print.css deckelt es auf ISO_RENDER_H_MM,
+  // und `object-fit: contain` fuehrt dazu, dass diese Hoehe bei beiden hier
+  // benutzten Seitenverhaeltnissen (1600x1080 und 1400x1000, beide flacher
+  // als der 182x92-mm-Rahmen) auch wirklich die massgebende ist.
+  //
+  // Die Bemassung ist am Modell bemessen, nicht am Blatt — im 1080 px hohen
+  // Bild sah sie richtig aus und stand im PDF vom 31.8.2026 bei rund 2 px.
+  // Deshalb bekommt viewer.js die Untergrenze in BILDPIXELN, zurueckgerechnet
+  // aus der Groesse, die das Bild auf dem Blatt tatsaechlich einnimmt.
+  const ISO_RENDER_H_MM = 92;   // = .render { max-height } in css/print.css
+  const ISO_LABEL_MIN_PX = 9;   // geforderter Schriftgrad auf dem Blatt, in CSS-px
+  const PX_PRO_MM = 96 / 25.4;  // CSS-Pixel je Millimeter, per Definition
+  const isoMinLabelPx = (heightPx) =>
+    (ISO_LABEL_MIN_PX * heightPx) / (ISO_RENDER_H_MM * PX_PRO_MM);
+
   // r = the result object from app.js analyse(); flags = the rendered flag
   // strings; grundbuchFootnote may be null.
   // Baut die Blaetter EINER Auswertung und gibt sie in vier Gruppen zurueck,
   // damit der Aufrufer sie fuer mehrere Parzellen zusammensetzen kann.
-  async function buildSheetsForResult(r, grundbuchFootnote, mehrere, gem) {
+  async function buildSheetsForResult(r, grundbuchFootnote, mehrere, gem, ansicht) {
     // Die Hinweise haengen am Ergebnis, nicht am Aufruf: bei mehreren
     // Parzellen traegt sonst jede die Hinweise der ersten.
     const flags = r.flags || [];
@@ -739,6 +756,11 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     // The PDF must show the SAME building the screen shows: the massing model
     // (chosen storeys, GFA-constrained), not the abstract legal hull — the
     // hull overstated volume and cost by a large factor on AZ-bound parcels.
+    //
+    // `view`: die am Bildschirm eingestellte Kameralage. Sie ist szenenrelativ
+    // (viewer.js), passt also auch auf ein Grundstueck, das kleiner ist als
+    // das, an dem gedreht wurde — im getrennten Modus zeigt jedes Blatt seinen
+    // eigenen Baukoerper aus demselben Blickwinkel.
     const envelopePng = setbackFootprint
       ? T.renderEnvelopeToDataURL({
           footprintFeature: setbackFootprint,
@@ -747,6 +769,8 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
           waldLinien: (wald && wald.lines) || null,
           heightM: rules.heightM,
           massing: massingModel,
+          view: ansicht || null,
+          minLabelPx: isoMinLabelPx(1080),
         }, 1600, 1080)
       : null;
 
@@ -1538,7 +1562,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   // getrennt rechnen laesst, will zuerst das Ganze sehen und danach die
   // Einzelnen — ohne dieses Blatt begaenne das Dokument mitten in der ersten
   // Parzelle.
-  async function uebersichtSheet(liste, foot, areal) {
+  async function uebersichtSheet(liste, foot, areal, ansicht) {
     const rings = liste.flatMap((r) => r.selection.map((p) => p.geometryLV95[0]));
     const { centerE, centerN, halfSpan } = T.boundingBoxForRings(rings, 25);
 
@@ -1572,6 +1596,10 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       heightM: liste[0].rules.heightM,
       massing: liste[0].massingModel,
       weitereMassings: liste.slice(1).map((r) => r.massingModel),
+      // Dieselbe Szene, die am Bildschirm steht — hier stimmt die uebernommene
+      // Kameralage sogar Punkt fuer Punkt und nicht nur dem Winkel nach.
+      view: ansicht || null,
+      minLabelPx: isoMinLabelPx(1000),
     }, 1400, 1000) : null;
 
     // «Bebaubar als» darf hier nie optimistischer klingen als das Detailblatt
@@ -1694,7 +1722,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   // Eine Auswertung = Arealmodus (Parzellen als ein Baugrundstueck).
   // Mehrere = getrennt gerechnet, jede Parzelle mit eigener Studie, in
   // einer durchlaufenden Datei.
-  async function buildPrintDocument(results, grundbuchFootnote, areal) {
+  async function buildPrintDocument(results, grundbuchFootnote, areal, ansicht) {
     const liste = Array.isArray(results) ? results : [results];
     const teile = [];
     const mehrere = liste.length > 1;
@@ -1702,14 +1730,14 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     // Parzellenblaetter bauen sich danach ohne diese Bloecke auf und
     // verweisen stattdessen auf den gemeinsamen Anhang.
     const gem = mehrere ? ermittleGemeinsames(liste) : null;
-    for (const r of liste) teile.push(await buildSheetsForResult(r, grundbuchFootnote, mehrere, gem));
+    for (const r of liste) teile.push(await buildSheetsForResult(r, grundbuchFootnote, mehrere, gem, ansicht));
 
     // Dokumentweite Blaetter tragen die neutrale Fusszeile, die Abschnitte
     // ihre eigene. Vorher bekam jedes Blatt, das nicht selbst gebaut wurde
     // (Kapitelseiten, Fortsetzungen), die Fusszeile der ERSTEN Auswertung —
     // mitten im zweiten Grundstueck stand dann dessen Nachbar.
     const foot = teile[0].footNeutral;
-    const uebersicht = mehrere ? await uebersichtSheet(liste, foot, areal) : '';
+    const uebersicht = mehrere ? await uebersichtSheet(liste, foot, areal, ansicht) : '';
     // Blattfolge: Titel · Inhalt · (Uebersicht) · je Grundstueck
     // Kapitelseite + Koerper + Belege · Schluss.
     const html = titleSheet(liste, foot)
