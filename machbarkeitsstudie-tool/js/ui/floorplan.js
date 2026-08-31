@@ -140,7 +140,17 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   }) {
     const pal = dark ? PALETTE.dark : PALETTE.light;
     const parcelRings = allRingsOf(parcelFeature);
-    const pts = parcelRings.flat();
+    // Der Ausschnitt richtete sich allein nach der Parzelle. Die
+    // Waldabstandsflaeche reicht aber regelmaessig UEBER sie hinaus — und
+    // wurde dann am Blattrand abgeschnitten, also ausgerechnet die Flaeche,
+    // die erklaert, warum der Baukoerper so klein ist. Jetzt zaehlen alle
+    // gezeichneten Geometrien mit.
+    const pts = [
+      ...parcelRings,
+      ...allRingsOf(removedFeature),
+      ...allRingsOf(hullFeature),
+      ...allRingsOf(footprintFeature),
+    ].flat();
     const es = pts.map((p) => p[0]);
     const ns = pts.map((p) => p[1]);
     const minE = Math.min(...es), maxE = Math.max(...es);
@@ -204,9 +214,9 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     }
 
     // What the Waldabstand cut removed
-    if (removedFeature) {
-      out.push(`<path d="${path(allRingsOf(removedFeature))}" fill="url(#fp-hatch)" fill-opacity=".5" fill-rule="evenodd" stroke="#c62828" stroke-width="1.4" stroke-dasharray="6 4"/>`);
-    }
+    // Die entfallene Flaeche wird erst weiter unten gezeichnet, NACH den
+    // Baukoerpern — sonst deckt das Haus sie zu, und der Plan zeigt einen
+    // Baukoerper ohne den Grund seiner Groesse.
 
     // The smallest enclosing rectangle of the UNDIVIDED buildable area -- the
     // measure the BZO uses for max. Gebäudelänge. Only relevant, and only
@@ -316,6 +326,11 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     const barM = niceScaleLength(spanE);
     const barPx = barM * scale;
     const bx = widthPx - padPx - barPx, by = heightPx - 18;
+    // Zuletzt (ausser Massstab und Nordpfeil): so liegt die entfallene
+    // Flaeche ueber dem Baukoerper und bleibt sichtbar.
+    if (removedFeature) {
+      out.push(`<path d="${path(allRingsOf(removedFeature))}" fill="url(#fp-hatch)" fill-opacity=".5" fill-rule="evenodd" stroke="#c62828" stroke-width="1.4" stroke-dasharray="6 4"/>`);
+    }
     out.push(`<line x1="${bx}" y1="${by}" x2="${bx + barPx}" y2="${by}" stroke="${pal.scaleStroke}" stroke-width="2.5"/>
       <line x1="${bx}" y1="${by - 4}" x2="${bx}" y2="${by + 4}" stroke="${pal.scaleStroke}" stroke-width="2"/>
       <line x1="${bx + barPx}" y1="${by - 4}" x2="${bx + barPx}" y2="${by + 4}" stroke="${pal.scaleStroke}" stroke-width="2"/>

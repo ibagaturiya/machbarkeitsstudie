@@ -172,7 +172,15 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   // «(Fortsetzung)» — wer nur eine Seite in der Hand hält, muss erkennen,
   // wozu sie gehört. Der Inhalt steht zweispaltig über die volle Breite:
   // die Karte oder Tabelle daneben stand schon auf dem ersten Blatt.
-  function continuationSheet(sourceSheet, foot) {
+  // Die Fusszeile kommt vom QUELLBLATT, nicht aus dem Dokument. Vorher
+  // bekamen alle Fortsetzungen die Fusszeile der ERSTEN Auswertung: Seite 22
+  // trug «Parzelle 5030», obwohl sie die Fortsetzung von Seite 21 (Parzelle
+  // 5029) war. Genau die Zuordnung, die die Fusszeile leisten soll, war
+  // damit auf jeder Fortsetzung falsch.
+  function continuationSheet(sourceSheet, dokumentFoot) {
+    const eigenerFoot = (sourceSheet.querySelector('.sheet-foot') || {}).innerHTML
+      || dokumentFoot;
+    const foot = eigenerFoot;
     const title = sourceSheet.dataset.outlineTitle
       || (sourceSheet.querySelector('h2') || {}).textContent || '';
     const kickerEl = sourceSheet.querySelector('.kicker');
@@ -211,6 +219,43 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       slot.replaceWith(flowClone);
     }
     return cont;
+  }
+
+  // ---- Attika: geht sie oder nicht? -------------------------------------
+  // Die Frage stand bisher nur zwischen den Zeilen: als Variantenkarte auf
+  // Blatt 2, als Hinweis im Anhang. Wer wissen will, ob ein Attikageschoss
+  // drin liegt, soll es auf dem ERSTEN Blatt lesen — es entscheidet ueber
+  // eine ganze Wohnung.
+  //
+  // Vier Faelle, alle benannt: gebaut, zonenrechtlich unzulaessig, zulaessig
+  // aber geometrisch nicht darstellbar (der 45°-Ruecksprung frisst die
+  // Tiefe auf), oder in dieser Variante schlicht nicht gewaehlt.
+  function attikaBefund(mm, rules) {
+    if (!mm) return null;
+    if (mm.attikaStoreys > 0) {
+      return {
+        ja: true,
+        satz: `Attika möglich — ${mm.attikaStoreys} Geschoss`
+          + `${mm.attikaFootplateM2 ? ` à ${fmt(mm.attikaFootplateM2, 0)} m²` : ''}`
+          + `${mm.attikaSetbackM ? `, 45°-Rücksprung ${fmt(mm.attikaSetbackM)} m` : ''}.`,
+      };
+    }
+    if (mm.attikaMax === 0) {
+      return { ja: false, satz: 'Attika nicht möglich — in dieser Zone ist kein Dach-/Attikageschoss anrechenbar.' };
+    }
+    if (mm.attikaSuppressed) {
+      const d = (mm.attikaDiagnostics || [])[0];
+      const rest = d ? fmt(Math.max(0, d.narrowestM)) : null;
+      return {
+        ja: false,
+        satz: 'Attika nicht möglich — zonenrechtlich zulässig, aber geometrisch nicht darstellbar: '
+          + (rest
+              ? `der 45°-Rücksprung von ${fmt(mm.attikaSetbackM)} m je Seite lässt nur ${rest} m Bautiefe übrig `
+                + `(mindestens ${T.MIN_PRIMITIVE_WIDTH_M} m nötig).`
+              : `der 45°-Rücksprung lässt zu wenig Bautiefe übrig.`),
+      };
+    }
+    return { ja: null, satz: 'Attika in dieser Variante nicht gerechnet — die gewählte Geschosszahl kommt ohne aus.' };
   }
 
   // "2 Vollgeschosse", "2 Vollgeschosse + 1 Attika" — ganze Geschosse, nie
@@ -360,8 +405,13 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   // Folgeblaettern.
   // Ein Grundstueck als Zeile: Adresse, sonst die Parzellennummer.
   function betreffVon(r) {
-    return r.anchor.address
-      || r.selection.map((p) => `Parzelle ${p.parcelNumber}`).join(' + ');
+    // Reihenfolge: die eingetippte Adresse, sonst die im Adressregister
+    // gefundene, sonst die Parzellennummer. Nie etwas Erfundenes.
+    if (r.anchor.address) return r.anchor.address;
+    const ausRegister = r.selection
+      .map((p) => (p.adressen && p.adressen.label) || null).filter(Boolean);
+    if (ausRegister.length) return ausRegister.join(' · ');
+    return r.selection.map((p) => `Parzelle ${p.parcelNumber}`).join(' + ');
   }
 
   // `liste` sind die Auswertungen des Dokuments — im Arealmodus eine, sonst
@@ -386,9 +436,9 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
         ${mehrere ? `<ul class="titel-liste">${liste.map((x, i) =>
           `<li><span class="tl-n">${i + 1}</span><span class="tl-a">${esc(betreffVon(x))}</span>`
           + `<span class="tl-p">Parzelle ${esc(x.selection.map((p) => p.parcelNumber).join(' + '))}</span></li>`).join('')}</ul>` : ''}
-        <p class="titel-text">${mehrere
-          ? `Diese Datei enthält ${liste.length} getrennte Auswertungen — je Grundstück eine, jede für sich gerechnet. Sie zeigen,`
-          : 'Diese Studie zeigt,'} was ${mehrere ? 'dort' : (multi ? 'auf den gewählten Parzellen' : 'auf der gewählten Parzelle')} nach geltendem Baurecht gebaut werden darf: Fläche, Geschosse, Volumen und eine erste Kostenschätzung. Grundlage sind die amtliche Vermessung, die kantonalen Geodaten sowie die Bau- und Zonenordnung der Gemeinde — jede Zahl nennt ihre Quelle. Erstellt hat sie ein Programm: es wendet die zitierten Bestimmungen als fest verdrahtete Regeln an, rechnet deterministisch und ohne KI und liefert für dieselbe Parzelle immer dieselben Zahlen.</p>
+        <p class="titel-text">Automatisch erstellte baurechtliche Machbarkeitsstudie.${mehrere
+          ? ` Diese Datei enthält ${liste.length} getrennte Auswertungen — je Grundstück eine, jede für sich gerechnet.`
+          : ''}</p>
       </div>
       <div class="titel-unten">
         <div class="titel-autor">exportiert von ${esc(T.ABSENDER)}</div>
@@ -551,7 +601,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
           removedFeature: waldRemoved,
           heightM: rules.heightM,
           massing: massingModel,
-        }, 1600, 1450)
+        }, 1600, 1080)
       : null;
 
     // Ein Geschoss ist eine ganze Zahl. "0.73 von 2 Vollgeschossen" war der
@@ -585,10 +635,12 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     // sie sind die Seiten zweier Grundstuecke am Fuss nicht zu unterscheiden
     // — dieselbe Gemeinde, dieselbe Zone, dasselbe Datum. Wer ein einzelnes
     // Blatt in der Hand haelt, muss sehen, wovon es spricht.
+    // Ohne Parzelle — fuer die Blaetter, die zum GANZEN Dokument gehoeren.
+    const footNeutral = `${esc(rules.gemeinde)} · Zone ${esc(anchor.zone)} · ${dateStr}`;
     const foot = mehrere
       ? `${esc(rules.gemeinde)} · Parzelle ${esc(selection.map((p) => p.parcelNumber).join(' + '))}`
         + ` · Zone ${esc(anchor.zone)} · ${dateStr}`
-      : `${esc(rules.gemeinde)} · Zone ${esc(anchor.zone)} · ${dateStr}`;
+      : footNeutral;
 
     // ---- Abschnittsnummern -------------------------------------------------
     // Die Nummern hängen davon ab, welche optionalen Blätter dieses Grundstück
@@ -597,8 +649,10 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     // im Kicker-Chip, im Mini-Inhaltsverzeichnis und in den PDF-Bookmarks.
     const pk = r.parkierung;
     const showWaldMap = !!(wald && wald.forbidden);
-    const numPot = '2', numSitu = '3', numZone = '4';
-    let numCursor = 5;
+    // Abschnittsnummern. «Zone & Regeln» ist entfallen, deshalb ruecken
+    // Waldabstand und alles danach um eine Stelle vor.
+    const numPot = '2', numSitu = '3';
+    let numCursor = 4;
     const numWald = showWaldMap ? String(numCursor++) : null;
     const numPk = pk ? String(numCursor++) : null;
     const numKosten = String(numCursor++);
@@ -636,6 +690,13 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
             ${kpi('Nutzbarer Fussabdruck', fmt(reconciled.usableFootprintAreaM2) + ' m²')}
             ${kpi('Kosten grob (BKP 2)', '≈ CHF ' + fmtInt(cost.totalChf))}
           </div>
+          ${(() => {
+            const ab = attikaBefund(massingModel, rules);
+            if (!ab) return '';
+            const kl = ab.ja === true ? 'is-ja' : (ab.ja === false ? 'is-nein' : 'is-offen');
+            return `<div class="attika-zeile ${kl}"><span class="az-k">Attika</span>`
+              + `<span class="az-t">${esc(ab.satz)}</span></div>`;
+          })()}
           <ul class="args">${args.map((a) => `<li>${esc(a)}</li>`).join('')}</ul>
         </div>
         <div>${mapBlock(rings, centerE, centerN, wideSpan, ['cadastre'], null, 900, 540)}
@@ -793,38 +854,11 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       ]), numSitu);
 
     // ---- Blatt 4: Zone & Regeln --------------------------------------------
-    const s3 = sheet('Zone & Regeln', 'Zonenzuordnung, Grundmasse und was geprüft wurde',
-      'Die Zone, in der diese Auswertung rechnet, mit ihren Grundmassen aus der Bau- und Zonenordnung — und der Stand der automatischen Prüfung. Was manuell zu klären bleibt, steht vollständig im Anhang A.2.',
-      `<div class="cols c-5545">
-        <div>${mapBlock(rings, centerE, centerN, halfSpan * 1.8, ['zoning', 'cadastre'], zoneFeatures, 1000, 900)}
-          <div class="caption">Zonenplan-Ausschnitt mit Parzellengrenzen. ${multi ? 'Gewählte Parzellen' : 'Parzelle'} rot markiert. Kantonale Nutzungsplanung (ogd-0156).</div>
-        </div>
-        <div>
-          <table class="facts tight">
-            <tr><td>EGRID</td><td>${esc(selection.map((p) => p.egrid).join(', '))}</td></tr>
-            <tr><td>Zone</td><td><b>${esc(anchor.zone)}</b>${anchor.zoneLabel ? ' — ' + esc(anchor.zoneLabel) : ''}${anchor.zoneSource && anchor.zoneSource.rechtsstatus ? ' · ' + esc(anchor.zoneSource.rechtsstatus) : ''}</td></tr>
-            <tr><td>Ausnützungsziffer</td><td>${rules.ausnuetzungsziffer_max_pct} %</td></tr>
-            <tr><td>Vollgeschosse</td><td>max. ${rules.vollgeschosse_max}</td></tr>
-            <tr><td>${esc(rules.heightMetric)}</td><td>max. ${rules.heightM} m</td></tr>
-            <tr><td>Grundabstand</td><td>min. ${rules.grundabstand_min_m} m</td></tr>
-            ${rules.grosser_grenzabstand_min_m != null ? `<tr><td>Grosser Grenzabstand</td><td>min. ${rules.grosser_grenzabstand_min_m} m</td></tr>` : ''}
-            ${rules.gruenflaechenziffer_min_pct != null ? `<tr><td>Grünflächenziffer</td><td>min. ${rules.gruenflaechenziffer_min_pct} %</td></tr>` : ''}
-            <tr><td>Gewachsenes Terrain</td><td>${fmt(terrainHeight)} m ü. M.${hang ? ` · Neigung ${fmt(hang.slopePercent, 0)} %${hang.isHang ? ' (Hanglage)' : ''}` : ''}</td></tr>
-          </table>
-          <h3 style="margin-top:4mm">Automatisch geprüft</h3>
-          ${checklistCompactHtml(checklist.tierA)}
-          <div class="note-box small">
-            ${checklist.tierB.length} Punkte sind vor einem Bauprojekt manuell zu klären
-            (Werkleitungen, Altlasten, Lärm u. a.) — vollständige Liste mit Begründung je Punkt im Anhang A.2.
-          </div>
-        </div>
-      </div>`,
-      foot,
-      sourcesLine(rules, [
-        ['Grundmasse', 'ausnuetzungsziffer_max_pct'],
-        ['Höhe', rules.heightRegime ? 'gebaeudehoehe_max_m_bzo2016' : 'traufseitige_fassadenhoehe_max_m', 'gebaeudehoehe_max_m'],
-        ['Regime', 'negative_vorwirkung'],
-      ]), numZone);
+    // Das Blatt «Zone & Regeln» ist am 31.8.2026 entfallen. Es zeigte im
+    // Kern denselben Kartenausschnitt ein zweites Mal, nur mit der
+    // Zonenfarbe darunter; die Grundmasse stehen ohnehin in jeder
+    // Quellenzeile und vollstaendig im Anhang A.1, die Pruefliste im Anhang
+    // A.2. Fuer den Leser war es eine Wiederholung mit anderer Karte.
 
     // ---- Blatt 5 (nur wo er greift): Waldabstand ---------------------------
     // Die Wald-Geometrie bekommt ihr eigenes Blatt statt einer Ecke der
@@ -989,7 +1023,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     // Direkt vor den Quellen: das Dokument schliesst mit Umfang und Grundlage.
     const sAbg = sheet('Nicht Gegenstand dieser Auswertung', 'Anhang — was offen bleibt, benannt statt weggelassen',
       'Eine vollständige Machbarkeitsstudie beantwortet mehr als das Baurecht — diese Seite nennt, was hier bewusst offen bleibt, damit nichts davon als geprüft gilt.',
-      abgrenzungSheetBody(), foot,
+      abgrenzungSheetBody(), footNeutral,
       '<b>Quellen:</b> auf diesem Blatt wird nichts gerechnet. Der Umfang der Phase Machbarkeit folgt der Norm SIA 112, Modell Bauplanung, 2014, Teilphase 21.',
       'A.3');
 
@@ -1058,7 +1092,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
         </div>
       </div>
       <h3>Zitierte Bestimmungen (Wortlaut)</h3>
-      <div class="quote-list" data-flow>${quoteItems.join('')}</div>`, foot, '', 'A.4');
+      <div class="quote-list" data-flow>${quoteItems.join('')}</div>`, footNeutral, '', 'A.4');
 
     // Geordnete Blattfolge (CLAUDE.md Carve-out 3): die Erzählung eines
     // Verkaufsdokuments — Ergebnis, Potenzial, Ort, Recht, dann der Anhang
@@ -1076,7 +1110,8 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     //             gelten fuer das ganze Dokument und sind wortgleich.
     return {
       foot,
-      koerper: [s1, s2, s2b, s3, sWald, sPk, s5].join(''),
+      footNeutral,
+      koerper: [s1, s2, s2b, sWald, sPk, s5].join(''),
       belege: [sBel, s4b].join(''),
       schluss: [sAbg, s6].join(''),
     };
@@ -1243,14 +1278,18 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     const mehrere = liste.length > 1;
     for (const r of liste) teile.push(await buildSheetsForResult(r, grundbuchFootnote, mehrere));
 
-    const foot = teile[0].foot;
+    // Dokumentweite Blaetter tragen die neutrale Fusszeile, die Abschnitte
+    // ihre eigene. Vorher bekam jedes Blatt, das nicht selbst gebaut wurde
+    // (Kapitelseiten, Fortsetzungen), die Fusszeile der ERSTEN Auswertung —
+    // mitten im zweiten Grundstueck stand dann dessen Nachbar.
+    const foot = teile[0].footNeutral;
     const uebersicht = mehrere ? await uebersichtSheet(liste, foot) : '';
     // Blattfolge: Titel · Inhalt · (Uebersicht) · je Grundstueck
     // Kapitelseite + Koerper + Belege · Schluss.
     const html = titleSheet(liste, foot)
       + inhaltSheet(liste, foot)
       + uebersicht
-      + teile.map((t, i) => (mehrere ? kapitelSheet(liste[i], i, liste.length, foot) : '')
+      + teile.map((t, i) => (mehrere ? kapitelSheet(liste[i], i, liste.length, t.foot) : '')
           + t.koerper + t.belege).join('')
       + teile[0].schluss;
 

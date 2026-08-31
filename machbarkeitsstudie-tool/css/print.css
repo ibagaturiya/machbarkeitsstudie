@@ -121,7 +121,7 @@
 #print-doc .titel-unten { margin-top: auto; border-top: 2px solid var(--p-ink); padding-top: 5mm;
                           display: flex; justify-content: space-between; align-items: baseline; }
 /* "all small caps": Eingabe klein geschrieben, gesetzt in Kapitaelchen. */
-#print-doc .titel-autor { font-variant-caps: small-caps; letter-spacing: .1em; font-size: 10pt; }
+#print-doc .titel-autor { letter-spacing: .01em; font-size: 10pt; }
 #print-doc .titel-stand { font-size: 6.5pt; color: var(--p-faint); }
 
 /* Ein-Satz-Einleitung unter jedem Blatttitel: was die Seite zeigt und
@@ -331,3 +331,21 @@
 #print-doc .kap-z span { font-size: 8pt; letter-spacing: .1em; text-transform: uppercase; color: var(--p-faint); }
 #print-doc .kap-z b { font-size: 15pt; }
 #print-doc .kap-text { font-size: 9pt; color: var(--p-muted); margin: 8mm 0 0; max-width: 120mm; }
+
+/* Attika-Befund auf dem Kopfblatt: die Frage «geht ein Attikageschoss?»
+   entscheidet ueber eine ganze Wohnung und stand bisher nur zwischen den
+   Zeilen (Variantenkarte, Anhang). Der Balken links traegt die Antwort:
+   dunkel = ja, hell = nein. */
+#print-doc .attika-zeile {
+  display: flex; gap: 3mm; align-items: baseline;
+  margin: 4mm 0 3mm; padding: 2.5mm 0 2.5mm 3mm;
+  border-left: 3px solid var(--p-hair); font-size: 8.5pt;
+}
+#print-doc .attika-zeile.is-ja { border-left-color: var(--p-ink); }
+#print-doc .attika-zeile.is-nein { border-left-color: var(--p-faint); background: var(--p-tint); }
+#print-doc .attika-zeile.is-offen { border-left-color: var(--p-hair); }
+#print-doc .attika-zeile .az-k {
+  flex: none; width: 16mm; font-size: 7.5pt; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--p-faint);
+}
+#print-doc .attika-zeile .az-t { flex: 1 1 auto; }

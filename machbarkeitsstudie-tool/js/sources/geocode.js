@@ -61,6 +61,80 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     };
   }
 
+  // ---- Adresse zu einer Parzelle ----------------------------------------
+  // Nur die eingetippte Parzelle kennt ihre Adresse; angeklickte Nachbarn
+  // trugen im Export bloss ihre Nummer. Diese Abfrage holt die Adresse aus
+  // dem eidgenoessischen Gebaeude- und Wohnungsregister (GWR, Datensatz
+  // ch.bfs.gebaeude_wohnungs_register) innerhalb der Parzellenflaeche.
+  //
+  // ZWEI EIGENSCHAFTEN, die hier Absicht sind:
+  //
+  // 1. Findet sie nichts, gibt sie null zurueck — und der Aufrufer bleibt
+  //    bei der Parzellennummer. Ein unbebautes Grundstueck HAT keine
+  //    Adresse; eine aus der Nachbarschaft geliehene waere eine erfundene
+  //    Angabe in einem Dokument, das seine Quellen nennt (CLAUDE.md §2).
+  // 2. Mehrere Gebaeude auf einer Parzelle ergeben mehrere Adressen. Zurueck
+  //    kommt die Liste, nicht die erste — «Haldenstrasse 5a + 5b» ist die
+  //    richtige Antwort, «Haldenstrasse 5a» waere die halbe.
+  const GWR_LAYER = 'ch.bfs.gebaeude_wohnungs_register';
+
+  async function addressesForParcel(geometryLV95) {
+    const ring = geometryLV95 && geometryLV95[0];
+    if (!ring || !ring.length) return null;
+    const es = ring.map((c) => c[0]), ns = ring.map((c) => c[1]);
+    const minE = Math.min(...es), maxE = Math.max(...es);
+    const minN = Math.min(...ns), maxN = Math.max(...ns);
+    const params = new URLSearchParams({
+      geometryType: 'esriGeometryEnvelope',
+      geometry: `${minE},${minN},${maxE},${maxN}`,
+      layers: `all:${GWR_LAYER}`,
+      mapExtent: `${minE},${minN},${maxE},${maxN}`,
+      imageDisplay: '500,500,96',
+      tolerance: '0',
+      sr: '2056',
+      returnGeometry: 'true',
+    });
+    let data;
+    try {
+      const res = await T.fetchQuelle('Adressregister (GWR)', `${IDENTIFY_URL}?${params}`);
+      if (!res.ok) return null;
+      data = await res.json();
+    } catch (e) {
+      // Eine fehlende Adresse darf die Auswertung nicht aufhalten — sie ist
+      // Beschriftung, keine Rechengroesse.
+      return null;
+    }
+    if (!data.results || !data.results.length) return null;
+
+    // Der Umschlag ist rechteckig, die Parzelle nicht: was ausserhalb des
+    // Polygons liegt, gehoert zum Nachbarn und muss weg.
+    const poly = T.parcelToTurfPolygon(geometryLV95);
+    const treffer = [];
+    for (const rItem of data.results) {
+      const a = rItem.attributes || {};
+      const g = rItem.geometry;
+      if (g && typeof g.x === 'number' && typeof g.y === 'number') {
+        try {
+          if (!turf.booleanPointInPolygon(turf.point([g.x, g.y]), poly)) continue;
+        } catch (e) { continue; }
+      }
+      const strasse = a.strname_deinr || a.strname1 || a.strname;
+      const hausnr = a.deinr || '';
+      const plz = a.dplz4 || a.plz || '';
+      const ort = a.dplzname || a.plzname || '';
+      if (!strasse) continue;
+      const voll = `${strasse}${hausnr && !String(strasse).includes(String(hausnr)) ? ' ' + hausnr : ''}`.trim();
+      if (voll && !treffer.some((t) => t.voll === voll)) treffer.push({ voll, plz, ort });
+    }
+    if (!treffer.length) return null;
+    // Natuerlich sortieren, damit 5a vor 5b vor 5c steht und 10 nach 9.
+    treffer.sort((x, y) => x.voll.localeCompare(y.voll, 'de', { numeric: true }));
+    const ortTeil = treffer[0].plz || treffer[0].ort
+      ? `, ${treffer[0].plz} ${treffer[0].ort}`.replace(/\s+/g, ' ').trimEnd()
+      : '';
+    return { liste: treffer.map((t) => t.voll), label: treffer.map((t) => t.voll).join(' + ') + ortTeil };
+  }
+
   async function geocodeAndIdentify(address) {
     const geocoded = await geocodeAddress(address);
     const parcel = await identifyParcel(geocoded.easting, geocoded.northing);
@@ -166,6 +240,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     };
   }
 
+  window.MachbarkeitTool.addressesForParcel = addressesForParcel;
   window.MachbarkeitTool.geocodeAddress = geocodeAddress;
   window.MachbarkeitTool.identifyParcel = identifyParcel;
   window.MachbarkeitTool.geocodeAndIdentify = geocodeAndIdentify;

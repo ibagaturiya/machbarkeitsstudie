@@ -2523,6 +2523,18 @@
       // Arealmodus: EIN Lauf ueber die vereinigte Flaeche. Getrennt: ein
       // Lauf JE Parzelle. analyse() nimmt ohnehin eine Auswahl entgegen —
       // die Trennung kostet deshalb keine zweite Rechenkette, nur n Aufrufe.
+      // Adressen nachschlagen, bevor gerechnet wird: angeklickte Parzellen
+      // kennen nur ihre Nummer, und im Export soll «Haldenstrasse 5b» statt
+      // «Parzelle 5029» stehen. Findet das Register nichts, bleibt die
+      // Nummer — erfunden wird nichts. Parallel, weil die Abfragen
+      // voneinander unabhaengig sind, und fehlertolerant: eine Adresse ist
+      // Beschriftung, keine Rechengroesse.
+      await Promise.all(selection.map(async (p) => {
+        if (p.adressen !== undefined) return;
+        try { p.adressen = await T.addressesForParcel(p.geometryLV95); }
+        catch (e) { p.adressen = null; }
+      }));
+
       const einzeln = !arealModus && selection.length > 1;
       let results;
       if (einzeln) {
