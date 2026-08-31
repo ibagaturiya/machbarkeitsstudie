@@ -8,10 +8,20 @@ where there's no bundler hash to invalidate anything. This subclass just
 disables caching so a reload always picks up the current files.
 
 Usage: python3 serve.py   (then open http://localhost:8000)
-"""
-import http.server, socket, socketserver
 
-PORT = 8000
+Der Port ist 8000, weil README und CLAUDE.md ihn so nennen -- er ist eine
+Verabredung, keine Bedingung: dieses Werkzeug hat keinen OAuth-Rueckruf und
+keinen Webhook, und die CORS-Kopfzeilen kommen von den fremden Diensten
+(access-control-allow-origin: *), nicht von hier. Der Ursprung darf also
+wechseln.
+
+Deshalb gewinnt die Umgebungsvariable PORT, wenn sie gesetzt ist. Das
+erlaubt einen zweiten Server daneben -- etwa den der Vorschau -- ohne dass
+ein bereits laufender auf 8000 abgeschossen werden muss.
+"""
+import http.server, os, socket, socketserver
+
+PORT = int(os.environ.get('PORT') or 8000)
 
 class NoCacheHandler(http.server.SimpleHTTPRequestHandler):
     def end_headers(self):

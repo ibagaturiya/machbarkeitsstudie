@@ -6,7 +6,8 @@
       "runtimeExecutable": "python3",
       "runtimeArgs": ["serve.py"],
       "cwd": "machbarkeitsstudie-tool",
-      "port": 8000
+      "port": 8000,
+      "autoPort": true
     }
   ]
 }

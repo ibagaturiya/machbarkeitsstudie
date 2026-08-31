@@ -1064,6 +1064,81 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     };
   }
 
+  // ---- Uebersichtsblatt (nur bei getrennter Auswertung) ------------------
+  // Nach dem Titel, vor den Einzelabschnitten: alle Parzellen in EINER
+  // Situation und EINER Isometrie, dazu je Parzelle die Schlagzahlen. Wer
+  // getrennt rechnen laesst, will zuerst das Ganze sehen und danach die
+  // Einzelnen — ohne dieses Blatt begaenne das Dokument mitten in der ersten
+  // Parzelle.
+  async function uebersichtSheet(liste, foot) {
+    const rings = liste.flatMap((r) => r.selection.map((p) => p.geometryLV95[0]));
+    const { centerE, centerN, halfSpan } = T.boundingBoxForRings(rings, 25);
+
+    const parzellen = T.multiPolygonAus(liste.map((r) => r.merged));
+    const fussabdruecke = T.multiPolygonAus(liste.map(T.gezeichneterFussabdruck));
+    const entfallen = T.multiPolygonAus(liste.map((r) => r.waldRemoved));
+
+    const plan = fussabdruecke ? T.buildFloorPlanSvg({
+      parcelFeature: parzellen,
+      footprintFeature: fussabdruecke,
+      removedFeature: entfallen,
+      blocks: liste.flatMap(T.bloeckeVon),
+      blockCount: liste.reduce((n, r) => n + (r.massing ? r.massing.count : 0), 0),
+      // Bemassung, Laengenrechteck und Hauptfassade gehoeren je EINER
+      // Parzelle — ueber mehrere gelegt waeren sie schlicht falsch.
+      lengthRect: null, lengthLimitM: null, facadeEdges: null, southFacadeIndex: null,
+      widthPx: 1200, heightPx: 900,
+    }) : '<div class="empty">Keine bebaubare Grundfläche.</div>';
+
+    // Die Isometrie zeigt jeden Baukoerper mit SEINER Hoehe: die Nachbarn
+    // kommen als weitereMassings, nicht als weitere Ringe des ersten —
+    // sonst stuenden Parzellen aus anderen Zonen falsch hoch da.
+    const iso = fussabdruecke ? T.renderEnvelopeToDataURL({
+      footprintFeature: T.multiPolygonAus(liste.map((r) => r.setbackFootprint)),
+      parcelFeature: parzellen,
+      removedFeature: entfallen,
+      heightM: liste[0].rules.heightM,
+      massing: liste[0].massingModel,
+      weitereMassings: liste.slice(1).map((r) => r.massingModel),
+    }, 1400, 1000) : null;
+
+    const zeilen = liste.map((r) => {
+      const p = r.selection[0];
+      const mm = r.massingModel;
+      return `<tr><td>Parzelle ${esc(p.parcelNumber || p.egrid)}</td>`
+        + `<td>${fmt(r.reconciled.parcelAreaM2, 0)} m²</td>`
+        + `<td>${fmt(r.reconciled.usableFootprintAreaM2, 0)} m²</td>`
+        + `<td>${fmt(r.reconciled.maxGfaM2, 0)} m²</td>`
+        + `<td>${mm ? storeyLabel(mm.ordinaryStoreys, mm.attikaStoreys) : '—'}</td></tr>`;
+    }).join('');
+    const summe = (f) => fmt(liste.reduce((a, r) => a + f(r), 0), 0);
+
+    return sheet('Übersicht — getrennt gerechnet',
+      `${liste.length} Parzellen, jede für sich`,
+      'Jede Parzelle ist als eigenes Baugrundstück gerechnet: mit ihren eigenen '
+      + 'Grenzabständen ringsum, ohne gemeinsame Ausnützung. Die Abschnitte danach '
+      + 'zeigen jede Parzelle einzeln; hier stehen sie nebeneinander.',
+      `<div>${plan}</div>
+       <div class="caption">Situation — alle Parzellen mit ihren je eigenen Baukörpern.</div>
+       ${iso ? `<img class="render" src="${iso}" alt="Isometrie aller Parzellen">` : ''}
+       <table class="derive">
+         <tr><td><b>Parzelle</b></td><td><b>Fläche</b></td><td><b>Fussabdruck</b></td>
+             <td><b>Geschossfläche</b></td><td><b>Bebaubar als</b></td></tr>
+         ${zeilen}
+         <tr class="result"><td>Summe</td><td>${summe((r) => r.reconciled.parcelAreaM2)} m²</td>
+           <td>${summe((r) => r.reconciled.usableFootprintAreaM2)} m²</td>
+           <td>${summe((r) => r.reconciled.maxGfaM2)} m²</td><td>—</td></tr>
+       </table>
+       <div class="note-box small">
+         Die Summe ist die getrennte Rechnung. Als EIN Areal zusammengefasst
+         fällt der Grenzabstand an den inneren Grenzen weg, und der bebaubare
+         Fussabdruck wird grösser — dafür setzt die Zusammenfassung eine
+         Parzellenvereinigung oder eine im Grundbuch gesicherte Übertragung
+         voraus.
+       </div>`,
+      foot, '', 'Ü');
+  }
+
   // Setzt das Dokument aus einer oder mehreren Auswertungen zusammen.
   // Eine Auswertung = Arealmodus (Parzellen als ein Baugrundstueck).
   // Mehrere = getrennt gerechnet, jede Parzelle mit eigener Studie, in
@@ -1074,14 +1149,23 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     for (const r of liste) teile.push(await buildSheetsForResult(r, grundbuchFootnote));
 
     const foot = teile[0].foot;
+    const uebersicht = liste.length > 1 ? await uebersichtSheet(liste, foot) : '';
     const html = teile[0].titel
+      + uebersicht
       + teile.map((t) => t.koerper + t.belege).join('')
       + teile[0].schluss;
 
     const host = document.getElementById('print-doc');
     host.innerHTML = html;
 
-    // Erst umbrechen, dann numerieren — der Umbruch erzeugt neue Blätter.
+    // ERST die Bilder, DANN umbrechen. Ein <img>, das noch laedt, ist null
+    // hoch: das Blatt misst sich zu kurz, der Umbruch sieht keinen Grund
+    // einzugreifen, und sobald das Bild da ist, steht der Text darunter im
+    // Beschnitt. Genau so ist das Uebersichtsblatt uebergelaufen, waehrend
+    // die Pruefung Entwarnung gab — sie mass denselben leeren Kasten.
+    await waitForImages(host);
+
+    // Jetzt umbrechen, dann numerieren — der Umbruch erzeugt neue Blätter.
     splitOverflowingSheets(host, foot);
     // …und dann beweisen, dass keiner mehr überläuft.
     pruefeKeinUeberlauf(host);
@@ -1107,6 +1191,9 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       row.querySelector('.t-page').textContent = `Seite ${[...sheets].indexOf(target) + 1}`;
     });
 
+    // Zweiter Durchgang: die Fortsetzungsblaetter tragen dieselben, bereits
+    // geladenen Bilder — das kostet nichts und schliesst den Fall aus, dass
+    // der Umbruch doch eines verschoben hat, das noch nicht fertig war.
     await waitForImages(host);
     return host;
   }

@@ -525,5 +525,35 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   window.MachbarkeitTool.wgs84ToLv95 = wgs84ToLv95;
   window.MachbarkeitTool.bufferLV95 = bufferLV95;
   window.MachbarkeitTool.planarAreaLV95 = planarAreaLV95;
+  // Mehrere Polygone/MultiPolygone zu EINEM MultiPolygon. Die Zeichen-
+  // werkzeuge lesen ihre Ringe ueber allRingsOf/exteriorRingsOf und kommen
+  // mit Multi zurecht — so zeigen Grundriss und Isometrie mehrere Parzellen,
+  // ohne dass beide Werkzeuge Listen verstehen muessten.
+  // Steht hier, weil js/app.js UND js/ui/print.js es brauchen.
+  function multiPolygonAus(features) {
+    const polys = (features || []).filter(Boolean).flatMap((f) =>
+      (f.geometry.type === 'Polygon' ? [f.geometry.coordinates] : f.geometry.coordinates));
+    return polys.length ? turf.multiPolygon(polys) : null;
+  }
+
+  // Der gezeichnete Baukoerper einer Auswertung — ersatzweise die bebaubare
+  // Flaeche, wenn kein Koerper zustande kam.
+  function gezeichneterFussabdruck(r) {
+    const mm = r.massingModel;
+    return (mm && mm.footprintFeature) ? mm.footprintFeature : r.setbackFootprint;
+  }
+
+  // Die einzelnen Haeuser einer Auswertung als Polygone. Der Grundriss
+  // zeichnet die Gebaeude aus DIESER Liste, nicht aus dem Fussabdruck.
+  function bloeckeVon(r) {
+    const f = r.massingModel && r.massingModel.footprintFeature;
+    if (!f) return [];
+    return f.geometry.type === 'Polygon'
+      ? [f] : f.geometry.coordinates.map((pc) => turf.polygon(pc));
+  }
+
   window.MachbarkeitTool.planarAreaAnyLV95 = planarAreaAnyLV95;
+  window.MachbarkeitTool.multiPolygonAus = multiPolygonAus;
+  window.MachbarkeitTool.gezeichneterFussabdruck = gezeichneterFussabdruck;
+  window.MachbarkeitTool.bloeckeVon = bloeckeVon;
 })();

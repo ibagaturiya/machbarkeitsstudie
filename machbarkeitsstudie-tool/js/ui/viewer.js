@@ -154,7 +154,13 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     },
   };
 
-  function renderEnvelope(container, { footprintFeature, parcelFeature, heightM, removedFeature, massing = null, interactive = false, dark = false, draggable = false, buildableArea = null, blockGapM = 0, onMove = null, onCamera = null }) {
+  // `weitereMassings`: zusaetzliche Baukoerper aus EIGENEN Auswertungen —
+  // im getrennten Modus je Nachbarparzelle einer. Sie kommen als eigene
+  // Gruppen in die Szene und nicht als weitere Ringe des ersten Baukoerpers,
+  // weil buildSolidGroup ALLE Ringe auf DIESELBE Hoehe zieht: Parzellen in
+  // verschiedenen Zonen stuenden dann falsch hoch da, ohne dass es auffiele.
+  // Sie sind Beiwerk — nicht anfassbar, nicht ziehbar, gedaempft gezeichnet.
+  function renderEnvelope(container, { footprintFeature, parcelFeature, heightM, removedFeature, massing = null, weitereMassings = null, interactive = false, dark = false, draggable = false, buildableArea = null, blockGapM = 0, onMove = null, onCamera = null }) {
     const pal = dark ? PALETTE.dark : PALETTE.light;
     const footprintRings = exteriorRingsOf(footprintFeature);
     const parcelRings = exteriorRingsOf(parcelFeature);
@@ -382,6 +388,34 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
 
     solidGroup = buildSolidGroup(massing);
     scene.add(solidGroup);
+
+    // Die Nachbarn: je eigener Baukoerper mit EIGENER Hoehe. buildSolidGroup
+    // schreibt beim Bauen in blockPolygons/alignedLabels (fuer Ziehen und
+    // Bemassung) — deshalb wird beides um die Nachbarn herum gesichert und
+    // wiederhergestellt, sonst zielte das Ziehen auf einen fremden Koerper.
+    if (weitereMassings && weitereMassings.length) {
+      // buildSolidGroup SETZT diese drei (nicht: ergaenzt sie). Ohne Sichern
+      // zeigten sie danach auf den letzten Nachbarn, und Ziehen wie Bemassung
+      // haetten am falschen Koerper gehangen.
+      const sicherBlocks = blockPolygons, sicherLabels = alignedLabels,
+            sicherMeshes = solidMeshes, sicherIndex = meshBlockIndex;
+      for (const wm of weitereMassings) {
+        if (!wm || !wm.footprintFeature) continue;
+        const g = buildSolidGroup(wm);
+        g.traverse((o) => {
+          if (o.material && o.material.opacity !== undefined) {
+            o.material = o.material.clone();
+            o.material.transparent = true;
+            o.material.opacity = Math.min(o.material.opacity, 0.55);
+          }
+        });
+        scene.add(g);
+      }
+      blockPolygons = sicherBlocks;
+      alignedLabels = sicherLabels;
+      solidMeshes = sicherMeshes;
+      meshBlockIndex = sicherIndex;
+    }
 
     scene.add(new THREE.AmbientLight(0xffffff, pal.ambient));
     const sun = new THREE.DirectionalLight(0xffffff, pal.sun);

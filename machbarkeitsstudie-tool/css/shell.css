@@ -585,3 +585,40 @@ body.modus-einzeln #einzeln { display: block; }
 #einzeln .ez-row.is-total { color: var(--txt); border-top: 1px solid var(--hair); margin-top: 3px; }
 #einzeln .ez-p { color: var(--txt3); }
 #einzeln .ez-row.is-anchor .ez-p { color: var(--acc); }
+
+/* ---- 13. Kennzahlen je Parzelle ---------------------------------------
+   Getrennt gerechnet ersetzt eine Zeile JE PARZELLE das Band aus fuenf
+   Kacheln. Keine Summe: in diesem Modus sind die Parzellen eigene
+   Baugrundstuecke, und eine addierte Gebaeudehoehe waere Unsinn. Was sich
+   sinnvoll addieren laesst, steht in der Liste unter der Isometrie. */
+#kpis.kpis-einzeln {
+  height: auto; flex-direction: column; align-items: stretch;
+  padding: 4px 0;
+}
+#kpis.kpis-einzeln .kpi-row {
+  display: grid; grid-template-columns: 150px repeat(5, minmax(0, 1fr));
+  gap: 0 14px; align-items: baseline;
+  padding: 9px 16px; border-top: 1px solid var(--row-rule);
+}
+#kpis.kpis-einzeln .kpi-row:first-child { border-top: none; }
+#kpis.kpis-einzeln .kpi-row.is-anchor { background: color-mix(in srgb, var(--acc) 8%, transparent); }
+#kpis .kr-p {
+  font: 700 13px/1.2 var(--font-ui); letter-spacing: .06em; color: var(--txt2);
+  font-variant-caps: small-caps; text-transform: lowercase;
+}
+#kpis .kpi-row.is-anchor .kr-p { color: var(--acc); }
+#kpis .kr-c { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+#kpis .kr-c i {
+  font: 700 11px/1 var(--font-ui); letter-spacing: .08em; color: var(--lbl); font-style: normal;
+  font-variant-caps: small-caps; text-transform: lowercase;
+}
+#kpis .kr-c b { font: 700 19px/1.15 var(--font-num); color: var(--txt); }
+#kpis .kr-c u {
+  font: 700 11px/1.2 var(--font-num); color: var(--txt3); text-decoration: none;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+@media (max-width: 980px) {
+  #kpis.kpis-einzeln .kpi-row { grid-template-columns: 1fr 1fr; }
+  #kpis.kpis-einzeln .kr-p { grid-column: 1 / -1; }
+}

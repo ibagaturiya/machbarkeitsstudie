@@ -64,8 +64,14 @@
   const kwNoteEl = $('kw-note');
 
   // The five KPI cells, each a value and a sub-line.
-  const KPI = ['volumen', 'gfa', 'fuss', 'hoehe', 'nutz']
-    .reduce((acc, k) => { acc[k] = { v: $(`kpi-${k}`), s: $(`kpi-${k}-s`) }; return acc; }, {});
+  // Im getrennten Modus wird das Kennzahlenband durch eine Zeile JE PARZELLE
+  // ersetzt. Danach muss es sich wiederherstellen lassen — deshalb der
+  // Urzustand hier, einmal beim Laden, und deshalb werden die Felder bei
+  // jedem Setzen frisch geholt statt beim Start gemerkt: gemerkte Referenzen
+  // zeigen nach dem Austausch ins Leere.
+  const kpisEl = $('kpis');
+  const KPI_BAND_URZUSTAND = kpisEl.innerHTML;
+  const KPI_KEYS = ['volumen', 'gfa', 'fuss', 'hoehe', 'nutz'];
 
   // ---- status bar ------------------------------------------------------
   const statusEl = $('status-msg');
@@ -193,7 +199,13 @@
     detailBtn.textContent = open ? 'ZURÜCK' : 'DETAILS';
     // A WebGL canvas sized while hidden has no size; coming back needs a
     // redraw at the real dimensions.
-    if (!open && lastResult) { renderViewer(lastResult); renderFloorPlan(lastResult); }
+    if (!open && lastResult) {
+      // Beim Zurueckkommen denselben Modus zeichnen wie zuvor, sonst zeigte
+      // der Schirm nach dem Detailabstecher ploetzlich nur noch eine Parzelle.
+      const alle = lastResults.length > 1 ? lastResults : null;
+      renderViewer(lastResult, alle);
+      renderFloorPlan(lastResult, alle);
+    }
     if (open) ablaufPanel.redraw();
   });
 
@@ -1287,7 +1299,7 @@
   // Split out so the drag-to-move handler (below) can refresh just the plan
   // after moving the building, without re-running renderViewer (which would
   // rebuild the whole three.js scene) or the full analysis.
-  function renderFloorPlan(r) {
+  function renderFloorPlan(r, alle) {
     if (!r.setbackFootprint) { floorplanEl.innerHTML = ''; planNoteEl.textContent = ''; return; }
     // `mm && mm.footprintFeature`, not just `mm`: a massing model can exist
     // (the areas and the GFA are computed) while no Baukörper could be
@@ -1306,29 +1318,41 @@
     // single undivided volume.
     const draggableHere = !!(mm && mm.storeyOptions);
     const builtAreaM2ForHull = footprintFeature ? T.planarAreaAnyLV95(footprintFeature) : 0;
+    // Getrennt gerechnet: alle Parzellen und alle Baukoerper in EINER
+    // Zeichnung. Die Bemassungen und die Fassadenwahl beziehen sich weiterhin
+    // auf die erste Parzelle — sie stehen unten ausdruecklich nur fuer diese,
+    // und ein Laengenrechteck ueber fremde Parzellen waere schlicht falsch.
+    const mehrere = alle && alle.length > 1;
+    const parcelZeichnung = mehrere
+      ? T.multiPolygonAus(alle.map((x) => x.merged)) : r.merged;
+    const fussZeichnung = mehrere
+      ? T.multiPolygonAus(alle.map(T.gezeichneterFussabdruck)) : footprintFeature;
     floorplanEl.innerHTML = T.buildFloorPlanSvg({
-      parcelFeature: r.merged,
-      footprintFeature,
+      parcelFeature: parcelZeichnung,
+      footprintFeature: fussZeichnung,
       // The full legal envelope (pre-cuboid, pre-split) -- shown so it's
       // visible on the plan, not only in 3D, where the Baukörper could be
       // placed. Only worth drawing separately from the Baukörper itself
       // when it's actually bigger than what's built.
       hullFeature: r.buildableArea && T.planarAreaAnyLV95(r.buildableArea) > builtAreaM2ForHull * 1.02 ? r.buildableArea : null,
-      removedFeature: r.waldRemoved,
+      removedFeature: mehrere ? T.multiPolygonAus(alle.map((x) => x.waldRemoved)) : r.waldRemoved,
       // The area-rectangle overlay only earns its place on the drawing when
       // the length constraint actually did something (forced a split, or
       // couldn't be satisfied) -- for an ordinary compliant single cuboid
       // it would just duplicate the facade-length labels already on the
       // building itself.
-      lengthRect: r.lengthExceeded ? (r.massing && !r.massing.impossible ? r.areaRect : r.footprintRect) : null,
+      lengthRect: mehrere ? null
+        : (r.lengthExceeded ? (r.massing && !r.massing.impossible ? r.areaRect : r.footprintRect) : null),
       lengthLimitM: r.lengthLimitM,
       lengthResolved: !!(r.massing && !r.massing.impossible),
-      blockCount: r.massing ? r.massing.count : 0,
-      blocks,
-      facadeEdges: r.hasDirectional ? r.facadeEdges : null,
-      southFacadeIndex: r.hasDirectional ? r.southFacadeIndex : null,
+      blockCount: mehrere
+        ? alle.reduce((n, x) => n + (x.massing ? x.massing.count : 0), 0)
+        : (r.massing ? r.massing.count : 0),
+      blocks: mehrere ? alle.flatMap(T.bloeckeVon) : blocks,
+      facadeEdges: (!mehrere && r.hasDirectional) ? r.facadeEdges : null,
+      southFacadeIndex: (!mehrere && r.hasDirectional) ? r.southFacadeIndex : null,
       grosserGrenzabstandM: r.rules.grosser_grenzabstand_min_m,
-      dragEnabled: draggableHere,
+      dragEnabled: draggableHere && !mehrere,
       dark: isDark(),
       terrainGrid: r.terrainGrid,
       hang: r.hang,
@@ -1490,7 +1514,7 @@
     document.getElementById('iso-reset').addEventListener('click', () => isoOrbit && isoOrbit.reset());
   }
 
-  function renderViewer(r) {
+  function renderViewer(r, alle) {
     if (!r.setbackFootprint) {
       viewerEl.innerHTML = '<p class="pane-empty">Kein Volumen darstellbar.</p>';
       isoControlsEl.hidden = true; isoReadoutEl.hidden = true; ovlModellEl.hidden = true;
@@ -1498,19 +1522,27 @@
     }
     if (!viewerEl.clientWidth) return;
     const mm = r.massingModel;
+    // Getrennt gerechnet: alle Parzellen in einer Szene. Die Nachbarn kommen
+    // als eigene Baukoerper mit EIGENER Hoehe (weitereMassings) — sie in den
+    // ersten hineinzufalten wuerde sie auf dessen Hoehe ziehen.
+    const mehrere = alle && alle.length > 1;
     const view = T.renderEnvelope(viewerEl, {
-      footprintFeature: r.setbackFootprint,
-      parcelFeature: r.merged,
-      removedFeature: r.waldRemoved,
+      footprintFeature: mehrere
+        ? T.multiPolygonAus(alle.map((x) => x.setbackFootprint)) : r.setbackFootprint,
+      parcelFeature: mehrere
+        ? T.multiPolygonAus(alle.map((x) => x.merged)) : r.merged,
+      removedFeature: mehrere
+        ? T.multiPolygonAus(alle.map((x) => x.waldRemoved)) : r.waldRemoved,
       heightM: r.rules.heightM,
       massing: mm,
+      weitereMassings: mehrere ? alle.slice(1).map((x) => x.massingModel) : null,
       interactive: true,
       dark: isDark(),
       // Dragging works per block now (viewer.js), so a Gebäudelänge split
       // into several Baukörper no longer disables it -- each block is
       // grabbed and moved independently, checked against both the buildable
       // area and its neighbours (blockGapM below).
-      draggable: !!(mm && mm.storeyOptions),
+      draggable: !!(mm && mm.storeyOptions) && !mehrere,
       buildableArea: r.buildableArea,
       blockGapM: r.gebaeudeabstandM || 0,
       // viewer.js recomputes the Attika footprints live while a block is
@@ -1854,22 +1886,64 @@
   // ---- Kopfzahlen -----------------------------------------------------
   // Fuenf Zahlen, die die Studie beantwortet. Alle stammen aus demselben
   // Ergebnisobjekt wie die Tafel rechts; keine wird hier nachgerechnet.
-  function renderKpis(r) {
+  // Die fuenf Kennzahlen einer Auswertung, als Wert und Unterzeile.
+  // Einmal beschrieben, zweimal benutzt: fuer das Band (eine Auswertung) und
+  // fuer die Zeilen je Parzelle (mehrere).
+  function kpiWerte(r) {
     const { reconciled, rules } = r;
     const mm = r.massingModel;
-    const set = (k, v, sub) => { KPI[k].v.textContent = v; KPI[k].s.textContent = sub; };
-    set('volumen',
-      mm ? `${fmt(mm.volumeM3)} m³` : '—',
-      mm && mm.hullVolumeM3 > mm.volumeM3 * 1.02 ? `max. Hülle ${fmt(mm.hullVolumeM3)} m³` : 'gebautes Volumen');
-    set('gfa', `${fmt(reconciled.maxGfaM2)} m²`,
-      `AZ ${rules.ausnuetzungsziffer_max_pct} % von ${fmt(reconciled.anrechenbareFlaecheM2)} m²`);
-    set('fuss', `${fmt(reconciled.usableFootprintAreaM2)} m²`,
-      `bindend: ${BINDING_LABELS[reconciled.bindingConstraint] || reconciled.bindingConstraint}`);
-    set('hoehe', mm ? `${fmt(mm.buildingHeightM)} m` : '—',
-      `${rules.heightMetric} max. ${rules.heightM} m`);
-    set('nutz', mm ? `${fmt(mm.nutzflaecheTotalM2)} m²` : '—',
-      mm && mm.nutzflaecheTotalM2 > mm.gfaUsedM2 + 0.5 ? 'inkl. anrechnungsfreier Geschosse' : 'nur Vollgeschosse');
+    return {
+      volumen: [mm ? `${fmt(mm.volumeM3)} m³` : '—',
+        mm && mm.hullVolumeM3 > mm.volumeM3 * 1.02 ? `max. Hülle ${fmt(mm.hullVolumeM3)} m³` : 'gebautes Volumen'],
+      gfa: [`${fmt(reconciled.maxGfaM2)} m²`,
+        `AZ ${rules.ausnuetzungsziffer_max_pct} % von ${fmt(reconciled.anrechenbareFlaecheM2)} m²`],
+      fuss: [`${fmt(reconciled.usableFootprintAreaM2)} m²`,
+        `bindend: ${BINDING_LABELS[reconciled.bindingConstraint] || reconciled.bindingConstraint}`],
+      hoehe: [mm ? `${fmt(mm.buildingHeightM)} m` : '—',
+        `${rules.heightMetric} max. ${rules.heightM} m`],
+      nutz: [mm ? `${fmt(mm.nutzflaecheTotalM2)} m²` : '—',
+        mm && mm.nutzflaecheTotalM2 > mm.gfaUsedM2 + 0.5 ? 'inkl. anrechnungsfreier Geschosse' : 'nur Vollgeschosse'],
+    };
   }
+
+  // Getrennt gerechnet: je Parzelle eine Zeile mit denselben fuenf Zahlen.
+  // Keine Summe — die Parzellen sind in diesem Modus eigene Baugrundstuecke,
+  // und eine addierte Gebaeudehoehe waere Unsinn. Was sich sinnvoll addieren
+  // laesst (Flaeche, Fussabdruck, Geschossflaeche), steht in der Liste unter
+  // der Isometrie.
+  function renderKpisEinzeln(results) {
+    const titel = { volumen: 'Volumen', gfa: 'Geschossfläche (AZ)', fuss: 'Fussabdruck',
+                    hoehe: 'Höhe · gebaut', nutz: 'Nutzbar total' };
+    kpisEl.classList.add('kpis-einzeln');
+    kpisEl.innerHTML = results.map((r, i) => {
+      const w = kpiWerte(r);
+      const p = r.selection[0];
+      return `<div class="kpi-row${i === 0 ? ' is-anchor' : ''}">`
+        + `<span class="kr-p">Parzelle ${esc(p.parcelNumber || p.egrid)}</span>`
+        + KPI_KEYS.map((k) => `<span class="kr-c"><i>${esc(titel[k])}</i>`
+            + `<b>${esc(w[k][0])}</b><u>${esc(w[k][1])}</u></span>`).join('')
+        + `</div>`;
+    }).join('');
+  }
+
+  // Zurueck auf das Band mit fuenf Kacheln.
+  function restoreKpiBand() {
+    if (!kpisEl.classList.contains('kpis-einzeln')) return;
+    kpisEl.classList.remove('kpis-einzeln');
+    kpisEl.innerHTML = KPI_BAND_URZUSTAND;
+  }
+
+  function renderKpis(r) {
+    restoreKpiBand();
+    const w = kpiWerte(r);
+    const set = (k, v, sub) => {
+      const ve = $(`kpi-${k}`), se = $(`kpi-${k}-s`);
+      if (ve) ve.textContent = v;
+      if (se) se.textContent = sub;
+    };
+    KPI_KEYS.forEach((k) => set(k, w[k][0], w[k][1]));
+  }
+
 
   // ---- Regelfahnen auf den Zeichnungen --------------------------------
   // REGELN IM MODELL ueber der Isometrie, ABSTAENDE & ABZUEGE ueber dem
@@ -2103,7 +2177,7 @@
     return flags;
   }
 
-  function render(r) {
+  function render(r, alle) {
     // Parkierung haengt an der GEBAUTEN Geschossflaeche, also am Ergebnis der
     // Kette, nicht an ihren Zwischenschritten -- deshalb hier und nicht in
     // deriveFootprint(). Vor setResult(), weil die Normkette sie ausweist.
@@ -2232,7 +2306,7 @@
     // Warnung ins Protokoll, weiterrendern.
     for (const [what, fn, host] of [['Isometrie', renderViewer, viewerEl], ['Situationsplan', renderFloorPlan, floorplanEl]]) {
       try {
-        fn(r);
+        fn(r, alle);
       } catch (e) {
         host.innerHTML = `<p class="pane-empty">${what} nicht darstellbar — ${esc(e.message || e)}<br>Die Zahlen rechts sind davon unberührt.</p>`;
         if (protokoll) protokoll.warn(`${what} nicht darstellbar: ${e.message || e}`);
@@ -2387,7 +2461,14 @@
     planNoteEl.textContent = '';
     viewerEl.innerHTML = '';
     floorplanEl.innerHTML = '';
-    for (const k of Object.keys(KPI)) { KPI[k].v.textContent = '—'; KPI[k].s.textContent = ''; }
+    // Leeren heisst zuerst: zurueck aufs Band. Sonst blieben die Zeilen der
+    // vorigen getrennten Auswertung stehen, waehrend die neue laeuft.
+    restoreKpiBand();
+    for (const k of KPI_KEYS) {
+      const ve = $(`kpi-${k}`), se = $(`kpi-${k}-s`);
+      if (ve) ve.textContent = '—';
+      if (se) se.textContent = '';
+    }
   }
 
   // Die Auswahl steht an zwei Stellen: in der Kopfzeile (AUSWAHL) und im
@@ -2459,9 +2540,12 @@
       lastResults = results;
       document.body.classList.toggle('modus-einzeln', einzeln);
       renderEinzelliste(einzeln ? results : null);
-      // Der Bildschirm zeigt im Detail die erste Parzelle; die Liste unter
-      // der Isometrie traegt die uebrigen.
-      render(results[0]);
+      // Tabellen, Kennwerte und Belege beziehen sich auf die erste Parzelle;
+      // die Zeichnungen und das Kennzahlenband zeigen alle.
+      render(results[0], einzeln ? results : null);
+      // Nach render(): das Band hat dort die Werte der ersten Parzelle
+      // gesetzt und wird jetzt durch die Zeilen je Parzelle ersetzt.
+      if (einzeln) renderKpisEinzeln(results);
     } catch (err) {
       if (myToken !== runToken) return;
       // Ein Abbruch ist ein Ergebnis des Laufs und gehoert ins Protokoll,
