@@ -21,6 +21,44 @@
 window.MachbarkeitTool = window.MachbarkeitTool || {};
 
 (function () {
+  // Gerichtete Erosion in planarem LV95: der Teil eines Polygons, dessen
+  // Punkte sich um distM Meter in EINE Richtung (dirE, dirN) bewegen können,
+  // ohne das Polygon zu verlassen — also alle Punkte mit mindestens distM
+  // freier Strecke bis zum Rand, gemessen entlang dieser einen Richtung.
+  //
+  // Das ist die Geometrie von § 22 ABV / Art. 18 Abs. 2 BZO Zumikon: eine
+  // Fassade mit Aussennormale n̂ und Grenzabstand d darf nur dort stehen, wo
+  // der Rand entlang n̂ mindestens d entfernt ist. Punkte HINTER der Fassade
+  // erfüllen die Bedingung automatisch (ihr Strahl entlang n̂ verlässt das
+  // Gebäude durch die Fassade und hat ab dort deren volle Distanz), darum
+  // ist die Erosion zugleich die zulässige Standfläche des ganzen Gebäudes.
+  //
+  // Umsetzung als dyadische Verschiebungs-Schnitte: erode(P, Strecke[0,d])
+  // = P ∩ (P−t·n̂) für alle t ∈ [0,d]. Die Schrittweiten d/2, d/4, …, d/32,
+  // d/32 erreichen als Teilsummen jedes Vielfache von d/32 bis exakt d.
+  // Für KONVEXE Polygone ist das Ergebnis exakt (liegen x und x+d·n̂ im
+  // Polygon, liegt die ganze Strecke darin); für nicht konvexe kann eine
+  // Randkerbe, die schmaler als d/32 (~0.31 m bei d=10) in dieser Richtung
+  // ist, übersehen werden — das Ergebnis wäre dort um höchstens diese Kerbe
+  // zu gross. Register-Eintrag: grenzabstand_gebaeuderechteck_iterativ.
+  //
+  // Rückgabe: Feature, null (leer — zulässiges Ergebnis) oder undefined
+  // (Geometrie-Operation gescheitert — der Aufrufer muss degradieren und es
+  // sagen, CLAUDE.md §4).
+  function erodeDirectionalLV95(feature, dirE, dirN, distM) {
+    const len = Math.hypot(dirE, dirN);
+    if (!len || !(distM > 0)) return feature;
+    const ux = dirE / len, uy = dirN / len;
+    const steps = [distM / 2, distM / 4, distM / 8, distM / 16, distM / 32, distM / 32];
+    let out = feature;
+    for (const s of steps) {
+      if (!out) return null;
+      const shifted = translateLV95(out, -ux * s, -uy * s);
+      try { out = turf.intersect(out, shifted); } catch (e) { return undefined; }
+    }
+    return out;
+  }
+
   // A turf op that may throw on degenerate geometry (self-touching rings left
   // by a buffer, zero-area slivers), with an explicit fallback. Was copied
   // into massing.js, grenzabstand.js and waldabstand.js.
@@ -118,10 +156,26 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     const bufferedWgs84 = turf.buffer(featureWgs84, distanceMeters, { units: 'meters' });
     if (!bufferedWgs84) return null; // negative buffer can collapse the polygon to nothing
 
+    // Die Näherungsformeln hin und zurück sind nicht exakt invers: der
+    // Rücktransport landet im Raum Zürich bis ~0.4 m neben dem Ausgangspunkt.
+    // Ungefiltert versetzte das den gesamten Ring gegenüber der (nie
+    // transformierten) Parzelle — beobachtet ~0.4 m nach Süden, womit der
+    // Grundabstand auf der Südseite UNTERbemessen gezeigt wurde. Der Fehler
+    // ist über eine Parzelle praktisch konstant; er wird deshalb am
+    // Schwerpunkt der Eingabe gemessen und vom Ergebnis abgezogen.
+    let sumE = 0, sumN = 0, nPts = 0;
+    mapCoordsDeep(featureLV95.geometry.coordinates, ([e, n]) => {
+      sumE += e; sumN += n; nPts++;
+      return [e, n];
+    }, depth);
+    const cE = sumE / nPts, cN = sumN / nPts;
+    const rt = wgs84ToLv95(lv95ToWgs84(cE, cN).lon, lv95ToWgs84(cE, cN).lat);
+    const driftE = rt.easting - cE, driftN = rt.northing - cN;
+
     const outType = bufferedWgs84.geometry.type; // buffer() always outputs (Multi)Polygon
     const backCoords = mapCoordsDeep(bufferedWgs84.geometry.coordinates, ([lon, lat]) => {
       const { easting, northing } = wgs84ToLv95(lon, lat);
-      return [easting, northing];
+      return [easting - driftE, northing - driftN];
     }, GEOM_DEPTH[outType]);
 
     return outType === 'Polygon' ? turf.polygon(backCoords) : turf.multiPolygon(backCoords);
@@ -511,6 +565,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     return { attikaBlocks, attikaAreaM2, requestedAreaM2, anyImpossible, diagnostics };
   }
 
+  window.MachbarkeitTool.erodeDirectionalLV95 = erodeDirectionalLV95;
   window.MachbarkeitTool.safeOp = safeOp;
   window.MachbarkeitTool.exteriorRingsOf = exteriorRingsOf;
   window.MachbarkeitTool.computeAttikaFootprints = computeAttikaFootprints;

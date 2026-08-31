@@ -104,6 +104,10 @@
   // analysis (see analyse()) since the edge index is tied to a specific
   // parcel shape.
   let southFacadeIndex = null;
+  // Ob der Index eine BEWUSSTE Wahl im Grundriss ist (Klick) oder nur der
+  // zurueckgeschriebene automatische Vorschlag. Nur die bewusste Wahl bindet
+  // im Gebaeuderechteck-Verfahren die erste Suedrichtung an die Kante.
+  let southFacadeUserPicked = false;
 
   // ---- Arealmodus -------------------------------------------------------
   // Angehakt (Voreinstellung): die gewaehlten Parzellen gelten als EIN
@@ -683,7 +687,7 @@
   // fetched wald/baulinien) and again from rerenderWithFacade()/
   // rerenderWithChoices() (reusing the cached ones), since a facade or
   // storey choice never needs the async ÖREB/Wald network calls redone.
-  function deriveFootprint({ merged, parcelAreaM2, anrechenbareFlaecheM2, flaechenAbzuege, rules, wald, baulinien, facadeEdges, southFacadeIdx, storeys, hang }) {
+  function deriveFootprint({ merged, parcelAreaM2, anrechenbareFlaecheM2, flaechenAbzuege, rules, wald, baulinien, facadeEdges, southFacadeIdx, southFacadePicked, storeys, hang }) {
     // The directional Grenzabstand (Zumikon Art. 18): most communes have one
     // uniform Grundabstand, but where a commune's BZO names a larger
     // Grenzabstand for the Hauptfassade(n), the chosen edge(s) get that
@@ -720,23 +724,56 @@
     const mlz = rules.mehrlaengenzuschlag;
     let mehrlaengen = null;
 
-    // Returns { feature, degradedTo } — degradedTo is set only when the
-    // differential offset could not be built for one or more Hauptfassaden.
-    // The fallback is then the grosse Grenzabstand on ALL sides: a failure of
-    // the geometry must never hand back MORE buildable area than the law
-    // allows, and applying the larger distance everywhere is the only variant
-    // that cannot overstate. render() turns degradedTo into a flag — the user
-    // sees a smaller, explained footprint instead of a silently wrong one.
+    // Returns { feature, degradedTo, verfahren }.
+    //
+    // Hauptweg ist seit dem 31.08.2026 das GEBÄUDERECHTECK-Verfahren
+    // (Art. 18 Abs. 2 BZO: massgebend sind die Seiten des Gebäudes am
+    // flächenkleinsten Rechteck, gemessen nach § 22 ABV rechtwinklig zur
+    // Fassade — T.gebaeudeSeitenSetback, iterativ). Die bisherige
+    // Parzellenkanten-Näherung wird zum VERGLEICH mitgerechnet und im
+    // Hinweis ausgewiesen; sie ist NICHT verlässlich konservativ: auf
+    // Zumikon 5029 wählte sie zwei kurze Süd-Kantenstücke (5.1 m + 9.6 m)
+    // und beschnitt fast nichts — 132 m² statt der 34 m², die der
+    // 10-m-Ansatz an den Gebäudeseiten wirklich übrig lässt (REGELN.md §13).
+    //
+    // Rückfallkette, jede Stufe wird benannt statt still gewechselt:
+    //   1. Gebäuderechteck-Verfahren (verfahren.methode = 'gebaeuderechteck')
+    //   2. Parzellenkanten-Näherung  ('parzellenkanten', mit Grund aus 1)
+    //   3. grosser Abstand ringsum   (degradedTo — kann nie zu viel zeigen)
     const runSetback = (smallM) => {
       if (!(hasDirectional && chosenEdges.length)) {
-        return { feature: T.bufferLV95(merged, -smallM), degradedTo: null };
+        return { feature: T.bufferLV95(merged, -smallM), degradedTo: null, verfahren: null };
       }
       const bigM = rules.grosser_grenzabstand_min_m;
-      const res = T.anisotropicSetbackMulti(merged, chosenEdges, smallM, bigM);
-      if (!res.failedEdges) return { feature: res.feature, degradedTo: null };
+      // Nur eine BEWUSSTE Wahl im Grundriss bindet die erste Südrichtung an
+      // die angeklickte Kante — der automatische Vorschlag bindet nichts,
+      // sonst würde die Rechteck-Rangfolge stillschweigend übersteuert.
+      const preferBearingDeg = southFacadePicked && chosenEdges[0]
+        ? chosenEdges[0].bearingDeg : null;
+      const geb = T.gebaeudeSeitenSetback(merged, smallM, bigM, suedCount, preferBearingDeg);
+      const approx = T.anisotropicSetbackMulti(merged, chosenEdges, smallM, bigM);
+      if (!geb.failed) {
+        return {
+          feature: geb.feature, degradedTo: null,
+          verfahren: {
+            methode: 'gebaeuderechteck',
+            iterationen: geb.iterations,
+            suedSeiten: (geb.suedSeiten || []).map((s) => ({ bearingDeg: s.bearingDeg, lengthM: s.length })),
+            vergleichParzellenkantenM2: (!approx.failedEdges && approx.feature)
+              ? T.planarAreaAnyLV95(approx.feature) : null,
+          },
+        };
+      }
+      if (!approx.failedEdges) {
+        return {
+          feature: approx.feature, degradedTo: null,
+          verfahren: { methode: 'parzellenkanten', gebaeuderechteckFehler: geb.failed },
+        };
+      }
       return {
         feature: T.bufferLV95(merged, -bigM),
-        degradedTo: { appliedM: bigM, failedEdges: res.failedEdges, edgeCount: chosenEdges.length },
+        degradedTo: { appliedM: bigM, failedEdges: approx.failedEdges, edgeCount: chosenEdges.length },
+        verfahren: { methode: 'ringsum', gebaeuderechteckFehler: geb.failed },
       };
     };
 
@@ -747,6 +784,7 @@
     const setbackResult = runSetback(grundabstandUsedM);
     let setbackFootprint = setbackResult.feature;
     const grenzabstandDegraded = setbackResult.degradedTo;
+    const grenzabstandVerfahren = setbackResult.verfahren;
     // Momentaufnahme fuer die Normketten-Animation (normkette.js): der Ring
     // NACH den Grenzabstaenden, aber VOR Wald- und Baulinienabzug. Reines
     // Festhalten, keine zusaetzliche Rechnung.
@@ -1003,7 +1041,7 @@
              footprintAfterWaldM2, waldLossInFootprintM2, lengthLimitM, areaRect, lengthExceeded,
              gebaeudeabstandM, massing, buildableArea, footprintRect, lengthLossM2,
              setbackFootprintAreaM2, reconciled, massingModel, hasDirectional, chosenIdx,
-             chosenIndices, grundabstandUsedM, grenzabstandDegraded };
+             chosenIndices, grundabstandUsedM, grenzabstandDegraded, grenzabstandVerfahren };
     }; // end computePass
 
     let pass = computePass(rules.grundabstand_min_m);
@@ -1174,12 +1212,13 @@
     // A new shape invalidates any facade the user had picked by hand -- and
     // the Wohnungszahl, die zur alten Geschossflaeche gehoerte.
     southFacadeIndex = null;
+    southFacadeUserPicked = false;
     wohnungenChoice = null;
     const facadeEdges = T.pickSouthFacade(merged, rules.grosser_grenzabstand_suedseiten);
 
     const derived = deriveFootprint({
       merged, parcelAreaM2, anrechenbareFlaecheM2, flaechenAbzuege, rules, wald, baulinien, facadeEdges,
-      southFacadeIdx: southFacadeIndex, storeys: storeyChoice, hang,
+      southFacadeIdx: southFacadeIndex, southFacadePicked: false, storeys: storeyChoice, hang,
     });
     // deriveFootprint resolves "null = use the suggestion" down to an actual
     // edge index (derived.chosenIdx) -- feed that back so the rest of the
@@ -1212,6 +1251,24 @@
     } else if (derived.lengthExceeded) {
       P.warn(`check.length ${fmt(derived.areaRect.lengthM)} m > ${derived.lengthLimitM} m — Aufteilung in Baukörper`);
     }
+    // Plausibilitätsprüfung gegen den Bestand (js/sources/bekannte-gebaeude.js):
+    // ist auf einer der gewählten Parzellen ein bestehendes oder bewilligtes
+    // Gebäude bekannt, muss es in den berechneten bebaubaren Bereich passen —
+    // sonst wird gewarnt statt still weitergerechnet. Die Prüfung ändert
+    // keine Zahl; sie ist eine Passprobe des Ergebnisses gegen die Realität.
+    let bestandsPruefung;
+    try {
+      await T.ladeBekannteGebaeude();
+      bestandsPruefung = T.pruefeBestandsGebaeude({ selection, rules, buildableArea: derived.buildableArea });
+    } catch (e) {
+      bestandsPruefung = { geprueft: false, grund: `data/bekannte-gebaeude.json nicht ladbar (${e.message || e})`, eintraege: [] };
+    }
+    for (const g of (bestandsPruefung.eintraege || [])) {
+      if (g.fehler) P.warn(`check.bestand ${g.name} (Parzelle ${g.parzelle}): ${g.fehler}`);
+      else if (g.passt) P.ok(`check.bestand ${g.name} (${g.status}, ${fmt(g.laenge_m)} × ${fmt(g.breite_m)} m) findet im bebaubaren Bereich Platz`);
+      else P.warn(`check.bestand ${g.name} (${g.status}, ${fmt(g.laenge_m)} × ${fmt(g.breite_m)} m) findet im bebaubaren Bereich KEINEN Platz — Ergebnis widerspricht der Bewilligung, siehe Hinweise`);
+    }
+
     P.mark('oereb');
     ablaufPanel.live('ÖREB-Kataster und Höhenmodell werden abgefragt…');
 
@@ -1260,6 +1317,7 @@
              anrechenbareFlaecheM2, flaechenAbzuege, degraded,
              mehrlaengen: derived.mehrlaengen, grundabstandUsedM: derived.grundabstandUsedM,
              chosenIndices: derived.chosenIndices,
+             grenzabstandVerfahren: derived.grenzabstandVerfahren, bestandsPruefung,
              reconciled: derived.reconciled, terrainHeight, restrictions, checklist, wald, baulinien,
              facadeEdges, southFacadeIndex, terrainGrid, hang,
              waldLossInFootprintM2: derived.waldLossInFootprintM2, footprintBeforeWaldM2: derived.footprintBeforeWaldM2,
@@ -1433,6 +1491,7 @@
       floorplanEl.querySelectorAll('.facade-edge').forEach((el) => {
         el.addEventListener('click', () => {
           southFacadeIndex = Number(el.dataset.facadeIndex);
+          southFacadeUserPicked = true;
           rerenderWithChoices();
         });
       });
@@ -1660,10 +1719,15 @@
       merged: r.merged, parcelAreaM2: r.parcelAreaM2,
       anrechenbareFlaecheM2: r.anrechenbareFlaecheM2, flaechenAbzuege: r.flaechenAbzuege,
       rules: r.rules, wald: r.wald, baulinien: r.baulinien,
-      facadeEdges: r.facadeEdges, southFacadeIdx: southFacadeIndex, storeys: storeyChoice, hang: r.hang,
+      facadeEdges: r.facadeEdges, southFacadeIdx: southFacadeIndex,
+      southFacadePicked: southFacadeUserPicked, storeys: storeyChoice, hang: r.hang,
     });
     southFacadeIndex = derived.chosenIdx;
     Object.assign(r, derived, { southFacadeIndex });
+    // Die Fassadenwahl aendert den bebaubaren Bereich — die Bestandsprobe
+    // muss gegen den NEUEN laufen, sonst warnt (oder schweigt) sie zur alten
+    // Geometrie. Synchron moeglich: die Datendatei ist seit analyse() da.
+    r.bestandsPruefung = T.pruefeBestandsGebaeude(r);
     render(r);
     // The checklist quotes wald/baulinien losses *within the footprint*,
     // which change with the facade choice — recompute it async so it can't
@@ -2121,6 +2185,21 @@
     // Upstream sources that failed — these change what the numbers mean, so
     // they come first.
     for (const d of (r.degraded || [])) flags.push(esc(d));
+    // Plausibilitätsprüfung gegen den Bestand: ein Ergebnis, das einer
+    // erteilten Bewilligung widerspricht, steht direkt nach den
+    // Quellenausfällen — es stellt die Aussagekraft der Zahlen in Frage,
+    // bevor irgendeine von ihnen gelesen wird.
+    const bp = r.bestandsPruefung;
+    if (bp && !bp.geprueft) {
+      flags.push(esc(`Plausibilitätsprüfung gegen den Bestand nicht möglich: ${bp.grund}. Bekannte bestehende oder bewilligte Gebäude wurden nicht gegen den berechneten Fussabdruck geprüft.`));
+    }
+    for (const g of ((bp && bp.eintraege) || [])) {
+      if (g.fehler) {
+        flags.push(esc(`Plausibilitätsprüfung gegen den Bestand: Eintrag «${g.name}» (Parzelle ${g.parzelle}) nicht prüfbar — ${g.fehler}.`));
+      } else if (g.passt === false) {
+        flags.push(esc(`Plausibilitätsprüfung gegen den Bestand: Für Parzelle ${g.parzelle} ist ein Gebäude bekannt — «${g.name}», ${g.status}, ${fmt(g.laenge_m)} × ${fmt(g.breite_m)} m (Beleg in data/bekannte-gebaeude.json: Baueingabe Kat.-Nr. 2999, Plan 113B/121). Es findet im hier berechneten bebaubaren Bereich keinen Platz (Passprobe als Rechteck im ${bp.winkelrasterDeg}°-Winkelraster). Das Ergebnis widerspricht damit einer erteilten Bewilligung. Mögliche Gründe: Die Bewilligung beruht auf der gemeinsamen Beurteilung mehrerer Parzellen oder auf privatrechtlichen Sicherungen (Näherbaurecht, Ausnützungsübertragung — der Parzellierungsplan der Baueingabe vermerkt ein Servitut), die eine getrennte Rechnung bewusst nicht abbildet; oder Verfahren bzw. Datengrundlage dieses Werkzeugs weichen ab. Manuell prüfen — die Zahlen dieser Auswertung bleiben die Rechnung nach BZO/PBG ohne solche Sicherungen.`));
+      }
+    }
     const mmForFlags = r.massingModel;
     // attikaSuppressed: the storey was chosen and then dropped for want of
     // room under the 45° profile — attikaStoreys is 0 by then, but that is
@@ -2171,16 +2250,28 @@
       flags.push(`Mehrlängenzuschlag angewandt (Art. 14 BZO 2016, geltendes Recht): die längste Fassade misst ${fmt(ml.facadeLengthM)} m (> 12 m), der Grenzabstand erhöht sich um einen Drittel der Mehrlänge auf ${fmt(ml.requiredM)} m (Maximum dieser Zone: ${fmt(ml.capM)} m). Vereinfachend wurde der erhöhte Abstand allseitig gerechnet — gesetzlich gilt er für die massgeblichen (langen) Fassaden; das Ergebnis ist damit eher konservativ.`);
     }
     // Communes with a directional setback (Zumikon: grosser Grenzabstand on
-    // the south-facing side(s), Art. 17/18 BZO).
+    // the south-facing side(s), Art. 17/18 BZO). Der Text folgt dem
+    // tatsaechlich verwendeten Verfahren (r.grenzabstandVerfahren) — ein
+    // Hinweis, der ein anderes Verfahren beschreibt als das gerechnete,
+    // waere selbst der Fehler aus REGELN.md §12.2.
     if (r.hasDirectional && r.facadeEdges && r.facadeEdges.edges.length && r.southFacadeIndex != null) {
-      const idxs = (r.chosenIndices && r.chosenIndices.length ? r.chosenIndices : [r.southFacadeIndex]);
-      const edgeDescr = idxs.map((i) => {
-        const e = r.facadeEdges.edges[i];
-        return e ? `Fassade ${fmt(e.length, 0)} m, Ausrichtung ${fmt(e.bearingDeg, 0)}°` : null;
-      }).filter(Boolean).join(' und ');
-      const two = idxs.length > 1;
-      const autoChosen = r.southFacadeIndex === r.facadeEdges.suggestedIndex;
-      flags.push(`${esc(rules.gemeinde)} kennt zwei Grenzabstände (Art. 18 BZO ${esc(rules.gemeinde)}): ${rules.grundabstand_min_m} m normal, ${rules.grosser_grenzabstand_min_m} m an ${two ? 'den Hauptfassaden' : 'der Hauptfassade'}. ${two ? `In dieser Zone gilt der grosse Grenzabstand für die BEIDEN am meisten gegen Süden gerichteten Gebäudeseiten (Art. 18 Abs. 1)` : (autoChosen ? 'Automatisch die am stärksten südorientierte Seite' : 'Die von Ihnen gewählte Seite')} (${edgeDescr}) — dort wurde mit ${rules.grosser_grenzabstand_min_m} m gerechnet, alle anderen Seiten mit ${rules.grundabstand_min_m} m. Im Grundriss anklickbar, falls eine andere Seite die tatsächliche Hauptfassade ist. Hinweis: massgebend sind laut Art. 18 Abs. 2 die Seiten des GEBÄUDES (flächenkleinstes Rechteck), gemessen nach § 22 ABV rechtwinklig zur Fassade — die Näherung über die Parzellenkanten ist eine Vereinfachung auf der sicheren Seite.`);
+      const v = r.grenzabstandVerfahren;
+      const two = rules.grosser_grenzabstand_suedseiten > 1;
+      const basis = `${esc(rules.gemeinde)} kennt zwei Grenzabstände (Art. 17/18 BZO ${esc(rules.gemeinde)}): ${rules.grundabstand_min_m} m normal, ${rules.grosser_grenzabstand_min_m} m für ${two ? 'die BEIDEN am meisten gegen Süden gerichteten GEBÄUDEseiten' : 'die längere, am stärksten gegen Süden gerichtete GEBÄUDEseite'} (Art. 18 Abs. 1), bestimmt am flächenkleinsten Rechteck, das das Gebäude umfasst (Abs. 2), gemessen nach § 22 ABV rechtwinklig zur Fassade — der kleine Abstand schlägt radial um die Ecken (§ 22 Abs. 2 ABV).`;
+      if (v && v.methode === 'gebaeuderechteck') {
+        const seiten = (v.suedSeiten || []).map((s) => `${fmt(s.bearingDeg, 0)}° (${compassLabel(s.bearingDeg)})`).join(' und ');
+        const vergleich = v.vergleichParzellenkantenM2 != null
+          ? ` Zum Vergleich: die frühere Näherung über die Parzellenkanten ergäbe ${fmt(v.vergleichParzellenkantenM2)} m² nach Grundabstand statt ${fmt(r.footprintBeforeWaldM2)} m² — sie ist NICHT verlässlich konservativ (sie hängt an der zufälligen Stückelung der Parzellenkanten) und dient nur noch als Vergleichswert.`
+          : '';
+        flags.push(`${basis} Umsetzung iterativ: grösstmögliches Gebäuderechteck im ${fmt(r.grundabstandUsedM ?? rules.grundabstand_min_m)}-m-Bereich platzieren, dessen Südseiten bestimmen, dort ${rules.grosser_grenzabstand_min_m} m rechtwinklig zur Fassade ansetzen, wiederholen bis stabil — hier nach ${v.iterationen} Iteration${v.iterationen === 1 ? '' : 'en'} stabil, Südrichtungen ${seiten}.${vergleich} Im Grundriss ist die Hauptfassaden-Kante anklickbar, falls die tatsächliche Hauptfassade in eine andere Richtung weist; die Stellung des künftigen Gebäudes bleibt eine Entwurfsentscheidung, die das Rechteck nur nähert.`);
+      } else if (v && v.methode === 'parzellenkanten') {
+        const idxs = (r.chosenIndices && r.chosenIndices.length ? r.chosenIndices : [r.southFacadeIndex]);
+        const edgeDescr = idxs.map((i) => {
+          const e = r.facadeEdges.edges[i];
+          return e ? `Kante ${fmt(e.length, 0)} m, Ausrichtung ${fmt(e.bearingDeg, 0)}°` : null;
+        }).filter(Boolean).join(' und ');
+        flags.push(`${basis} Das Gebäuderechteck-Verfahren liess sich auf dieser Parzelle nicht bilden (${esc(v.gebaeuderechteckFehler || 'Geometrie')}). Ersatzweise gilt hier die PARZELLENKANTEN-Näherung (~ vereinfacht): der ${rules.grosser_grenzabstand_min_m}-m-Streifen hängt an ${two ? 'den beiden am meisten gegen Süden gerichteten Parzellenkanten' : 'der am meisten gegen Süden gerichteten Parzellenkante'} (${edgeDescr}). Diese Näherung kann zu gross ODER zu klein ausfallen — nicht ohne Handprüfung verwenden.`);
+      }
     } else if (r.hasDirectional && (!r.facadeEdges || !r.facadeEdges.edges.length)) {
       flags.push(`${esc(rules.gemeinde)} kennt einen grossen Grenzabstand an der Hauptfassade, aber die Parzelle hat keine auswertbare Fassadenkante (alle Kanten unter 3 m). Es wurde einheitlich mit dem kleinen Grenzabstand gerechnet — der reale Fussabdruck ist auf der Südseite kleiner. Manuell prüfen.`);
     }
@@ -2576,6 +2667,7 @@
       storeyChoice = null;
       wohnungenChoice = null;
       southFacadeIndex = null;
+      southFacadeUserPicked = false;
       setStatus('Keine Parzelle gewählt — auf der Karte eine anklicken.');
       return;
     }

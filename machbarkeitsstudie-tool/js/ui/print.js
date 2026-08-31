@@ -1092,8 +1092,14 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
                 ${(r.flaechenAbzuege && r.flaechenAbzuege.waldAbstand15M2 > 0.5) ? `<tr><td>Abzug > 15 m hinter der Linie (§ 259 aPBG)</td><td>− ${fmt(r.flaechenAbzuege.waldAbstand15M2)} m²</td></tr>` : ''}
               </table>
               <div class="note-box small">
-                Geometrisch ermittelt aus der kantonalen Waldabstandslinie (ogd-0152)
-                und dem Waldareal (ogd-0111).
+                Geometrisch ermittelt aus der <b>festgesetzten Waldabstandslinie</b>
+                (ogd-0152, mit ihrer eingetragenen Wirkungsseite) und dem Waldareal
+                (ogd-0111) — kein eigener Puffer um den Wald. Zwei verschiedene
+                Grössen, nicht zu vermischen: Der Abzug <b>im Fussabdruck</b> ist die
+                Bauverbotsfläche zwischen Linie und Wald (§ 262 PBG). Der Abzug von
+                der <b>anrechenbaren Fläche</b> ist die Waldabstandsfläche, soweit sie
+                mehr als 15 m hinter der Linie liegt (§ 259 aPBG) — sie betrifft die
+                Ausnützung, nicht das Baufeld.
               </div>
             </div>
           </div>`,

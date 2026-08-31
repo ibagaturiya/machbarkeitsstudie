@@ -113,10 +113,17 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     const abzugRows = [
       row('Fussabdruck nach Grundabstand', `${fmt(r.footprintBeforeWaldM2)} m²`, 'BERECHNET',
         r.hasDirectional && rules.grosser_grenzabstand_min_m != null
-          ? `Rückversatz ${fmt(grundabstandM)} m ringsum, ${fmt(rules.grosser_grenzabstand_min_m)} m an der Hauptfassade → ${fmt(r.footprintBeforeWaldM2)} m²`
+          ? (r.grenzabstandVerfahren && r.grenzabstandVerfahren.methode === 'gebaeuderechteck'
+              ? `Rückversatz ${fmt(grundabstandM)} m ringsum, ${fmt(rules.grosser_grenzabstand_min_m)} m rechtwinklig zu den Südseiten des Gebäuderechtecks (Art. 18 Abs. 2, iterativ) → ${fmt(r.footprintBeforeWaldM2)} m²`
+              : `Rückversatz ${fmt(grundabstandM)} m ringsum, ${fmt(rules.grosser_grenzabstand_min_m)} m an der Hauptfassaden-Parzellenkante (Näherung) → ${fmt(r.footprintBeforeWaldM2)} m²`)
           : `Rückversatz der Parzelle um ${fmt(grundabstandM)} m → ${fmt(r.footprintBeforeWaldM2)} m²`,
         art('grundabstand_min_m'),
-        null, { id: 'fussabdruck', schluessel: r.grenzabstandDegraded ? 'grosser_grenzabstand_ringsum' : 'grenzabstand_parzellenkante' }),
+        // Das Abzeichen folgt dem tatsaechlich verwendeten Verfahren
+        // (js/app.js runSetback): Gebaeuderechteck iterativ, Parzellenkanten-
+        // Naeherung oder der Ringsum-Rueckfall — je mit eigenem Registereintrag.
+        null, { id: 'fussabdruck', schluessel: r.grenzabstandDegraded ? 'grosser_grenzabstand_ringsum'
+          : (r.grenzabstandVerfahren && r.grenzabstandVerfahren.methode === 'gebaeuderechteck'
+              ? 'grenzabstand_gebaeuderechteck_iterativ' : 'grenzabstand_parzellenkante') }),
       ...(r.mehrlaengen ? [row('Mehrlängenzuschlag', `+ ${fmt(r.mehrlaengen.requiredM - rules.grundabstand_min_m)} m`, 'BERECHNET',
         `Fassade ${fmt(r.mehrlaengen.facadeLengthM)} m > 12 m → Grenzabstand ${fmt(rules.grundabstand_min_m)} + ⅓ der Mehrlänge = ${fmt(r.mehrlaengen.requiredM)} m (Maximum ${fmt(r.mehrlaengen.capM)} m)`,
         art('mehrlaengenzuschlag'),

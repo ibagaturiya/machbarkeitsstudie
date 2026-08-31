@@ -8,8 +8,92 @@ Tool einen **§-Knopf**, der das Quell-PDF auf der zitierten Seite mit markierte
 Textstelle öffnet (`js/ui/evidence.js`); die Belege stehen als `_provenance` in den
 Datendateien.
 
-Stand: 31.08.2026 (Berichtsprüfung Multi-Parzellen-Export, 2. Runde; Commits im Git-Log).
-Zahlenbeispiele durchgehend Zumikon W2/25.
+Stand: 31.08.2026 (3. Runde: Grenzabstand am Gebäude, Bestands-Plausibilität,
+Waldabstands-Abgleich; Commits im Git-Log). Zahlenbeispiele durchgehend Zumikon W2/25.
+
+---
+
+## 13. Grosser Grenzabstand am Gebäude — Verfahren, Bestands-Probe und der Waldabstands-Abgleich
+
+Anlass: Auf Zumikon 5028 kollabierte die bebaubare Fläche (154.3 m² nach
+Grundabstand, 36.7 m² nach Waldabstand), während auf derselben Parzelle ein
+bewilligtes Haus von 22.17 × 6.06 m steht (Baueingabe dw design & concept,
+Kat.-Nr. 2999, Pläne 113B/121). Die Prüfung am realen Fall (31.08.2026, echte
+AV-Geometrien, WFS-Daten) ergab VIER getrennte Befunde — nur einer davon war
+der vermutete.
+
+**13.1 Das Verfahren: Südseiten des GEBÄUDES, nicht der Parzelle.**
+Art. 18 Abs. 1/2 BZO Zumikon (Wortlaut S. 8): der grosse Grenzabstand gilt in
+W2/25 «für die beiden am meisten gegen Süden gerichteten **Gebäudeseiten**»,
+bestimmt «vom flächenkleinsten Rechteck …, welches das Gebäude umfasst»;
+gemessen wird nach § 22 ABV rechtwinklig zur Fassade, der kleine Abstand
+schlägt radial um die Ecken (§ 22 Abs. 2 ABV). Da das Werkzeug das künftige
+Gebäude nicht kennt, iterativ (`gebaeudeSeitenSetback`,
+`js/core/grenzabstand.js`):
+
+1. Bereich mit dem kleinen Abstand ringsum bilden (5 m);
+2. darin das grösstmögliche Gebäuderechteck platzieren (`findBestRectangle`);
+3. dessen Südseiten bestimmen und den Bereich neu bilden: kleiner Abstand
+   ringsum ∩ gerichtete Erosion der Parzelle um 10 m je Südrichtung
+   (`erodeDirectionalLV95`, `js/core/coordinates.js` — exakt für konvexe
+   Parzellen, sonst bis d/32 ≈ 0.31 m zu grosszügig an schmalen Randkerben);
+4. wiederholen, bis die Südrichtungen stabil sind (max. 6 Durchgänge,
+   Toleranz 1°).
+
+Rückfallkette, jede Stufe benannt (Hinweis + Normkette + Register §11):
+Gebäuderechteck → Parzellenkanten-Näherung → grosser Abstand ringsum.
+Registereinträge: `grenzabstand_gebaeuderechteck_iterativ` (neu, Hauptweg)
+und `grenzabstand_parzellenkante` (nur noch Rückfall).
+
+**13.2 Die Parzellenkanten-Näherung war NICHT auf der sicheren Seite.**
+Das Register behauptete, die Näherung gehe «zulasten des Bauherrn, nie zu
+seinen Gunsten». Am realen Fall ist das widerlegt: auf 5029 traf die
+Kantenwahl zwei kurze Süd-Kantenstücke (5.1 m + 9.6 m) und beschnitt fast
+nichts — 368 m² nach Grundabstand, wo der Ansatz an den Gebäudeseiten 218 m²
+ergibt (nach Wald: 134 m² statt 41 m²). Die Näherung hängt an der zufälligen
+Stückelung der Parzellenkanten und kann in BEIDE Richtungen abweichen. Auf
+5028 (einfache Trapezform) stimmen beide Verfahren überein — der Kollaps dort
+war also nie ein Artefakt der Kantenwahl, sondern die ehrliche Folge von
+10 m auf zwei Gebäudeseiten plus Waldabstand auf einer schmalen Parzelle.
+
+**13.3 Plausibilitätsprüfung gegen den Bestand.** Ist auf einer Parzelle ein
+bestehendes oder bewilligtes Gebäude bekannt (`data/bekannte-gebaeude.json`,
+mit Beleg je Eintrag), prüft `js/sources/bekannte-gebaeude.js` als Passprobe,
+ob dessen Rechteckmass im berechneten bebaubaren Bereich Platz findet
+(`findCuboidPlacement`, Winkelraster 10° plus Hauptachsen — Werkzeug-Annahme).
+Passt es nicht, WARNT die Auswertung statt still weiterzurechnen; die Zahlen
+ändern sich nicht. Am Referenzfall, getrennt gerechnet: keines der drei
+bewilligten Häuser passt auf seine eigene Parzelle — auch nicht mit dem
+korrekten Verfahren aus 13.1. Als Areal passt Haus A und B, Haus C nicht
+(bewilligt mit 7.55 m Grenzabstand, also unter den 10 m, die das Werkzeug für
+eine Südseite ansetzen würde). Die Bewilligung beruht auf der gemeinsamen
+Beurteilung von Kat. 2999 mit Parzellierung und Servitut (Plan 122A) — einem
+Rechtszustand, den die getrennte Rechnung bewusst nicht abbildet. Genau das
+sagt die Warnung.
+
+**13.4 Waldabstand: das Werkzeug nutzt die festgesetzte Linie — und der
+Rundweg-Versatz war der eigentliche Fehler.** Geprüft am 31.08.2026:
+`computeWaldabstand` schneidet nach der **Waldabstandslinie ogd-0152** (mit
+ihrer eingetragenen `wirksamkeit`-Seite), nicht mit einem eigenen Puffer um
+das Waldareal — ogd-0111 dient nur der Seitenbestimmung und wird als Wald
+selbst abgezogen. Die Abweichung des § 259-aPBG-Abzugs gegen die Baueingabe
+(damals Werkzeug 32.3 / 49.9 m² gegen 24.8 / 44.2 m²) stammte grösstenteils
+nicht aus der Linie, sondern aus `bufferLV95`: der Hin- und Rückweg durch die
+LV95↔WGS84-Näherungsformeln ist nicht exakt invers und versetzte JEDES
+Pufferergebnis um ~0.4 m (den Grundabstandsring nach Süden — die Südseite war
+unterbemessen). Seit der Korrektur (Drift am Schwerpunkt gemessen und
+abgezogen, `js/core/coordinates.js`) gilt: 5028 **24.9 m²** gegen 24.8 m² der
+Baueingabe, 5029 **39.1 m²** gegen 44.2 m², 5030 0 gegen 0. Die verbleibende
+Abweichung von −5.1 m² auf 5029 (Werkzeug zieht WENIGER ab, die anrechenbare
+Fläche ist damit ~1.3 m² GFA zu gross — nicht konservativ, aber klein) liegt
+im Bereich der Linien- und Parzellierungsgeometrie zwischen 5028 und 5029 und
+bleibt als bekannte Ungenauigkeit stehen (§9). Der Abzug **im Fussabdruck**
+(Bauverbot zwischen Linie und Wald, § 262 PBG) und der Abzug **von der
+anrechenbaren Fläche** (> 15 m hinter der Linie, § 259 aPBG) sind zwei
+verschiedene Grössen; das Waldabstands-Blatt des Exports weist beide getrennt
+aus und sagt das jetzt ausdrücklich.
+
+Golden-Tests: Abschnitt 0000000 in `tests/run-tests.mjs`.
 
 ---
 
@@ -269,6 +353,7 @@ Golden-Tests: Abschnitte 7, 8 und 9 in `tests/run-tests.mjs`.
 | Zone + kantonale Grundmasse | GIS-ZH WFS | `ogd-0156_arv_basis_np_gn_zonenflaeche_f` |
 | Grenzabstand, Grünflächenziffer, Regime | lokale Datei | `data/bzo-*.json` (aus den BZO-PDFs, mit Beleg je Wert) |
 | Kantonale Normen (§§ PBG/ABV) | lokale Datei | `data/kantonale-abstandsvorschriften.json` |
+| Bekannte Gebäude (Bestands-Passprobe §13.3) | lokale Datei | `data/bekannte-gebaeude.json` (Referenzdaten mit Beleg, keine Rechtswerte) |
 | Waldabstandslinie | GIS-ZH WFS | `ogd-0152_arv_basis_abstandslinie_wald_l` |
 | Waldareal | GIS-ZH WFS | `ogd-0111_giszhpub_wald_waldareal_f` |
 | Baulinien | GIS-ZH WFS | `ogd-0158_arv_basis_abstandslinie_baulinie_l` |
@@ -337,29 +422,30 @@ ineinander umgerechnet.
 Fläche = Parzelle **nach innen versetzt** um `grundabstand_min_m`
 (Zumikon W2/25: **5 m**).
 
-### 3.5 Grosser Grenzabstand (Hauptfassaden)
+### 3.5 Grosser Grenzabstand (Südseiten des Gebäudes)
 Wenn die BZO einen `grosser_grenzabstand_min_m` kennt (Zumikon: **10 m** W2/25,
 9 m übrige; Art. 17/18 BZO):
 
-* **W2/25: die BEIDEN am meisten gegen Süden gerichteten Seiten** verlieren den
-  Streifen bis 10 m (Art. 18 Abs. 1: «für die beiden…»); in W2/35–W2/60 die eine
-  längste, am stärksten südorientierte Seite (`grosser_grenzabstand_suedseiten`
-  in der Datendatei).
-* Vorschlag = Kante(n), deren Aussennormale am nächsten bei **Süden (180°)**
-  liegt; bei Gleichstand die längere. Kanten unter **3 m** gelten als Ecke.
-  Die primäre Kante ist im Grundriss **anklickbar**.
-* Der 10-m-Streifen endet **bündig** an den Enden der gewählten Kante
-  (flache Enden, kein Kreisbogen): § 22 Abs. 2 ABV schlägt bei zwei
-  verschieden grossen Grundabständen den **kleineren** radial um die Ecken —
-  jenseits der Hauptfassade gilt also nur der kleine Abstand. (Die frühere
-  Linien-Buffer-Umsetzung mit runden Enden schnitt 10-m-Bögen über die
-  Fassadenenden hinaus aus der Parzelle — zu streng, und sie erzeugte
-  sichelförmige «Baukörper», z.B. Parzelle 5029.)
-* Vereinfachung (angezeigt): massgebend wären laut Art. 18 Abs. 2 die Seiten
-  des **Gebäudes** (flächenkleinstes Rechteck), gemessen nach § 22 ABV
-  rechtwinklig zur Fassade. Die Näherung über die Parzellenkanten liegt auf
-  der sicheren Seite.
-* Parzellen ohne auswertbare Fassadenkante (alles < 3 m) stürzen nicht mehr ab,
+* **Massgebend sind die GEBÄUDEseiten** (Art. 18 Abs. 2: flächenkleinstes
+  Rechteck, das das Gebäude umfasst), in W2/25 die **beiden** am meisten gegen
+  Süden gerichteten, in W2/35–W2/60 die eine längste, am stärksten
+  südorientierte (`grosser_grenzabstand_suedseiten`). Gemessen wird nach
+  **§ 22 ABV rechtwinklig zur Fassade**; der kleine Abstand schlägt radial um
+  die Ecken (§ 22 Abs. 2 ABV).
+* **Hauptverfahren (seit 31.08.2026): iteratives Gebäuderechteck** —
+  `gebaeudeSeitenSetback` in `js/core/grenzabstand.js`, Ablauf und Befunde in
+  **§13.1/13.2**. Kurz: grösstmögliches Rechteck im 5-m-Bereich, dessen
+  Südseiten bestimmen, dort 10 m als gerichtete Erosion der Parzelle
+  rechtwinklig zur Fassade, wiederholen bis stabil.
+* Die frühere **Parzellenkanten-Näherung** ist nur noch Vergleichswert und
+  benannter Rückfall: Kante(n), deren Aussennormale am nächsten bei Süden
+  (180°) liegt, Streifen bündig an den Kantenenden (flache Enden — § 22
+  Abs. 2 ABV). Sie ist **nicht verlässlich konservativ** (5029: 368 m² statt
+  ehrlich 218 m² nach Grundabstand, §13.2).
+* Die primäre Südkante bleibt im Grundriss **anklickbar**; eine bewusste Wahl
+  bindet im Gebäuderechteck-Verfahren die erste Südrichtung an diese Kante.
+  Kanten unter **3 m** gelten als Ecke.
+* Parzellen ohne auswertbare Fassadenkante (alles < 3 m) stürzen nicht ab,
   sondern rechnen einheitlich mit dem kleinen Abstand und warnen.
 
 ### 3.5a Mehrlängenzuschlag (nur Zürich, Art. 14 BZO 2016)
@@ -559,6 +645,9 @@ Seit der Behebung von Fehler A eingehalten; durch Golden-Test abgesichert
 
 | Wert | Bedeutung | Rechtsgrundlage / Status | Datei |
 |---|---|---|---|
+| 6 / 1° | max. Iterationen / Stabilitäts-Toleranz Gebäuderechteck-Verfahren | Annahme | `grenzabstand.js` |
+| d/32 | Schrittweite der gerichteten Erosion (bei 10 m: ~0.31 m) | Annahme (exakt für konvexe Parzellen) | `coordinates.js` |
+| 10° | Winkelraster der Bestands-Passprobe | Annahme | `bekannte-gebaeude.js` |
 | 3.0 m | kürzeste Kante, die als Fassade zählt | Annahme | `grenzabstand.js` |
 | 250 m / 400 m / 60 m / 0.15 m | Suchradien / Arbeitsrand / Schnittbreite | Annahme | `waldabstand.js` |
 | 15 m | Waldabstandsfläche hinter der Linie fällt ausser Ansatz | **§ 259 aPBG** (Wortlaut in `data/kantonale-abstandsvorschriften.json`) | `waldabstand.js` |
@@ -672,6 +761,21 @@ Bei Abweichungen gilt das Register, nicht diese Tabelle — siehe §11.
 
 ## 8. Behobene Fehler
 
+* **Grosser Grenzabstand an Parzellenkanten statt Gebäudeseiten** (31.08.2026):
+  Art. 18 Abs. 2 BZO Zumikon misst am Gebäude (flächenkleinstes Rechteck);
+  das Werkzeug hängte die 10 m an Parzellenkanten. **Behoben** — iteratives
+  Gebäuderechteck-Verfahren als Hauptweg, Parzellenkanten nur noch benannter
+  Rückfall. Die Register-Behauptung, die Näherung sei «auf der sicheren
+  Seite», war falsch (5029: +150 m² zu viel) und ist korrigiert. §13.1/13.2.
+* **`bufferLV95` versetzte jedes Ergebnis um ~0.4 m** (31.08.2026): der
+  LV95↔WGS84-Rundweg der Näherungsformeln ist nicht exakt invers; der
+  Grundabstandsring lag ~0.4 m südlich der Parzelle (Südseite unterbemessen),
+  und der § 259-aPBG-Abzug wich um bis zu +7.5 m² von der Baueingabe ab.
+  **Behoben** (Drift am Schwerpunkt gemessen und abgezogen); der Abzug trifft
+  die Baueingabe jetzt auf 0.1 m² (5028). §13.4.
+* **Übersichtstabelle: Spalten klebten aneinander** («Parzelle 50301446 m²498 m²»,
+  Blatt «Übersicht — getrennt gerechnet»): die `derive`-Tabelle hatte kein
+  horizontales Zellen-Padding. **Behoben** (`css/print.css`).
 * **Bericht widersprach sich selbst** (Multi-Parzellen-Export 31.08.2026):
   ein Grundstück unter drei Namen, «gerechnet & dargestellt» auf einer nicht
   darstellbaren Attika, «14.3 × −1.8 m» im Kundendokument, 37 m² auf 2.7 m
@@ -702,8 +806,14 @@ Jede der folgenden Näherungen steht als Eintrag im Register `VEREINFACHUNGEN`
 (§11). Wer eine ergänzt, ergänzt sie dort — sonst trägt der Wert weiter ein
 `§`, das er nicht verdient.
 
-* Grenzabstands-Streifen mit runden Enden entlang Parzellenkanten statt
-  Gebäude-Rechteck-Messung nach § 22 ABV (auf der sicheren Seite; angezeigt).
+* Grosser Grenzabstand am iterativ platzierten Gebäuderechteck (§13.1): korrekt
+  für ein Gebäude in der gefundenen Stellung; ein Entwurf mit anderer Stellung
+  kann andere Südseiten haben. Die gerichtete Erosion ist exakt für konvexe
+  Parzellen, an schmalen Randkerben nicht konvexer bis ~0.31 m zu grosszügig.
+  Der Rückfall über Parzellenkanten ist NICHT verlässlich konservativ (§13.2).
+* § 259-aPBG-Abzug: auf Zumikon 5029 zieht das Werkzeug 39.1 m² ab, die
+  Baueingabe 44.2 m² — die anrechenbare Fläche ist dort ~5 m² (~1.3 m² GFA) zu
+  gross; Linien-/Parzellierungsgeometrie, nicht Verfahren (§13.4).
 * Mehrlängenzuschlag allseitig statt fassadenweise (konservativ; angezeigt).
 * Waldabstands-Seitenbestimmung hängt an der Auswahl-Grösse (3.6).
 * Mischzonen: Zone der Ausgangsparzelle für alles (Hinweis auf § 259 PBG).

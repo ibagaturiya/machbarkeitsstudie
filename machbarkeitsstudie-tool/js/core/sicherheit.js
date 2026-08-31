@@ -73,11 +73,17 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   // Prosa in REGELN.md §9. Hier sind sie maschinenlesbar; app.js liest sie von
   // hier, statt sie ein zweites Mal zu formulieren.
   const VEREINFACHUNGEN = {
+    grenzabstand_gebaeuderechteck_iterativ: {
+      artikel: 'Art. 18 Abs. 2 BZO Zumikon / § 22 ABV',
+      gilt: 'Massgebend für den grossen Grenzabstand sind die Südseiten des GEBÄUDES, bestimmt am flächenkleinsten Rechteck, das es umfasst; gemessen wird rechtwinklig zur Fassade, der kleine Abstand radial um die Ecken (§ 22 Abs. 2 ABV).',
+      werkzeug: 'Das Werkzeug kennt das künftige Gebäude nicht und nähert es iterativ: grösstmögliches Rechteck im Bereich des kleinen Abstands, Südseiten bestimmen, dort den grossen Abstand rechtwinklig ansetzen (gerichtete Erosion, exakt für konvexe Parzellen, sonst bis ~0.31 m zu grosszügig an schmalen Randkerben), wiederholen bis stabil.',
+      konservativ: 'Für ein Gebäude in der gefundenen Stellung korrekt. Ein Entwurf mit anderer Stellung oder Form kann andere Südseiten haben — das Ergebnis ist dann eine Näherung, keine Rechtsauskunft je Fassade.',
+    },
     grenzabstand_parzellenkante: {
       artikel: '§ 22 ABV / Art. 18 Abs. 2 BZO',
       gilt: 'Der Grenzabstand wird rechtwinklig zur Fassade auf dem flächenkleinsten Rechteck gemessen, welches das GEBÄUDE umfasst.',
-      werkzeug: 'Das Werkzeug versetzt statt dessen die Parzellenkanten nach innen (Streifen mit runden Enden).',
-      konservativ: 'Der so gefundene Bereich ist kleiner als der rechtlich zulässige — die Abweichung geht zulasten des Bauherrn, nie zu seinen Gunsten.',
+      werkzeug: 'Rückfall-Näherung, wenn das Gebäuderechteck-Verfahren geometrisch scheitert: der grosse Abstand hängt an den südorientierten Parzellenkanten statt an den Gebäudeseiten.',
+      konservativ: 'NICHT verlässlich konservativ: sie hängt an der zufälligen Stückelung der Parzellenkanten. Auf Zumikon 5029 traf sie zwei kurze Süd-Kantenstücke (5.1 m + 9.6 m) und liess 132 m² stehen, wo der Ansatz an den Gebäudeseiten 34 m² ergibt. Nicht ohne Handprüfung verwenden.',
     },
     mehrlaengenzuschlag_allseitig: {
       artikel: 'Art. 14 BZO 2016 (Zürich)',
@@ -128,6 +134,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   // gebraucht werden (parkierung.js, coordinates.js, output.js) — hier steht
   // nur, DASS es eine Annahme ist und mit welcher Bandbreite.
   const WERKZEUG_ANNAHMEN = {
+    bestandspruefung_winkelraster: { was: 'Winkelraster der Bestands-Passprobe (bekannte Gebäude)', band: null, einheit: '°' },
     kostenkennwert_chf_m3: { was: 'Kostenkennwert BKP 2', band: [800, 1000], einheit: 'CHF/m³' },
     flaeche_je_platz_tiefgarage: { was: 'Fläche je Abstellplatz, Tiefgarage', band: [25, 35], einheit: 'm²' },
     flaeche_je_platz_oberirdisch: { was: 'Fläche je Abstellplatz, oberirdisch', band: [20, 30], einheit: 'm²' },

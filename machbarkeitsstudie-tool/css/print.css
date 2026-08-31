@@ -212,6 +212,12 @@
 #print-doc .facts td:first-child { color: var(--p-faint); width: 45%; }
 #print-doc .facts.big td { font-size: 8.5pt; padding: 3mm 0; }
 
+/* Ab der zweiten Spalte ein fester Mindestabstand: die Übersichtstabelle
+   («Übersicht — getrennt gerechnet») hat sechs Spalten, und mit 0 mm
+   Horizontal-Padding klebten dort «Parzelle 5030», «1446 m²» und «498 m²»
+   aneinander. Höhere Spezifität als die td-Regel darunter, gewinnt also
+   unabhängig von der Reihenfolge. */
+#print-doc .derive td + td { padding-left: 4mm; }
 #print-doc .derive td { padding: 2.4mm 0; border-bottom: 1px solid var(--p-hair); font-size: 8.5pt; }
 #print-doc .derive td:last-child { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 #print-doc .derive tr.minus td { color: #5a5a5a; }

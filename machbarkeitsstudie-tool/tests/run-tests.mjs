@@ -37,7 +37,7 @@ globalThis.fetch = async (url) => {
 
 // netz.js vor allem, was eine Quelle abruft (rules.js, checklist.js,
 // waldabstand.js) — es stellt T.fetchQuelle bereit.
-for (const f of ['js/core/format.js', 'js/core/netz.js', 'js/core/sicherheit.js', 'js/core/parkierung.js', 'js/core/normkette.js', 'js/sources/checklist.js', 'js/core/envelope.js', 'js/core/rules.js', 'js/ui/kennwerte.js', 'js/core/coordinates.js', 'js/sources/waldabstand.js']) {
+for (const f of ['js/core/format.js', 'js/core/netz.js', 'js/core/sicherheit.js', 'js/core/parkierung.js', 'js/core/normkette.js', 'js/sources/checklist.js', 'js/core/envelope.js', 'js/core/rules.js', 'js/ui/kennwerte.js', 'js/core/coordinates.js', 'js/core/grenzabstand.js', 'js/sources/waldabstand.js', 'js/sources/bekannte-gebaeude.js']) {
   // Plain scripts attaching to window.MachbarkeitTool — evaluate in order.
   // eslint-disable-next-line no-eval
   (0, eval)(await readFile(join(root, f), 'utf8'));
@@ -55,6 +55,82 @@ function check(name, actual, expected, tol = 0.01) {
   } else {
     console.log(`ok   ${name}`);
   }
+}
+
+// ---------------------------------------------------------------------------
+// 0000000) Grosser Grenzabstand am GEBÄUDE (Art. 18 Abs. 2 BZO Zumikon) und
+//      Plausibilitaetspruefung gegen den Bestand — REGELN.md §13.
+//      Anlass: auf Zumikon 5028 kollabierte die bebaubare Flaeche (154.3 m²
+//      nach Grundabstand, 36.7 m² nach Wald), waehrend auf derselben
+//      Parzelle ein bewilligtes Haus von 22.17 × 6.06 m steht. Der grosse
+//      Grenzabstand hing an den PARZELLENKANTEN; massgebend sind die Seiten
+//      des Gebaeudes am flaechenkleinsten Rechteck, gemessen nach § 22 ABV
+//      rechtwinklig zur Fassade.
+// ---------------------------------------------------------------------------
+{
+  const E = 2685000, N = 1245000;
+  // Rechteckparzelle 47 × 20 m, um 10° gedreht: die Aussennormalen der vier
+  // Seiten zeigen nach 190° / 10° / 100° / 280°. Die zwei suedlichsten sind
+  // eindeutig 190° (lange Seite) und 100° (kurzes Ostende) — keine
+  // Gleichstands-Ambiguitaet wie bei einer achsparallelen Parzelle.
+  const phi = (-10 * Math.PI) / 180;
+  const toWorld = (u, v) => [E + u * Math.cos(phi) - v * Math.sin(phi), N + u * Math.sin(phi) + v * Math.cos(phi)];
+  const rectParcel = (L, W) => turf.polygon([[toWorld(0, 0), toWorld(L, 0), toWorld(L, W), toWorld(0, W), toWorld(0, 0)]]);
+
+  // (a) Gerichtete Erosion: exakt fuer konvexe Polygone. 10 m entlang der
+  //     Suednormale der langen Seite lassen von 47 × 20 genau 47 × 10 uebrig.
+  const suedNormal = [Math.sin(phi), -Math.cos(phi)]; // Aussennormale der v=0-Seite
+  const eroded = T.erodeDirectionalLV95(rectParcel(47, 20), suedNormal[0], suedNormal[1], 10);
+  check('Erosion 10 m entlang einer Richtung: 47 × 10 = 470 m²', T.planarAreaAnyLV95(eroded), 470, 1);
+
+  // (b) Das iterative Verfahren auf der 47 × 20-Parzelle (W2/25-Werte:
+  //     klein 5 m, gross 10 m, zwei Suedseiten). Handrechnung im lokalen
+  //     Koordinatensystem: Ring nach 5 m = [5,42]×[5,15]; 10 m rechtwinklig
+  //     zur 190°-Seite → v ≥ 10; 10 m zur 100°-Seite → u ≤ 37.
+  //     Ergebnis [5,37]×[10,15] = 32 × 5 = 160 m².
+  const geb = T.gebaeudeSeitenSetback(rectParcel(47, 20), 5, 10, 2);
+  check('Gebäuderechteck-Verfahren konvergiert', !geb.failed && geb.converged, true);
+  check('… Ergebnisfläche 32 × 5 = 160 m² (± WGS84-Puffer-Toleranz)', T.planarAreaAnyLV95(geb.feature), 160, 3);
+  const bearings = (geb.suedSeiten || []).map((s) => Math.round(s.bearingDeg)).sort((a, b) => a - b);
+  check('… Südseite 1 ist das Ostende (100°)', Math.abs(bearings[0] - 100) <= 2, true);
+  check('… Südseite 2 ist die lange Südseite (190°)', Math.abs(bearings[1] - 190) <= 2, true);
+
+  // (c) Laesst der 10-m-Ansatz nichts uebrig (Parzelle nur 14 m tief:
+  //     Ring [5,42]×[5,9], v ≥ 10 ist leer), meldet das Verfahren FAILED —
+  //     app.js faellt dann benannt auf die Parzellenkanten-Naeherung
+  //     zurueck, statt still ein leeres Ergebnis als Rechtslage zu zeigen.
+  const zuSchmal = T.gebaeudeSeitenSetback(rectParcel(47, 14), 5, 10, 2);
+  check('zu schmale Parzelle: Verfahren meldet Scheitern statt leer', !!zuSchmal.failed, true);
+
+  // (d) Registerstand: das neue Verfahren ist als Vereinfachung registriert,
+  //     und die Parzellenkanten-Naeherung behauptet nicht mehr, konservativ
+  //     zu sein (Zumikon 5029: 132 m² statt 34 m² — zu GROSS).
+  check('Register kennt das Gebäuderechteck-Verfahren', !!T.VEREINFACHUNGEN.grenzabstand_gebaeuderechteck_iterativ, true);
+  check('Fussabdruck-Wert traegt damit ≈ (vereinfacht)',
+    T.stufeVon({ wert: '160 m²', kind: 'BERECHNET', schluessel: 'grenzabstand_gebaeuderechteck_iterativ', label: 'Fussabdruck' }).stufe, 'VEREINFACHT');
+  check('Parzellenkanten-Näherung behauptet keine sichere Seite mehr',
+    /NICHT verlässlich konservativ/.test(T.VEREINFACHUNGEN.grenzabstand_parzellenkante.konservativ), true);
+
+  // (e) Bestands-Passprobe (js/sources/bekannte-gebaeude.js). Das bewilligte
+  //     Haus A (22.17 × 6.06 m) passt in einen 40 × 30-Bereich, nicht aber
+  //     in einen 4 m tiefen Streifen.
+  const gross = turf.polygon([[[E, N], [E + 40, N], [E + 40, N + 30], [E, N + 30], [E, N]]]);
+  const streifenArea = turf.polygon([[[E, N], [E + 40, N], [E + 40, N + 4], [E, N + 4], [E, N]]]);
+  check('Passprobe: 22.17 × 6.06 m passt in 40 × 30 m', T.rechteckPasstIn(gross, 22.17, 6.06), true);
+  check('Passprobe: 22.17 × 6.06 m passt NICHT in 40 × 4 m', T.rechteckPasstIn(streifenArea, 22.17, 6.06), false);
+
+  await T.ladeBekannteGebaeude();
+  const fakeR = (area, nr) => ({ selection: [{ parcelNumber: nr }], rules: { gemeinde: 'Zumikon' }, buildableArea: area });
+  const passt = T.pruefeBestandsGebaeude(fakeR(gross, '5028'));
+  check('Datendatei kennt Haus A auf 5028', passt.eintraege.length, 1);
+  check('… mit Beleg-Massen 22.17 × 6.06', passt.eintraege[0].laenge_m + '×' + passt.eintraege[0].breite_m, '22.17×6.06');
+  check('… und es passt in einen grossen Bereich', passt.eintraege[0].passt, true);
+  const passtNicht = T.pruefeBestandsGebaeude(fakeR(streifenArea, '5028'));
+  check('… aber nicht in einen 4-m-Streifen → Warnfall', passtNicht.eintraege[0].passt, false);
+  check('fremde Gemeinde: kein Eintrag, keine erfundene Pruefung',
+    T.pruefeBestandsGebaeude({ selection: [{ parcelNumber: '5028' }], rules: { gemeinde: 'Zürich' }, buildableArea: gross }).eintraege.length, 0);
+  check('ohne bebaubaren Bereich gilt das Gebaeude als nicht passend',
+    T.pruefeBestandsGebaeude(fakeR(null, '5029')).eintraege[0].passt, false);
 }
 
 // ---------------------------------------------------------------------------

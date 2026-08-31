@@ -1,0 +1,52 @@
+{
+  "_meta": {
+    "title": "Bekannte bestehende oder bewilligte Gebäude",
+    "zweck": "Plausibilitätsprüfung: Ist auf einer Parzelle ein bestehendes oder bewilligtes Gebäude bekannt, prüft das Werkzeug, ob dessen Rechteckmass in den berechneten bebaubaren Bereich passt. Passt es nicht, wird gewarnt statt still weitergerechnet (REGELN.md §13.3). Die Einträge sind Referenzdaten, keine Rechtswerte — sie ändern keine Zahl der Auswertung.",
+    "data_last_verified": "2026-08-31"
+  },
+  "gebaeude": [
+    {
+      "gemeinde": "Zumikon",
+      "parzelle": "5028",
+      "name": "Haus A",
+      "laenge_m": 22.17,
+      "breite_m": 6.06,
+      "status": "bewilligt"
+    },
+    {
+      "gemeinde": "Zumikon",
+      "parzelle": "5029",
+      "name": "Haus B",
+      "laenge_m": 19.06,
+      "breite_m": 6.26,
+      "status": "bewilligt"
+    },
+    {
+      "gemeinde": "Zumikon",
+      "parzelle": "5030",
+      "name": "Haus C",
+      "laenge_m": 22.57,
+      "breite_m": 19.8,
+      "status": "bewilligt"
+    }
+  ],
+  "_provenance": {
+    "docs": {
+      "baueingabe": {
+        "quelle": "Baueingabe dw design & concept ag, «Überbauung Zumikon, Haldenstrasse 5», Kat.-Nr. 2999 (vor der Parzellierung in 5028/5029/5030)",
+        "plaene": "113B (Übersicht Parzellen, Grundlage AZ-Berechnung — Rechteckmasse und Parzellenzuordnung) und 121 (Best. Höhenkurven mit eingezeichnetem Bauvorhaben)",
+        "ablage": "999_cookies/Plangrundlage IVAN_20.08.2026/Projektpläne/, ausgewertet in 999_cookies/referenz-zumikon-2999-projektplaene.md §4"
+      }
+    },
+    "params": {
+      "laenge_m,breite_m": {
+        "doc": "baueingabe",
+        "quote": "Haus A 22.17 × 6.06 m (Parzelle 5028) · Haus B 19.06 × 6.26 m (Parzelle 5029) · Haus C 22.57 × 19.80 m (Parzelle 5030) — Rechteckmasse aus Plan 113B."
+      },
+      "status": {
+        "doc": "baueingabe",
+        "quote": "Status «bewilligt» gemäss Angabe des Auftraggebers (31.08.2026) und dem GWR-Gebäudestatus der zugehörigen Adressen Haldenstrasse 5a/5b/5c (gstat 1002, bewilligt). Der Bewilligungsentscheid selbst liegt dem Werkzeug nicht vor."
+      }
+    }
+  }
+}

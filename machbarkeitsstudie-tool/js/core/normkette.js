@@ -180,20 +180,27 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
 
     const setbackRing = (r && r.setbackRingFeature) || null;
     if (r && r.hasDirectional) {
+      // Der Detailtext folgt dem tatsaechlich verwendeten Verfahren
+      // (r.grenzabstandVerfahren, js/app.js runSetback) — Gebaeuderechteck
+      // iterativ (Hauptweg), Parzellenkanten-Naeherung (Rueckfall) oder
+      // grosser Abstand ringsum (letzte Stufe, grenzabstandDegraded).
+      const gv = r.grenzabstandVerfahren;
       push({
-        ebene: 'gemeinde', titel: 'Grosser Grenzabstand (Hauptfassaden)',
+        ebene: 'gemeinde', titel: 'Grosser Grenzabstand (Südseiten des Gebäudes)',
         grundlage: artGrundmasse, status: r.grenzabstandDegraded ? 'review' : 'ok',
         stufe: 'VEREINFACHT',
-        messweise: '§ 22 Abs. 2 ABV — Eckenregel, Streifen endet bündig',
+        messweise: '§ 22 ABV — rechtwinklig zur Fassade, kleiner Abstand radial um die Ecken',
         wert: rules.grosser_grenzabstand_min_m != null
-          ? `− ${rules.grosser_grenzabstand_min_m.toFixed(1)} m auf ${(r.chosenIndices || []).length || 1} Seite(n)`
+          ? `− ${rules.grosser_grenzabstand_min_m.toFixed(1)} m auf ${(gv && gv.suedSeiten && gv.suedSeiten.length) || (r.chosenIndices || []).length || 1} Seite(n)`
           : null,
         flaecheM2: areaOf(setbackRing),
         geometry: geo ? setbackRing : null,
         entfernt: removedBetween(ringOnly, setbackRing),
         detail: r.grenzabstandDegraded
           ? `Die gerichtete Abstandsfigur liess sich nicht bilden; ersatzweise gilt der grosse Abstand allseitig (${r.grenzabstandDegraded.appliedM} m) — strenger als das Gesetz verlangt, nie milder.`
-          : 'Die am stärksten nach Süden gerichtete(n) Seite(n). § 22 Abs. 2 ABV schlägt an den Ecken den kleineren Abstand um — der Streifen endet bündig, ohne Bogen.',
+          : (gv && gv.methode === 'gebaeuderechteck'
+              ? `Massgebend sind die Südseiten des GEBÄUDES am flächenkleinsten Rechteck (Art. 18 Abs. 2 BZO); iterativ bestimmt (${gv.iterationen} Durchgänge), der grosse Abstand rechtwinklig zur jeweiligen Fassade angesetzt.`
+              : 'Rückfall: Näherung über die am stärksten nach Süden gerichteten Parzellenkanten — nicht verlässlich konservativ, Hinweis beachten.'),
       });
     }
 

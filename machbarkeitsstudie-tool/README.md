@@ -430,6 +430,11 @@ geprüft" rather than a green PASS.
 
 ## Data and sources
 
+- `data/bekannte-gebaeude.json` — known existing or approved buildings per
+  parcel (reference data with provenance, not legal values). Used by the
+  plausibility check (`js/sources/bekannte-gebaeude.js`, REGELN.md §13.3):
+  if a known building's rectangle does not fit into the computed buildable
+  area, the analysis warns instead of silently carrying on.
 - `data/bzo-zurich-wohnzonen.json`, `data/bzo-zumikon.json` — the
   commune-specific rules, each cross-checked against its source PDF. Each file
   carries a `_provenance` block (document, page, article, quote, highlight
