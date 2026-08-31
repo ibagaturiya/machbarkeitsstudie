@@ -17,6 +17,109 @@
 window.MachbarkeitTool = window.MachbarkeitTool || {};
 
 (function () {
+  const fmt = (n, d = 1) => window.MachbarkeitTool.fmt(n, d);
+
+  // ---- Fuer sich allein faktisch nicht bebaubar -------------------------
+  // Eine Restflaeche kann rechnerisch bestehen und trotzdem kein Gebaeude
+  // tragen: Zumikon 5028 behaelt nach Grundabstand und Waldabstand 36.7 m²
+  // Fussabdruck — aber als Streifen von 2.7 m Tiefe. Das als «Realistisches
+  // Szenario» auszuweisen ist eine Zusage, die die Zahl nicht deckt.
+  //
+  // Schwelle ist MIN_PRIMITIVE_WIDTH_M (3.5 m), dieselbe Werkzeug-Annahme,
+  // mit der die Baukoerper-Suche eine zu schmale Scheibe verwirft
+  // (js/core/coordinates.js) — kein zweiter, eigens erfundener Grenzwert.
+  // Sie ist ausdruecklich KEIN Rechtswert: ein solcher Streifen ist nicht
+  // verboten, er ist bloss kein Gebaeude. Deshalb wechselt hier nur die
+  // Beschriftung; keine Zahl der Auswertung aendert sich.
+  //
+  // Gemessen wird am flaechenkleinsten Rechteck (footprintRect), nicht am
+  // achsparallelen Umschlag: ein diagonal liegender Streifen haette dort
+  // eine grosse «Tiefe» und ginge durch.
+  function faktischNichtBebaubar(r) {
+    const T = window.MachbarkeitTool;
+    const flaecheM2 = r.reconciled ? r.reconciled.usableFootprintAreaM2 : 0;
+    if (!(flaecheM2 > 0)) return { ja: false, grund: null, tiefeM: null, flaecheM2: 0 };
+    const rect = r.footprintRect;
+    if (!rect || !isFinite(rect.widthM)) return { ja: false, grund: null, tiefeM: null, flaecheM2 };
+    const tiefeM = Math.min(rect.widthM, rect.lengthM);
+    if (tiefeM >= T.MIN_PRIMITIVE_WIDTH_M - 1e-6) {
+      return { ja: false, grund: null, tiefeM, flaecheM2 };
+    }
+    return {
+      ja: true, tiefeM, flaecheM2,
+      grund: `Der bebaubare Rest misst ${fmt(rect.lengthM)} \u00d7 ${fmt(tiefeM)} m — `
+        + `bei ${fmt(flaecheM2, 0)} m² Fl\u00e4che ist er ein Streifen, kein Baufeld. `
+        + `Unter ${T.MIN_PRIMITIVE_WIDTH_M} m Tiefe l\u00e4sst sich kein Geb\u00e4ude mehr anordnen `
+        + `(Werkzeug-Annahme, kein Rechtswert). Die Zahlen dieses Abschnitts bleiben `
+        + `unver\u00e4ndert g\u00fcltig; sie beschreiben eine Fl\u00e4che, keinen Bauk\u00f6rper.`,
+    };
+  }
+
+  // ---- Warum keine Attika: EIN Wortlaut, drei Ausgabestellen ------------
+  // Lag bis zum 31.8.2026 in js/app.js und war damit nur am Bildschirm zu
+  // haben; der PDF-Export baute sich seine eigene Formulierung. Hier, weil
+  // die Diagnose an mm haengt und weil sowohl app.js (Regelfahne,
+  // Variantenkarte) als auch print.js (Variantenkarte) sie brauchen.
+  //
+  // Negative Zahlen werden NIE ausgegeben. Ist der Ruecksprung tiefer als
+  // der halbe Baukoerper, ist die Restbreite rechnerisch negativ (5028:
+  // 2.7 m − 2 \u00d7 2.25 m = −1.8 m). «14.3 \u00d7 −1.8 m» in einem Kundendokument ist
+  // keine Aussage, sondern ein durchgereichter Zwischenwert: eine Strecke
+  // kann nicht negativ sein. Gesagt wird deshalb, was zutrifft — es bleibt
+  // nichts uebrig — mit dem Mindestmass als Massstab.
+  function attikaRestM(mm) {
+    const d = (mm && mm.attikaDiagnostics || [])[0];
+    return d ? Math.max(0, d.narrowestM) : null;
+  }
+  function attikaSuppressReason(mm) {
+    const T = window.MachbarkeitTool;
+    const d = (mm.attikaDiagnostics || [])[0];
+    if (!d) return 'Attika zonenrechtlich zul\u00e4ssig, geometrisch nicht darstellbar';
+    const rest = Math.max(0, d.narrowestM);
+    return d.bergseite
+      ? `Attika zul\u00e4ssig, aber nicht darstellbar: bergseitig fassadenb\u00fcndig, \u00fcbrige Seiten ${fmt(mm.attikaSetbackM)} m R\u00fccksprung — bleiben ${fmt(rest)} m, min. ${T.MIN_PRIMITIVE_WIDTH_M} m n\u00f6tig`
+      : `Attika zul\u00e4ssig, aber nicht darstellbar: 45°-R\u00fccksprung ${fmt(mm.attikaSetbackM)} m je Seite l\u00e4sst von ${fmt(d.belowWidthM)} m Bauk\u00f6rpertiefe nur ${fmt(rest)} m — min. ${T.MIN_PRIMITIVE_WIDTH_M} m n\u00f6tig`;
+  }
+  function attikaSuppressShort(mm) {
+    const T = window.MachbarkeitTool;
+    const d = (mm.attikaDiagnostics || [])[0];
+    if (!d) return 'geometrisch nicht darstellbar';
+    return `45°-Profil l\u00e4sst nur ${fmt(Math.max(0, d.narrowestM))} m Tiefe — min. ${T.MIN_PRIMITIVE_WIDTH_M} m n\u00f6tig`;
+  }
+
+  // Die Rechnung hinter dem Verdikt, ausgeschrieben — fuer die Hinweisseite.
+  // Bleibt nach dem Ruecksprung nichts uebrig, wird das GESAGT statt eine
+  // negative Kantenlaenge gedruckt.
+  function attikaSuppressRechnung(mm) {
+    const T = window.MachbarkeitTool;
+    const d = (mm.attikaDiagnostics || [])[0];
+    if (!d) return '';
+    const sb = mm.attikaSetbackM;
+    if (d.bergseite) {
+      return ` Bauk\u00f6rper ${fmt(d.belowLengthM)} \u00d7 ${fmt(d.belowWidthM)} m; auf der Bergseite ist die Wand`
+        + ` fassadenb\u00fcndig, die drei \u00fcbrigen Seiten je ${fmt(sb)} m zur\u00fcck — bleiben`
+        + ` ${fmt(Math.max(0, d.narrowestM))} m schmalste Ausdehnung.`;
+    }
+    const restL = d.belowLengthM - 2 * sb, restW = d.belowWidthM - 2 * sb;
+    if (restL <= 0 || restW <= 0) {
+      // Der Ruecksprung ist tiefer als der halbe Baukoerper: die beiden
+      // Seiten treffen sich, bevor eine Restflaeche entsteht.
+      return ` Bauk\u00f6rper ${fmt(d.belowLengthM)} \u00d7 ${fmt(d.belowWidthM)} m: der R\u00fccksprung von`
+        + ` ${fmt(sb)} m auf allen vier Seiten verbraucht die Tiefe von ${fmt(d.belowWidthM)} m`
+        + ` vollst\u00e4ndig (${fmt(sb)} m + ${fmt(sb)} m). Es bleibt keine Restfl\u00e4che —`
+        + ` n\u00f6tig w\u00e4ren mindestens ${T.MIN_PRIMITIVE_WIDTH_M} m.`;
+    }
+    return ` Bauk\u00f6rper ${fmt(d.belowLengthM)} \u00d7 ${fmt(d.belowWidthM)} m minus ${fmt(sb)} m auf allen`
+      + ` vier Seiten ergibt ${fmt(restL)} \u00d7 ${fmt(restW)} m, also nur`
+      + ` ${fmt(Math.max(0, d.narrowestM))} m schmalste Ausdehnung.`;
+  }
+
+  window.MachbarkeitTool.faktischNichtBebaubar = faktischNichtBebaubar;
+  window.MachbarkeitTool.attikaRestM = attikaRestM;
+  window.MachbarkeitTool.attikaSuppressReason = attikaSuppressReason;
+  window.MachbarkeitTool.attikaSuppressShort = attikaSuppressShort;
+  window.MachbarkeitTool.attikaSuppressRechnung = attikaSuppressRechnung;
+
   // Die Zahlen jeder Geschossvariante — EINMAL gerechnet, konsumiert von den
   // Varianten-Karten am Bildschirm (js/app.js) UND vom Variantenblock des
   // PDF-Exports (js/ui/print.js). Dieselbe Arithmetik zweimal zu führen ist

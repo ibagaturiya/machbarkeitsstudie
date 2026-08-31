@@ -221,6 +221,102 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     return cont;
   }
 
+  // ---- Was auf jedem Parzellenblatt WORTGLEICH stuende -------------------
+  // Bei mehreren Grundstuecken im selben Rechtsrahmen ist ein grosser Teil
+  // des Anhangs nicht parzellenbezogen: die Pruefpunkte «Werkleitungen»,
+  // «Sonderbauvorschriften / Gestaltungsplan», «Ortsbildschutz /
+  // Denkmalpflege», «Strassenabstand», «Begruenung», «Kronenbedeckungsgrad»
+  // haengen an Gemeinde und Zone; die Parkierungs-Fussnoten (GNF-Auslegung,
+  // Art.-27-Hinweis) und die Werkzeug-Annahme zur Flaeche je Abstellplatz
+  // stehen so in der BZO; die Legende der Belastbarkeitsstufen ist eine
+  // Konstante des Werkzeugs. Im Export vom 31.8.2026 stand all das dreimal —
+  // Wort fuer Wort, ueber rund zehn Seiten verteilt. Wer dreimal dasselbe
+  // liest, liest beim zweiten Mal nicht mehr; die parzellenbezogenen Saetze
+  // dazwischen gehen darin unter.
+  //
+  // Zusammengefasst wird nur, was NACHWEISLICH identisch ist — verglichen
+  // wird der fertige Wortlaut, nicht die Annahme «gleiche Gemeinde, also
+  // gleicher Text». Weicht ein Grundstueck ab (ein Denkmalpflege-Treffer,
+  // eine ausgefallene Quelle, eine Baulinie, die nur hier schneidet), bleibt
+  // sein Punkt auf SEINEM Blatt stehen. Ein Vorbehalt, der bei einem
+  // Grundstueck anders lautet, darf nicht in einen gemeinsamen Abschnitt
+  // wandern und dort zu einer Aussage ueber alle werden.
+  //
+  // Nicht zusammengefasst wird die Tier-A-Liste («automatisch geprueft»):
+  // das sind Befunde ZU DIESER PARZELLE. Dass sie zufaellig gleich lauten,
+  // macht sie nicht zu einer gemeinsamen Aussage.
+  const GEMEINSAM_NUM = 'A.3';
+  const GEMEINSAM_TITEL = 'Gemeinsame Vorbehalte und Annahmen';
+
+  // Gleicher Rechtsrahmen = gleiche Gemeinde UND gleiche Zone. Sonst wird
+  // gar nichts zusammengefasst: zwei Zonen haben zwei Grundmasse, und ein
+  // gemeinsames Blatt muesste behaupten, welches gilt.
+  function gleicherRechtsrahmen(liste) {
+    if (liste.length < 2) return false;
+    const g = liste[0].rules.gemeinde, z = liste[0].anchor.zone;
+    return liste.every((r) => r.rules.gemeinde === g && r.anchor.zone === z);
+  }
+
+  // Aus jeder Auswertung eine Liste [key, text] holen und die Schnittmenge
+  // bilden: gemeinsam ist, was in JEDER vorkommt und ueberall gleich lautet.
+  function schnittmenge(liste, auslesen) {
+    const ersteEintraege = auslesen(liste[0]);
+    const gemeinsam = new Map();
+    for (const [key, text] of ersteEintraege) {
+      if (liste.every((r) => auslesen(r).some(([k, t]) => k === key && t === text))) {
+        gemeinsam.set(key, text);
+      }
+    }
+    return gemeinsam;
+  }
+
+  function ermittleGemeinsames(liste) {
+    if (!gleicherRechtsrahmen(liste)) return null;
+
+    const tierB = schnittmenge(liste, (r) =>
+      (r.checklist && r.checklist.tierB || []).map((i) => [i.key || i.label, `${i.status}|${i.text}`]));
+    const tierBItems = (liste[0].checklist.tierB || []).filter((i) => tierB.has(i.key || i.label));
+
+    const pkHinweise = schnittmenge(liste, (r) =>
+      (r.parkierung && r.parkierung.hinweise || []).map((h) => [h, h]));
+
+    // Die Werkzeug-Annahme-Tafel des Parkierungsblatts: gleich, wenn Artikel,
+    // Flaechenannahmen und Unterbringungssatz uebereinstimmen.
+    const pkKopf = (r) => (r.parkierung && r.parkierung.erfasst
+      ? JSON.stringify([r.rules.meta.parkierung && r.rules.meta.parkierung.art,
+                        r.parkierung.annahmen, r.parkierung.unterbringung])
+      : null);
+    const pkAnnahmenGleich = pkKopf(liste[0]) != null
+      && liste.every((r) => pkKopf(r) === pkKopf(liste[0]));
+
+    const etwas = tierBItems.length || pkHinweise.size || pkAnnahmenGleich;
+    if (!etwas) return null;
+    return {
+      num: GEMEINSAM_NUM,
+      titel: GEMEINSAM_TITEL,
+      anzahl: liste.length,
+      tierBKeys: tierB,
+      tierBItems,
+      pkHinweise,
+      pkAnnahmen: pkAnnahmenGleich ? liste[0].parkierung : null,
+      // Die Legende der Belastbarkeitsstufen ist eine Konstante des
+      // Werkzeugs — sie kann gar nicht abweichen.
+      belastbarkeitLegende: true,
+    };
+  }
+
+  // Der Einzeiler, der auf dem Parzellenblatt an die Stelle des ausgelagerten
+  // Blocks tritt. Er NENNT, was ausgelagert wurde: ein blosser Verweis auf
+  // «weitere Hinweise» liesse offen, ob ein Punkt geprueft oder vergessen
+  // wurde — und das waere schlechter als die Wiederholung.
+  function gemeinsamVerweis(gem, was) {
+    // Ohne Verb im Anschluss: `was` ist mal Singular («Die Legende»), mal
+    // Plural («6 Prüfpunkte») — ein fest gesetztes «steht» stimmte dann bei
+    // der Haelfte der Verweise nicht.
+    return `<div class="verweis"><b>${esc(was)}</b> — für alle ${gem.anzahl} Grundstücke `
+      + `gleichlautend auf Blatt ${esc(gem.num)} «${esc(gem.titel)}» am Ende dieses Dokuments.</div>`;
+  }
+
   // ---- Attika: geht sie oder nicht? -------------------------------------
   // Die Frage stand bisher nur zwischen den Zeilen: als Variantenkarte auf
   // Blatt 2, als Hinweis im Anhang. Wer wissen will, ob ein Attikageschoss
@@ -316,7 +412,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   // am Bildschirm, auf Papier kam allenfalls eine Warnzeile an.
   // Es wird weiterhin NICHTS vom Fussabdruck abgezogen — ob die Garage
   // zweigeschossig wird oder das Haus kleiner, ist eine Entwurfsentscheidung.
-  function parkierungSheetBody(pk, rules) {
+  function parkierungSheetBody(pk, rules, gem) {
     if (!pk.erfasst) {
       return `<div class="cols c-5050">
         <div>
@@ -378,19 +474,32 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
         </table>
       </div>
       <div>
-        <h3>Rechtswert und Werkzeug-Annahme, getrennt</h3>
+        ${/* Die Annahmetafel und die beiden Fussnoten aus der BZO (Auslegung
+             von «GNF», Hinweis auf die ÖV-Reduktion nach Art. 27) sind bei
+             mehreren Grundstuecken im selben Rechtsrahmen wortgleich. Sie
+             stehen dann einmal im gemeinsamen Anhang; die Trennung von
+             Rechtswert und Werkzeug-Annahme bleibt auf JEDEM Blatt sichtbar —
+             sie steht in der Quellenzeile unten. */''}
+        ${gem && gem.pkAnnahmen
+          ? gemeinsamVerweis(gem, 'Rechtswert und Werkzeug-Annahme der Parkierung (Fläche je Abstellplatz, Unterbringung)')
+          : `<h3>Rechtswert und Werkzeug-Annahme, getrennt</h3>
         <table class="facts">
           <tr><td>Rechtswert</td><td>${esc(rules.meta.parkierung.art || '—')}: Zahl der Pflichtplätze, hergeleitet aus Geschossfläche und Wohnungszahl.</td></tr>
           <tr><td>Werkzeug-Annahme</td><td>Fläche je Platz Tiefgarage ${A.flaecheJePlatzTiefgarageM2} m² (Bandbreite ${A.flaecheJePlatzTiefgarageBandM2[0]}–${A.flaecheJePlatzTiefgarageBandM2[1]} m²), oberirdisch ${A.flaecheJePlatzOberirdischM2} m² (${A.flaecheJePlatzOberirdischBandM2[0]}–${A.flaecheJePlatzOberirdischBandM2[1]} m²), je inkl. Anteil Fahrgasse und Rampe. <b>Kein Gesetzeswert</b> — die Platzzahl oben ist belegt, der Flächenbedarf ist geschätzt.</td></tr>
           ${pk.unterbringung ? `<tr><td>Unterbringung</td><td>${esc(pk.unterbringung)}</td></tr>` : ''}
-        </table>
+        </table>`}
         <div class="note-box small">
           Von der bebaubaren Fläche wurde für die Parkierung <b>nichts abgezogen</b>.
           Ob die Garage zweigeschossig wird, über den Baukörper hinausreicht oder das
           Haus kleiner wird, ist eine Entwurfsentscheidung — dieses Blatt sagt nur,
           ab wann sie ansteht.
         </div>
-        ${pk.hinweise.length ? `<div class="flags">${pk.hinweise.map((h) => `<div class="flagline">${esc(h)}</div>`).join('')}</div>` : ''}
+        ${(() => {
+          const eigene = gem ? pk.hinweise.filter((h) => !gem.pkHinweise.has(h)) : pk.hinweise;
+          const ausgelagert = gem ? pk.hinweise.filter((h) => gem.pkHinweise.has(h)) : [];
+          return (eigene.length ? `<div class="flags">${eigene.map((h) => `<div class="flagline">${esc(h)}</div>`).join('')}</div>` : '')
+            + (ausgelagert.length ? gemeinsamVerweis(gem, `${ausgelagert.length} weitere Fussnote${ausgelagert.length === 1 ? '' : 'n'} zur Parkierung (Auslegung der Bezugsgrösse, nicht angewandte Reduktionen)`) : '');
+        })()}
         ${/* pk.bindendHinweis bewusst NICHT hier: die Verdict-Kachel oben links
              sagt dasselbe, und die Zahlen dahinter stehen in der Tabelle
              daneben. Am Bildschirm (ohne Kachel) wird er weiterhin gezeigt. */''}
@@ -404,22 +513,15 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   // Absender und Stand. Bewusst fast leer — die Dichte kommt auf den
   // Folgeblaettern.
   // Ein Grundstueck als Zeile: Adresse, sonst die Parzellennummer.
-  function betreffVon(r) {
-    // Reihenfolge: das Adressregister zuerst, dann die eingetippte Adresse,
-    // zuletzt die Parzellennummer. Nie etwas Erfundenes.
-    //
-    // Das Register geht VOR der Eingabe, weil die Eingabe nur zur Parzelle
-    // fuehrt, nicht zu ihrer Adresse: wer «Haldenstrasse 5» sucht, landet
-    // auf Parzelle 5030 — deren Wohnhaus aber «Haldenstrasse 5c» heisst,
-    // waehrend «Haldenstrasse 5» das bestehende Haus daneben ist. Bei drei
-    // nebeneinanderliegenden Grundstuecken trugen sonst alle drei dieselbe
-    // eingetippte Adresse.
-    const ausRegister = r.selection
-      .map((p) => (p.adressen && p.adressen.label) || null).filter(Boolean);
-    if (ausRegister.length) return ausRegister.join(' · ');
-    if (r.anchor.address) return r.anchor.address;
-    return r.selection.map((p) => `Parzelle ${p.parcelNumber}`).join(' + ');
-  }
+  //
+  // Die Kette selbst liegt seit dem 31.8.2026 in js/core/format.js, weil sie
+  // nicht nur das Titelblatt betrifft: Kopfzeile, Kennwerte-Tafel,
+  // Zonen-Steckbrief und der PDF-Dateiname lasen jeweils ihre eigene, und
+  // die Ketten stimmten nicht ueberein — im Export vom 31.8.2026 hiess
+  // Parzelle 5028 auf der Trennseite «Haldenstrasse 5a» und drei Zeilen
+  // spaeter im Kicker «Parzelle 5028». Hier bleibt nur der kurze Name.
+  const betreffVon = (r) => T.betreffVon(r);
+  const grundstueckLabel = (r) => T.grundstueckLabel(r);
 
   // `liste` sind die Auswertungen des Dokuments — im Arealmodus eine, sonst
   // eine je Parzelle. Das Titelblatt nennt sie ALLE: wer drei Grundstuecke
@@ -461,8 +563,15 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   // `num` ist die Abschnittsnummer («1», «A.2»): sie steht als Chip im
   // Kicker, wandert als data-Attribut ans Blatt (PDF-Bookmarks, Mini-
   // Inhaltsverzeichnis) und fehlt bei Blaettern ohne Nummer einfach.
-  function sheet(title, kicker, intro, bodyHtml, footerHtml, sourcesHtml, num) {
-    return `<section class="sheet" data-outline-title="${esc(title)}"${num ? ` data-outline-num="${esc(num)}"` : ''}>
+  // `opts.dokumentweit` markiert die Blaetter, die zum GANZEN Dokument
+  // gehoeren und nicht zu einem Grundstueck (Schlussanhang). Vorher wurden
+  // sie an ihren Abschnittsnummern erkannt — eine Liste `'A.3' || 'A.4'` an
+  // zwei Stellen, die beim naechsten eingefuegten Anhangblatt still falsch
+  // wird: das Blatt bekaeme den Abschnitt des letzten Grundstuecks und
+  // stuende im Inhalt als dessen Unterpunkt.
+  function sheet(title, kicker, intro, bodyHtml, footerHtml, sourcesHtml, num, opts) {
+    const o = opts || {};
+    return `<section class="sheet" data-outline-title="${esc(title)}"${num ? ` data-outline-num="${esc(num)}"` : ''}${o.dokumentweit ? ' data-dokumentweit="1"' : ''}>
       <header class="sheet-head">
         <div class="kicker">${num ? `<span class="sect-num">${esc(num)}</span>` : ''}${esc(kicker)}</div>
         <h2>${esc(title)}</h2>
@@ -581,7 +690,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   // strings; grundbuchFootnote may be null.
   // Baut die Blaetter EINER Auswertung und gibt sie in vier Gruppen zurueck,
   // damit der Aufrufer sie fuer mehrere Parzellen zusammensetzen kann.
-  async function buildSheetsForResult(r, grundbuchFootnote, mehrere) {
+  async function buildSheetsForResult(r, grundbuchFootnote, mehrere, gem) {
     // Die Hinweise haengen am Ergebnis, nicht am Aufruf: bei mehreren
     // Parzellen traegt sonst jede die Hinweise der ersten.
     const flags = r.flags || [];
@@ -681,15 +790,31 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
         ? [`Nutzbar sind dennoch ${fmt(massingModel.nutzflaecheTotalM2, 0)} m²: Dach-, Attika- und Untergeschosse bleiben nach § 255 Abs. 3 PBG je Geschoss bis zu einem Freibetrag ohne Anrechnung an die Ausnützungsziffer.`]
         : []),
     ];
+    // ---- Traegt dieser Rest ueberhaupt ein Gebaeude? ---------------------
+    // T.faktischNichtBebaubar (js/core/envelope.js) misst die Tiefe des
+    // bebaubaren Rests am flaechenkleinsten Rechteck. Bleibt sie unter der
+    // Mindestbreite eines Baukoerpers, ist «Realistisches Szenario» als
+    // Ueberschrift eine Zusage, die die Zahl nicht deckt: Parzelle 5028
+    // behaelt 36.7 m² — als Streifen von 2.7 m Tiefe. Gerechnet wird
+    // unveraendert weiter; es wechselt die Beschriftung, keine Zahl.
+    const nichtBebaubar = T.faktischNichtBebaubar(r);
+    const arealVerweis = mehrere
+      ? 'Der Wert dieses Grundstücks liegt in der Arealzusammenfassung — Blatt «Übersicht — getrennt gerechnet» am Anfang dieses Dokuments zeigt sie als gerechnete Variante.'
+      : 'Zusammen mit einem Nachbargrundstück gerechnet, entfällt der Grenzabstand an der gemeinsamen Grenze und der bebaubare Rest wird grösser — dafür wäre eine Parzellenvereinigung oder eine im Grundbuch gesicherte Übertragung nötig.';
+
     const s1 = sheet('Das Wichtigste in Kürze',
-      `${anchor.address || selection.map((p) => `Parzelle ${p.parcelNumber}`).join(' + ')}`,
+      betreffVon(r),
       'Was hier gebaut werden darf, auf welcher Fläche und mit welchen Grenzen — nach amtlicher Vermessung und den Bauvorschriften von Kanton und Gemeinde.',
       `<div class="cols c-6040">
         <div>
           <div class="hero">
-            <div class="hero-label">Realistisches Szenario</div>
+            <div class="hero-label">${nichtBebaubar.ja
+              ? 'Für sich allein faktisch nicht bebaubar'
+              : 'Realistisches Szenario'}</div>
             <div class="hero-value">${esc(headline)}</div>
-            <div class="hero-sub">bindend: ${esc(binding)}</div>
+            <div class="hero-sub">${nichtBebaubar.ja
+              ? `rechnerisch — bei ${esc(fmt(nichtBebaubar.tiefeM))} m Bautiefe kein Baufeld`
+              : `bindend: ${esc(binding)}`}</div>
           </div>
           <div class="kpis">
             ${kpi(multi ? 'Fläche zusammengefasst' : 'Parzellenfläche', fmt(reconciled.parcelAreaM2) + ' m²')}
@@ -697,6 +822,10 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
             ${kpi('Nutzbarer Fussabdruck', fmt(reconciled.usableFootprintAreaM2) + ' m²')}
             ${kpi('Kosten grob (BKP 2)', '≈ CHF ' + fmtInt(cost.totalChf))}
           </div>
+          ${nichtBebaubar.ja
+            ? `<div class="merkzeile is-nein"><span class="mz-k">Bebaubarkeit</span>`
+              + `<span class="mz-t">${esc(nichtBebaubar.grund)} ${esc(arealVerweis)}</span></div>`
+            : ''}
           ${(() => {
             const ab = attikaBefund(massingModel, rules);
             if (!ab) return '';
@@ -704,6 +833,17 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
             return `<div class="attika-zeile ${kl}"><span class="az-k">Attika</span>`
               + `<span class="az-t">${esc(ab.satz)}</span></div>`;
           })()}
+          ${/* Der Rechtsstand der BZO gehoert auf die erste Seite jedes
+               Grundstuecks, nicht nur ins Quellenblatt am Ende: der Vorbehalt
+               zur teilweisen Nichtgenehmigung entscheidet, ob die Grundmasse
+               darueber ueberhaupt noch gelten — im Anhang steht er 40 Seiten
+               hinter der Zahl, die er einschraenkt. Wortlaut unveraendert aus
+               data/bzo-*.json (`legal_status`), damit hier keine zweite,
+               weichere Fassung desselben Vorbehalts entsteht. */''}
+          ${rulesData.legal_status
+            ? `<div class="merkzeile is-warn"><span class="mz-k">Rechtsstand</span>`
+              + `<span class="mz-t"><b>${esc(rules.source.version)}</b> — ${esc(rulesData.legal_status)}</span></div>`
+            : ''}
           <ul class="args">${args.map((a) => `<li>${esc(a)}</li>`).join('')}</ul>
         </div>
         <div>${mapBlock(rings, centerE, centerN, wideSpan, ['cadastre'], null, 900, 540)}
@@ -774,13 +914,27 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     // Variantenreihe: dieselben Zahlen wie die Karten am Bildschirm, aus
     // T.storeyVariantData (js/core/envelope.js) — der Export sagt damit auch,
     // dass die Geschosszahl eine WAHL ist, nicht ein einziges Ergebnis.
+    //
+    // `suppressed` schlaegt `active`, nicht umgekehrt. Die gewaehlte Variante
+    // ist beides zugleich, wenn die Attika am 45°-Profil scheitert: sie ist
+    // die gerechnete UND die nicht darstellbare. Bis zum 31.8.2026 gewann
+    // `active`, und die Karte «2 Vollgeschosse + 1 Attika» trug auf Parzelle
+    // 5028 den Vermerk «gerechnet & dargestellt» — obwohl gerechnet und
+    // dargestellt zwei Vollgeschosse OHNE Attika wurden. Die Karte behauptete
+    // damit genau das, was der Attika-Befund zwei Blaetter davor bestreitet.
+    // Sie bleibt in der Reihe (die Variante ist zonenrechtlich zulaessig),
+    // sagt aber, was an ihr scheitert und was statt ihrer gebaut wird.
     const variantData = T.storeyVariantData(massingModel, reconciled);
     const variantsHtml = variantData.length
       ? `<div class="variants-row">${variantData.map((v) =>
           `<div class="variant-card${v.active ? ' active' : ''}${v.suppressed ? ' unavailable' : ''}">
              <div class="v-n">${esc(storeyLabel(v.ordinary, v.attika))}</div>
-             <div class="v-d">${fmt(v.plateM2, 0)} m²/Geschoss · ${fmt(v.coveragePct, 0)} % überbaut · Höhe ${fmt(v.heightM)} m</div>
-             ${v.active ? '<div class="v-tag">gerechnet & dargestellt</div>' : (v.suppressed ? '<div class="v-tag">Attika hier nicht darstellbar</div>' : '<div class="v-tag">gleich zulässig</div>')}
+             <div class="v-d">${v.suppressed
+                ? esc(T.attikaSuppressShort(massingModel))
+                : `${fmt(v.plateM2, 0)} m²/Geschoss · ${fmt(v.coveragePct, 0)} % überbaut · Höhe ${fmt(v.heightM)} m`}</div>
+             ${v.suppressed
+                ? `<div class="v-tag">nicht darstellbar — gerechnet: ${esc(storeyLabel(v.ordinary, 0))}</div>`
+                : (v.active ? '<div class="v-tag">gerechnet & dargestellt</div>' : '<div class="v-tag">gleich zulässig</div>')}
            </div>`).join('')}</div>`
       : '';
 
@@ -919,6 +1073,17 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       ? flags.filter((f) => !r.parkierungFlags.includes(f))
       : flags;
 
+    // Die Pruefpunkte, die in ALLEN Auswertungen gleich lauten, stehen einmal
+    // im gemeinsamen Anhang; hier bleibt, was diesem Grundstueck eigen ist.
+    // Der Verweis NENNT die ausgelagerten Punkte namentlich — sonst waere
+    // nicht mehr erkennbar, ob ein Punkt geprueft oder vergessen wurde.
+    const tierBEigen = gem
+      ? checklist.tierB.filter((i) => !gem.tierBKeys.has(i.key || i.label))
+      : checklist.tierB;
+    const tierBAusgelagert = gem
+      ? checklist.tierB.filter((i) => gem.tierBKeys.has(i.key || i.label))
+      : [];
+
     const s4b = (flagsPrint.length || checklist.tierB.length)
       ? sheet('Hinweise, Vorbehalte & offene Punkte', 'Anhang — jede Vereinfachung, ausgeschrieben',
           'Was vor einem Bauprojekt manuell zu klären bleibt, und jede Vereinfachung und Annahme dieser Berechnung — wer eine Zahl weiterverwendet, sollte den zugehörigen Hinweis kennen.',
@@ -926,7 +1091,10 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
             <h3>Automatisch geprüft</h3>
             ${checklistHtml(tierAPrint)}
             <h3 style="margin-top:4mm">Manuell zu prüfen</h3>
-            ${checklistHtml(checklist.tierB)}
+            ${tierBEigen.length ? checklistHtml(tierBEigen) : ''}
+            ${tierBAusgelagert.length
+              ? gemeinsamVerweis(gem, `${tierBAusgelagert.length} Prüfpunkte, die nicht am einzelnen Grundstück hängen (${tierBAusgelagert.map((i) => i.label).join(', ')})`)
+              : ''}
             <h3 style="margin-top:4mm">Hinweise der Berechnung</h3>
             ${flagsPrint.map((f) => `<div class="flagline">${esc(f)}</div>`).join('')}
           </div>`,
@@ -945,7 +1113,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
           ? 'Wann die Garage das Volumen begrenzt — nicht die Ausnützungsziffer'
           : 'Pflichtplätze und ihr Flächenbedarf',
           'Wie viele Parkplätze die Bauordnung verlangt, wie viel Fläche sie brauchen — und ab wann die Garage statt der Ausnützungsziffer das Volumen begrenzt.',
-          parkierungSheetBody(pk, rules), foot,
+          parkierungSheetBody(pk, rules, gem), foot,
           pk.erfasst
             ? sourcesLine(rules, [['Parkierung', 'parkierung']])
               + ' · <b>Werkzeug-Annahme (kein Rechtswert):</b> Fläche je Abstellplatz.'
@@ -1013,11 +1181,16 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
                 <div class="hero-value">${z.BELEGT} von ${alle.length}</div>
                 <div class="hero-sub">${z.VEREINFACHT} vereinfacht · ${z.ANNAHME} Annahme · ${z.NICHT_ERMITTELBAR} nicht ermittelbar</div>
               </div>
-              <div class="bel-legende">
+              ${/* Die Legende ist eine Konstante des Werkzeugs und stand bei
+                   drei Grundstuecken dreimal wortgleich da. Die ZAEHLUNG
+                   daneben bleibt hier — sie gehoert zu diesem Grundstueck. */''}
+              ${gem && gem.belastbarkeitLegende
+                ? `<div class="bel-legende">${gemeinsamVerweis(gem, 'Was die Zeichen § ~ ? bedeuten und wie sich eine Stufe vererbt')}</div>`
+                : `<div class="bel-legende">
                 ${T.SICHERHEIT_STUFEN_NACH_RANG.map((st) =>
                   `<div><b class="bel-z bel-${st.key}">${esc(st.zeichen)}</b> <b>${esc(st.label)}</b> (${z[st.key]}) — ${esc(st.erklaerung)}</div>`).join('')}
                 <div class="bel-fuss">Ein abgeleiteter Wert trägt die schwächste Stufe seiner Eingänge; «geerbt» heisst: einer seiner Eingänge ist schwächer belegt als er selbst. Kein Wert unterhalb von «belegt» ist eine bestandene Prüfung.</div>
-              </div>
+              </div>`}
             </div>
             <table class="derive bel-tafel"><tbody data-flow>${tafel}</tbody></table>`, foot,
             '<b>Quellen:</b> die Einstufung selbst rechnet nichts. Sie liest die Belegstellen der Datendateien '
@@ -1032,7 +1205,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       'Eine vollständige Machbarkeitsstudie beantwortet mehr als das Baurecht — diese Seite nennt, was hier bewusst offen bleibt, damit nichts davon als geprüft gilt.',
       abgrenzungSheetBody(), footNeutral,
       '<b>Quellen:</b> auf diesem Blatt wird nichts gerechnet. Der Umfang der Phase Machbarkeit folgt der Norm SIA 112, Modell Bauplanung, 2014, Teilphase 21.',
-      'A.3');
+      'A.4', { dokumentweit: true });
 
     // ---- Sheet 6: Quellen & Vorbehalte ------------------------------------
     // Full WORDING of every cited provision (from the provenance records) —
@@ -1099,7 +1272,8 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
         </div>
       </div>
       <h3>Zitierte Bestimmungen (Wortlaut)</h3>
-      <div class="quote-list" data-flow>${quoteItems.join('')}</div>`, footNeutral, '', 'A.4');
+      <div class="quote-list" data-flow>${quoteItems.join('')}</div>`, footNeutral, '', 'A.5',
+      { dokumentweit: true });
 
     // Geordnete Blattfolge (CLAUDE.md Carve-out 3): die Erzählung eines
     // Verkaufsdokuments — Ergebnis, Potenzial, Ort, Recht, dann der Anhang
@@ -1152,6 +1326,17 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
         <p class="kap-text">Auf den folgenden Blättern steht die Auswertung dieses
           Grundstücks für sich allein: mit seinen eigenen Grenzabständen, seiner
           eigenen Ausnützung und seinen eigenen Belegen.</p>
+        ${(() => {
+          // Gleicher Befund wie auf dem Blatt danach (T.faktischNichtBebaubar),
+          // nur kuerzer: die Trennseite verspricht sonst einen Abschnitt ueber
+          // ein Baugrundstueck, das keines ist.
+          const nb = T.faktischNichtBebaubar(r);
+          return nb.ja
+            ? `<p class="kap-befund"><b>Für sich allein faktisch nicht bebaubar.</b>
+                 ${esc(nb.grund)} Der Wert dieses Grundstücks liegt in der
+                 Arealzusammenfassung auf dem Blatt «Übersicht — getrennt gerechnet».</p>`
+            : '';
+        })()}
       </div>
       <footer class="sheet-foot">${foot}</footer>
     </section>`;
@@ -1188,7 +1373,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       if (num === 'I' || s.classList.contains('sheet-title')) continue;
       const titel = s.dataset.outlineTitle || '';
       // Oberste Ebene: Uebersicht, Kapitelseiten, Schlussanhang.
-      const oben = num === 'Ü' || num === 'K' || num === 'A.3' || num === 'A.4';
+      const oben = num === 'Ü' || num === 'K' || s.dataset.dokumentweit === '1';
       const kap = s.dataset.kapitel;
       const beschriftung = num === 'K'
         ? `${Number(kap) + 1}. ${titel}`
@@ -1200,13 +1385,75 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     ivz.innerHTML = rows.join('');
   }
 
+  // ---- Gemeinsamer Anhang (nur bei mehreren Grundstuecken) ---------------
+  // Traegt einmal, was auf jedem Parzellenblatt wortgleich stuende. Steht am
+  // ENDE und nicht vorn: es sind Vorbehalte und Annahmen, keine Ergebnisse —
+  // gelesen wird es, wenn eine Zahl weiterverwendet werden soll, nicht beim
+  // ersten Durchblaettern.
+  function gemeinsamSheet(gem, liste, foot) {
+    if (!gem) return '';
+    const rules = liste[0].rules;
+    const pk = gem.pkAnnahmen;
+    const A = pk ? pk.annahmen : null;
+
+    // Die Pruefpunkte sind fuer EIN Grundstueck formuliert und sagen «diese
+    // Parzelle» und «oben». Ihr Wortlaut bleibt unangetastet — er ist gegen
+    // die Bestimmung geprueft, und eine zweite, umgeschriebene Fassung waere
+    // eine zweite Aussage. Stattdessen wird gesagt, worauf die Verweise auf
+    // diesem Blatt zeigen.
+    const links = gem.tierBItems.length
+      ? `<h3>Manuell zu prüfen — für alle ${gem.anzahl} Grundstücke gleich</h3>`
+        + `<div class="verweis">Die Punkte sind je Grundstück formuliert und lauten für`
+        + ` alle ${gem.anzahl} gleich: «diese Parzelle» meint jedes von ihnen, «oben» die`
+        + ` Grundmasse auf dessen eigenem Blatt 1. Wo ein Grundstück abweicht, steht der`
+        + ` Punkt bei ihm auf Blatt A.2 und nicht hier.</div>`
+        + checklistHtml(gem.tierBItems)
+      : '';
+
+    const rechts = [
+      gem.belastbarkeitLegende
+        ? `<h3>Belastbarkeit der Zahlen — was die Zeichen bedeuten</h3>
+           <div class="bel-legende">
+             ${T.SICHERHEIT_STUFEN_NACH_RANG.map((st) =>
+               `<div><b class="bel-z bel-${st.key}">${esc(st.zeichen)}</b> <b>${esc(st.label)}</b> — ${esc(st.erklaerung)}</div>`).join('')}
+             <div class="bel-fuss">Ein abgeleiteter Wert trägt die schwächste Stufe seiner Eingänge; «geerbt» heisst: einer seiner Eingänge ist schwächer belegt als er selbst. Kein Wert unterhalb von «belegt» ist eine bestandene Prüfung. Die Zählung je Grundstück steht auf dessen eigenem Blatt A.1.</div>
+           </div>`
+        : '',
+      pk
+        ? `<h3 style="margin-top:5mm">Parkierung — Rechtswert und Werkzeug-Annahme, getrennt</h3>
+           <table class="facts">
+             <tr><td>Rechtswert</td><td>${esc((rules.meta.parkierung && rules.meta.parkierung.art) || '—')}: Zahl der Pflichtplätze, hergeleitet aus Geschossfläche und Wohnungszahl.</td></tr>
+             <tr><td>Werkzeug-Annahme</td><td>Fläche je Platz Tiefgarage ${A.flaecheJePlatzTiefgarageM2} m² (Bandbreite ${A.flaecheJePlatzTiefgarageBandM2[0]}–${A.flaecheJePlatzTiefgarageBandM2[1]} m²), oberirdisch ${A.flaecheJePlatzOberirdischM2} m² (${A.flaecheJePlatzOberirdischBandM2[0]}–${A.flaecheJePlatzOberirdischBandM2[1]} m²), je inkl. Anteil Fahrgasse und Rampe. <b>Kein Gesetzeswert</b> — die Platzzahl je Grundstück ist belegt, der Flächenbedarf ist geschätzt.</td></tr>
+             ${pk.unterbringung ? `<tr><td>Unterbringung</td><td>${esc(pk.unterbringung)}</td></tr>` : ''}
+           </table>`
+        : '',
+      gem.pkHinweise.size
+        ? `<h3 style="margin-top:5mm">Parkierung — Fussnoten</h3>
+           <div class="flags">${[...gem.pkHinweise.values()].map((h) => `<div class="flagline">${esc(h)}</div>`).join('')}</div>`
+        : '',
+    ].filter(Boolean).join('');
+
+    return sheet(gem.titel, `Anhang — was für alle ${gem.anzahl} Grundstücke gleich gilt`,
+      `Diese Vorbehalte und Annahmen hängen an Gemeinde und Zone, nicht am einzelnen Grundstück — sie lauten für alle ${gem.anzahl} Auswertungen dieses Dokuments gleich und stehen deshalb hier einmal statt auf jedem Blatt erneut. Was bei einem Grundstück abweicht, steht weiterhin bei ihm.`,
+      `<div class="cols c-5050">
+        <div>${links}</div>
+        <div>${rechts}</div>
+      </div>`,
+      foot,
+      '<b>Quellen:</b> Prüfpunkte je Punkt im Text genannt; Parkierung nach '
+      + esc((rules.meta.parkierung && rules.meta.parkierung.art) || '—')
+      + ' · die Fläche je Abstellplatz ist eine Werkzeug-Annahme (kein Rechtswert). '
+      + 'Die Belastbarkeitsstufen rechnen nichts — sie lesen Belegstellen und das Register der Werkzeug-Annahmen.',
+      gem.num, { dokumentweit: true });
+  }
+
   // ---- Uebersichtsblatt (nur bei getrennter Auswertung) ------------------
   // Nach dem Titel, vor den Einzelabschnitten: alle Parzellen in EINER
   // Situation und EINER Isometrie, dazu je Parzelle die Schlagzahlen. Wer
   // getrennt rechnen laesst, will zuerst das Ganze sehen und danach die
   // Einzelnen — ohne dieses Blatt begaenne das Dokument mitten in der ersten
   // Parzelle.
-  async function uebersichtSheet(liste, foot) {
+  async function uebersichtSheet(liste, foot, areal) {
     const rings = liste.flatMap((r) => r.selection.map((p) => p.geometryLV95[0]));
     const { centerE, centerN, halfSpan } = T.boundingBoxForRings(rings, 25);
 
@@ -1239,15 +1486,60 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     }, 1400, 1000) : null;
 
     const zeilen = liste.map((r) => {
-      const p = r.selection[0];
       const mm = r.massingModel;
-      return `<tr><td>Parzelle ${esc(p.parcelNumber || p.egrid)}</td>`
+      // Adresse UND Nummer in einer Zelle (T.grundstueckLabel): die Trennseiten
+      // benennen die Grundstuecke mit ihrer Adresse, diese Tabelle trug bisher
+      // nur die Nummer — derselbe Gegenstand unter zwei Namen im selben
+      // Dokument.
+      return `<tr><td>${esc(grundstueckLabel(r))}</td>`
         + `<td>${fmt(r.reconciled.parcelAreaM2, 0)} m²</td>`
         + `<td>${fmt(r.reconciled.usableFootprintAreaM2, 0)} m²</td>`
         + `<td>${fmt(r.reconciled.maxGfaM2, 0)} m²</td>`
         + `<td>${mm ? storeyLabel(mm.ordinaryStoreys, mm.attikaStoreys) : '—'}</td></tr>`;
     }).join('');
-    const summe = (f) => fmt(liste.reduce((a, r) => a + f(r), 0), 0);
+    const summeVon = (f) => liste.reduce((a, r) => a + f(r), 0);
+    const summe = (f) => fmt(summeVon(f), 0);
+
+    // ---- Die Areal-Variante, gerechnet ------------------------------------
+    // Das Blatt sagte bisher nur, DASS die Zusammenfassung mehr ergibt. Wie
+    // viel mehr, stand nirgends — und genau das ist die Frage, wegen der
+    // jemand drei Grundstuecke zusammen pruefen laesst. Die Zahlen kommen aus
+    // einem vollen zweiten Lauf ueber die vereinigte Flaeche (arealVergleich
+    // in js/app.js), nicht aus einer Hochrechnung der Einzelergebnisse.
+    //
+    // Der Vorbehalt darunter bleibt unveraendert stehen: die Zahl gilt erst
+    // mit Parzellenvereinigung oder einer im Grundbuch gesicherten
+    // Uebertragung. Ohne diese Sicherung ist die getrennte Summe der Zustand.
+    const delta = (wert) => `${wert >= 0 ? '+' : '−'} ${fmt(Math.abs(wert), 0)} m²`;
+    // Die nutzbare Geschossflaeche ist NICHT die anrechenbare: die
+    // Ausnuetzungsziffer bezieht sich auf die anrechenbare Grundstuecksflaeche,
+    // und die ist in beiden Rechnungen dieselbe — die Spalte
+    // «Geschossfläche» kann deshalb ±0 zeigen, obwohl der Unterschied
+    // erheblich ist. Was sich wirklich aendert, ist der Fussabdruck, der
+    // diese Flaeche tragen muss: Zumikon 5028 darf getrennt 222 m²
+    // ausnuetzen und kann davon auf 37 m² Streifen nichts unterbringen.
+    // Deshalb wird beides gegenuebergestellt.
+    const nutzVon = (r) => (r.massingModel ? r.massingModel.nutzflaecheTotalM2 : 0);
+    const arealZeilen = (() => {
+      if (!areal) return '';
+      if (areal.fehler || !areal.areal) {
+        return `<tr class="minus"><td colspan="5">Als ein Areal zusammengefasst: nicht gerechnet — `
+          + `${esc(areal.fehler || 'die Auswertung der vereinigten Fläche kam nicht zustande')}. `
+          + `Die Zeile fehlt deshalb, statt geschätzt zu werden.</td></tr>`;
+      }
+      const a = areal.areal;
+      const amm = a.massingModel;
+      return `<tr class="result"><td>Als EIN Areal zusammengefasst</td>`
+        + `<td>${fmt(a.reconciled.parcelAreaM2, 0)} m²</td>`
+        + `<td>${fmt(a.reconciled.usableFootprintAreaM2, 0)} m²</td>`
+        + `<td>${fmt(a.reconciled.maxGfaM2, 0)} m²</td>`
+        + `<td>${amm ? storeyLabel(amm.ordinaryStoreys, amm.attikaStoreys) : '—'}</td></tr>`
+        + `<tr class="minus"><td>Differenz zur getrennten Summe</td>`
+        + `<td>${delta(a.reconciled.parcelAreaM2 - summeVon((r) => r.reconciled.parcelAreaM2))}</td>`
+        + `<td>${delta(a.reconciled.usableFootprintAreaM2 - summeVon((r) => r.reconciled.usableFootprintAreaM2))}</td>`
+        + `<td>${delta(a.reconciled.maxGfaM2 - summeVon((r) => r.reconciled.maxGfaM2))}</td>`
+        + `<td>—</td></tr>`;
+    })();
 
     return sheet('Übersicht — getrennt gerechnet',
       `${liste.length} Parzellen, jede für sich`,
@@ -1258,19 +1550,34 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
        <div class="caption">Situation — alle Parzellen mit ihren je eigenen Baukörpern.</div>
        ${iso ? `<img class="render" src="${iso}" alt="Isometrie aller Parzellen">` : ''}
        <table class="derive">
-         <tr><td><b>Parzelle</b></td><td><b>Fläche</b></td><td><b>Fussabdruck</b></td>
+         <tr><td><b>Grundstück</b></td><td><b>Fläche</b></td><td><b>Fussabdruck</b></td>
              <td><b>Geschossfläche</b></td><td><b>Bebaubar als</b></td></tr>
          ${zeilen}
-         <tr class="result"><td>Summe</td><td>${summe((r) => r.reconciled.parcelAreaM2)} m²</td>
+         <tr class="result"><td>Summe — getrennt gerechnet</td><td>${summe((r) => r.reconciled.parcelAreaM2)} m²</td>
            <td>${summe((r) => r.reconciled.usableFootprintAreaM2)} m²</td>
            <td>${summe((r) => r.reconciled.maxGfaM2)} m²</td><td>—</td></tr>
+         ${arealZeilen}
        </table>
        <div class="note-box small">
-         Die Summe ist die getrennte Rechnung. Als EIN Areal zusammengefasst
-         fällt der Grenzabstand an den inneren Grenzen weg, und der bebaubare
-         Fussabdruck wird grösser — dafür setzt die Zusammenfassung eine
+         Die Summe ist die getrennte Rechnung: jede Parzelle mit ihren eigenen
+         Grenzabständen ringsum. Als EIN Areal zusammengefasst fällt der
+         Grenzabstand an den inneren Grenzen weg, und der bebaubare
+         Fussabdruck wird grösser${areal && areal.areal ? ' — um den Betrag in der Zeile «Differenz» oben' : ''} —
+         dafür setzt die Zusammenfassung eine
          Parzellenvereinigung oder eine im Grundbuch gesicherte Übertragung
-         voraus.
+         voraus.${areal && areal.areal
+           ? ` Die Areal-Zeile ist mit derselben Rechenkette und denselben Quellen`
+             + ` ermittelt wie die Zeilen darüber, in einem eigenen Lauf über die`
+             + ` vereinigte Fläche — keine Hochrechnung aus der Summe.`
+             + ` <b>Die Geschossfläche in der Tabelle ist die maximal ANRECHENBARE:`
+             + ` sie bezieht sich auf die anrechenbare Grundstücksfläche, und die ist`
+             + ` in beiden Rechnungen dieselbe.</b> Der Unterschied liegt darin, ob`
+             + ` ein Baukörper sie überhaupt aufnehmen kann: getrennt gerechnet`
+             + ` bringt das Modell ${fmt(summeVon(nutzVon), 0)} m² nutzbare Geschossfläche unter,`
+             + ` als ein Areal ${fmt(nutzVon(areal.areal), 0)} m².`
+             + ` Ohne die grundbuchliche Sicherung bleibt die getrennte Summe der`
+             + ` massgebliche Zustand.`
+           : ''}
        </div>`,
       foot, '', 'Ü');
   }
@@ -1279,18 +1586,22 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   // Eine Auswertung = Arealmodus (Parzellen als ein Baugrundstueck).
   // Mehrere = getrennt gerechnet, jede Parzelle mit eigener Studie, in
   // einer durchlaufenden Datei.
-  async function buildPrintDocument(results, grundbuchFootnote) {
+  async function buildPrintDocument(results, grundbuchFootnote, areal) {
     const liste = Array.isArray(results) ? results : [results];
     const teile = [];
     const mehrere = liste.length > 1;
-    for (const r of liste) teile.push(await buildSheetsForResult(r, grundbuchFootnote, mehrere));
+    // Erst feststellen, was in ALLEN Auswertungen wortgleich ist — die
+    // Parzellenblaetter bauen sich danach ohne diese Bloecke auf und
+    // verweisen stattdessen auf den gemeinsamen Anhang.
+    const gem = mehrere ? ermittleGemeinsames(liste) : null;
+    for (const r of liste) teile.push(await buildSheetsForResult(r, grundbuchFootnote, mehrere, gem));
 
     // Dokumentweite Blaetter tragen die neutrale Fusszeile, die Abschnitte
     // ihre eigene. Vorher bekam jedes Blatt, das nicht selbst gebaut wurde
     // (Kapitelseiten, Fortsetzungen), die Fusszeile der ERSTEN Auswertung —
     // mitten im zweiten Grundstueck stand dann dessen Nachbar.
     const foot = teile[0].footNeutral;
-    const uebersicht = mehrere ? await uebersichtSheet(liste, foot) : '';
+    const uebersicht = mehrere ? await uebersichtSheet(liste, foot, areal) : '';
     // Blattfolge: Titel · Inhalt · (Uebersicht) · je Grundstueck
     // Kapitelseite + Koerper + Belege · Schluss.
     const html = titleSheet(liste, foot)
@@ -1298,6 +1609,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       + uebersicht
       + teile.map((t, i) => (mehrere ? kapitelSheet(liste[i], i, liste.length, t.foot) : '')
           + t.koerper + t.belege).join('')
+      + gemeinsamSheet(gem, liste, foot)
       + teile[0].schluss;
 
     const host = document.getElementById('print-doc');
@@ -1311,7 +1623,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     for (const el of host.children) {
       if (!el.classList.contains('sheet')) continue;
       if (el.dataset.kapitel !== undefined) sect = Number(el.dataset.kapitel);
-      else if (el.dataset.outlineNum === 'A.3' || el.dataset.outlineNum === 'A.4') sect = -1;
+      else if (el.dataset.dokumentweit === '1') sect = -1;
       if (sect >= 0) el.dataset.sect = String(sect);
     }
 

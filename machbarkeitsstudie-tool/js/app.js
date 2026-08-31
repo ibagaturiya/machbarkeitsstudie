@@ -152,11 +152,54 @@
     return r;
   }
 
+  // ---- Die Areal-Variante als ZAHL --------------------------------------
+  // Getrennt gerechnet zeigt das Dokument n Auswertungen und ihre Summe. Die
+  // Summe ist nicht, was die Grundstuecke ZUSAMMEN hergeben: an den inneren
+  // Grenzen faellt der Grenzabstand weg (er kostet dort zweimal), und die
+  // Ausnuetzung wird ueber die vereinigte Flaeche gerechnet. Bis zum
+  // 31.8.2026 stand dieser Unterschied nur qualitativ im Bericht — «der
+  // bebaubare Fussabdruck wird groesser», ohne zu sagen, um wieviel. Das ist
+  // das Verkaufsargument des Dokuments, und es ist rechenbar.
+  //
+  // Gerechnet wird mit derselben Kette wie alles andere: EIN Lauf von
+  // analyse() ueber die vereinigte Auswahl. Kein zweites, vereinfachtes
+  // Modell und keine Hochrechnung aus den Einzelergebnissen — beides waere
+  // eine Zahl ohne Herleitung (CLAUDE.md §4).
+  //
+  // Erst beim Export, nicht bei jeder Auswahlaenderung: der Lauf kostet die
+  // vollen Quellenabfragen (Waldabstand, Baulinien, Terrainraster, OEREB,
+  // Pruefliste), und gebraucht wird er allein auf dem Uebersichtsblatt.
+  //
+  // Scheitert er, entfaellt die Zeile MIT benannter Begruendung. Ein
+  // geschaetzter Ersatzwert waere hier das Schlimmste: er stuende neben
+  // gerechneten Zahlen und saehe aus wie eine von ihnen (REGELN.md §2).
+  async function arealVergleich(liste) {
+    if (liste.length < 2) return null;
+    const alleParzellen = liste.flatMap((r) => r.selection);
+    if (alleParzellen.length < 2) return null;
+    // analyse() setzt southFacadeIndex und wohnungenChoice zurueck — beides
+    // sind Wahlen des Nutzers am BILDSCHIRM. Ein Lauf, der nur eine Zeile im
+    // Anhang fuellt, darf sie nicht ueberschreiben.
+    const gemerkt = { south: southFacadeIndex, wohnungen: wohnungenChoice };
+    try {
+      const P = T.createProtokoll({ onLine: () => {} });
+      const areal = await analyse(alleParzellen, P);
+      ergaenzeAbleitungen(areal);
+      return { areal, parzellen: alleParzellen.length };
+    } catch (e) {
+      return { fehler: e && (e.message || String(e)) };
+    } finally {
+      southFacadeIndex = gemerkt.south;
+      wohnungenChoice = gemerkt.wohnungen;
+    }
+  }
+
   async function composePrintDoc() {
     if (!lastResult) return false;
     const liste = lastResults.length ? lastResults : [lastResult];
     liste.forEach(ergaenzeAbleitungen);
-    await T.buildPrintDocument(liste, buildGrundbuchFootnote());
+    const areal = await arealVergleich(liste);
+    await T.buildPrintDocument(liste, buildGrundbuchFootnote(), areal);
     return true;
   }
 
@@ -225,12 +268,15 @@
     const r = liste[0];
     let betreff = '';
     if (r) {
-      const ausRegister = r.selection
+      // Dieselbe Kette wie im Dokument (T.betreffVon, js/core/format.js):
+      // Register vor Eingabe, damit Datei und Titelblatt dasselbe sagen. Fuer
+      // den Dateinamen wird die erste Registeradresse OHNE Ortszusatz und
+      // ohne die uebrigen Hausnummern genommen — sonst wuerde der Name bei
+      // drei Adressen unbrauchbar lang.
+      const ersteAusRegister = r.selection
         .map((p) => (p.adressen && p.adressen.liste && p.adressen.liste[0]) || null)
-        .filter(Boolean);
-      // Gleiche Reihenfolge wie im Dokument (betreffVon in js/ui/print.js):
-      // Register vor Eingabe, damit Datei und Titelblatt dasselbe sagen.
-      betreff = ausRegister[0]
+        .filter(Boolean)[0];
+      betreff = ersteAusRegister
         || r.anchor.address
         || r.selection.map((p) => `Parzelle-${p.parcelNumber}`).join('_');
       // Mehrere Grundstuecke in einer Datei: die erste Adresse plus die Zahl
@@ -1664,7 +1710,12 @@
     };
 
     const objektRows = [
-      row('Adresse', esc(anchor.address || anchor.parcelNumber || '—')),
+      // Eine Quelle fuer den Namen (js/core/format.js): Adressregister,
+      // sonst die eingetippte Adresse, sonst «Parzelle NNNN». Vorher stand
+      // hier `anchor.address || anchor.parcelNumber` — auf einer angeklickten
+      // Nachbarparzelle also die Nummer, waehrend Deckblatt und Trennseite
+      // fuer dasselbe Grundstueck die Adresse zeigten.
+      row('Adresse', esc(T.betreffVon({ selection, anchor }))),
       row('Gemeinde', esc(`${rules.gemeinde}${anchor.bfsNr ? ` (BFS-Nr. ${anchor.bfsNr})` : ''}`)),
       row(multi ? 'Parzellen' : 'Parzelle', esc(selection.map((p) => p.parcelNumber).join(' + '))),
       row('EGRID', esc(selection.map((p) => p.egrid).join(', '))),
@@ -1976,19 +2027,12 @@
   // Fassung steht unter Hinweise & Vorbehalte — aber die Frage "wieso
   // nicht?" muss die Zeichnung selbst beantworten, nicht ein zweiter
   // Bildschirm.
-  function attikaSuppressReason(mm) {
-    const d = (mm.attikaDiagnostics || [])[0];
-    if (!d) return 'Attika zonenrechtlich zulässig, geometrisch nicht darstellbar';
-    const rest = Math.max(0, d.narrowestM);
-    return d.bergseite
-      ? `Attika zulässig, aber nicht darstellbar: bergseitig fassadenbündig, übrige Seiten ${fmt(mm.attikaSetbackM)} m Rücksprung — bleiben ${fmt(rest)} m, min. ${T.MIN_PRIMITIVE_WIDTH_M} m nötig`
-      : `Attika zulässig, aber nicht darstellbar: 45°-Rücksprung ${fmt(mm.attikaSetbackM)} m je Seite lässt von ${fmt(d.belowWidthM)} m Baukörpertiefe nur ${fmt(rest)} m — min. ${T.MIN_PRIMITIVE_WIDTH_M} m nötig`;
-  }
-  function attikaSuppressShort(mm) {
-    const d = (mm.attikaDiagnostics || [])[0];
-    if (!d) return 'geometrisch nicht darstellbar';
-    return `45°-Profil lässt nur ${fmt(Math.max(0, d.narrowestM))} m Tiefe — min. ${T.MIN_PRIMITIVE_WIDTH_M} m nötig`;
-  }
+  // Beide Wortlaute liegen seit dem 31.8.2026 in js/core/envelope.js, neben
+  // der Diagnose, aus der sie lesen: der PDF-Export braucht denselben Satz
+  // fuer seine Variantenkarten, und zwei Formulierungen desselben Verdikts
+  // waeren genau die Drift, vor der CLAUDE.md §1 warnt.
+  const attikaSuppressReason = (mm) => T.attikaSuppressReason(mm);
+  const attikaSuppressShort = (mm) => T.attikaSuppressShort(mm);
   function ovlRow(state, text, cite) {
     const glyph = state === 'ok' ? '✓' : (state === 'assume' ? '!' : '·');
     return `<div class="o-row is-${state}"><span class="g">${glyph}</span>`
@@ -2090,13 +2134,12 @@
         // Show the arithmetic, not just the verdict: the numbers are the only
         // way to see that the residual really is the honest answer here
         // rather than the tool giving up.
-        const d = (mmForFlags.attikaDiagnostics || [])[0];
-        const sb = mmForFlags.attikaSetbackM;
-        const calc = d
-          ? (d.bergseite
-              ? ` Baukörper ${fmt(d.belowLengthM)} × ${fmt(d.belowWidthM)} m; auf der Bergseite ist die Wand fassadenbündig, die drei übrigen Seiten je ${fmt(sb)} m zurück — bleiben ${fmt(d.narrowestM)} m schmalste Ausdehnung.`
-              : ` Baukörper ${fmt(d.belowLengthM)} × ${fmt(d.belowWidthM)} m minus ${fmt(sb)} m auf allen vier Seiten ergibt ${fmt(d.belowLengthM - 2 * sb)} × ${fmt(d.belowWidthM - 2 * sb)} m, also nur ${fmt(d.narrowestM)} m schmalste Ausdehnung.`)
-          : '';
+        // Die Rechnung kommt aus js/core/envelope.js, damit sie nur EINMAL
+        // formuliert ist — und weil sie dort die negativen Zwischenwerte
+        // abfaengt: ein Ruecksprung, der tiefer ist als der halbe
+        // Baukoerper, ergab hier früher «ergibt 14.3 × −1.8 m» im
+        // Kundendokument. Eine Kantenlaenge kann nicht negativ sein.
+        const calc = T.attikaSuppressRechnung(mmForFlags);
         flags.push(`Kein Attikageschoss darstellbar: ${profilText} lässt zu wenig übrig — unter ${T.MIN_PRIMITIVE_WIDTH_M} m, was kein baubarer Raum mehr ist.${calc} Die Vollgeschosse darunter bleiben davon unberührt: gerechnet und dargestellt wird ${storeyCountLabel(mmForFlags.ordinaryStoreys, 0)} mit ${fmt(mmForFlags.buildingHeightM)} m Gebäudehöhe — Höhe, Volumen und Nutzfläche oben enthalten die Attika daher nicht. Zonenrechtlich zulässig wäre sie; sie scheitert allein an der Tiefe des Baukörpers.`);
       } else {
         const hg = mmForFlags.hang;

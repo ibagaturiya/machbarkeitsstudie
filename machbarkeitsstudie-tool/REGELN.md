@@ -8,8 +8,78 @@ Tool einen **§-Knopf**, der das Quell-PDF auf der zitierten Seite mit markierte
 Textstelle öffnet (`js/ui/evidence.js`); die Belege stehen als `_provenance` in den
 Datendateien.
 
-Stand: 24.08.2026 (nach der Genauigkeits-Überarbeitung; Commits im Git-Log).
+Stand: 31.08.2026 (Berichtsprüfung Multi-Parzellen-Export; Commits im Git-Log).
 Zahlenbeispiele durchgehend Zumikon W2/25.
+
+---
+
+## 12. Was der Bericht über ein Grundstück behaupten darf
+
+Nicht jede Regel dieses Werkzeugs ist eine Rechenregel. Der Export vom
+31.08.2026 (Zumikon 5030 + 5029 + 5028, W2/25, getrennt gerechnet) war
+arithmetisch fehlerfrei und trug trotzdem vier Aussagen, die das Dokument an
+anderer Stelle selbst bestreitet. Diese Klasse ist hier festgehalten, weil
+kein Test über Zahlen sie findet.
+
+**12.1 Ein Grundstück trägt EINEN Namen.** Die Kette ist: Adressregister (GWR)
+→ eingetippte Adresse → `Parzelle NNNN`. Das Register geht vor der Eingabe,
+weil die Eingabe zur Parzelle führt und nicht zu ihrer Adresse. Sie steht
+EINMAL in `js/core/format.js` (`betreffVon`, `grundstueckLabel`) und wird von
+Titelblatt, Trennseite, Blattkopf, Kennwerte-Tafel, Zonen-Steckbrief und
+Dateinamen konsumiert. Liefert das Register nichts, steht überall
+`Parzelle NNNN` — **nie eine Mischung**: das Deckblatt trug zuvor
+«Haldenstrasse 5a», der Blattkopf desselben Grundstücks «Parzelle 5028».
+
+**12.2 Die dargestellte Variante ist die gerechnete.** Scheitert ein
+Attikageschoss am 45°-Profil (3.13), ist die gewählte Variante zugleich die
+gesperrte: `active` und `suppressed` gelten beide. Die Karte nennt dann, was
+scheitert und was statt ihrer gebaut wird — nie «gerechnet & dargestellt».
+`suppressed` schlägt `active` (`js/ui/print.js`, Variantenreihe).
+
+**12.3 Keine negativen Masse.** Ist der Attika-Rücksprung tiefer als der halbe
+Baukörper, ist die Restbreite rechnerisch negativ (5028: 2.7 − 2 × 2.25 =
+−1.8 m). Eine Kantenlänge kann das nicht sein. Ausgegeben wird die Aussage
+«es bleibt keine Restfläche» mit dem Mindestmass als Massstab
+(`attikaSuppressRechnung`, `js/core/envelope.js`).
+
+**12.4 «Realistisches Szenario» ist eine Zusage.** Ein bebaubarer Rest unter
+`MIN_PRIMITIVE_WIDTH_M` (3.5 m, §5 — Werkzeug-Annahme, **kein Rechtswert**)
+ist ein Streifen, kein Baufeld: 5028 behält 36.7 m² auf 2.7 m Tiefe. Der
+Bericht wechselt dort die Beschriftung auf «Für sich allein faktisch nicht
+bebaubar» und verweist auf die Areal-Zeile (12.5). **Keine Zahl ändert sich** —
+gemessen wird am flächenkleinsten Rechteck, nicht am achsparallelen Umschlag
+(`faktischNichtBebaubar`, `js/core/envelope.js`).
+
+**12.5 Die Areal-Variante steht als Zahl da.** Bei getrennter Rechnung führt
+das Übersichtsblatt zusätzlich die vereinigte Fläche als eigene Zeile
+(Fussabdruck, Geschossfläche, Differenz zur Summe). Sie kommt aus einem
+**vollen zweiten Lauf** von `analyse()` über die Vereinigung
+(`arealVergleich`, `js/app.js`) — keine Hochrechnung aus den Einzelwerten.
+Die max. **anrechenbare** Geschossfläche ändert sich dabei in der Regel nicht
+(die Ausnützungsziffer bezieht sich auf dieselbe anrechenbare Grundstücks-
+fläche); was sich ändert, ist der Fussabdruck und damit die Frage, ob ein
+Baukörper sie aufnehmen kann. Beides wird nebeneinander ausgewiesen. Der
+Vorbehalt Parzellenvereinigung / grundbuchlich gesicherte Übertragung bleibt.
+Scheitert der Lauf, entfällt die Zeile **mit benannter Begründung** (§2).
+
+**12.6 Der Rechtsstand steht auf Seite 1 jedes Grundstücks.** Der Vorbehalt
+aus `legal_status` (Zumikon: teilweise Nichtgenehmigung vom 01.04.2026)
+entscheidet, ob die Grundmasse daneben gelten. Er bleibt auf dem Quellenblatt
+und steht zusätzlich, im Wortlaut der Datendatei, beim BZO-Versionsvermerk auf
+dem ersten Blatt jeder Parzelle.
+
+**12.7 Wiederholung ist keine Sorgfalt.** Bei mehreren Grundstücken im selben
+Rechtsrahmen (gleiche Gemeinde **und** gleiche Zone) stehen die Prüfpunkte, die
+nicht am einzelnen Grundstück hängen, die Parkierungs-Fussnoten und die
+Belastbarkeits-Legende einmal im gemeinsamen Anhang A.3. Zusammengefasst wird
+**nur, was nachweislich wortgleich ist** — verglichen wird der fertige
+Wortlaut, nicht die Annahme «gleiche Gemeinde, also gleicher Text». Weicht ein
+Grundstück ab, bleibt sein Punkt bei ihm. Der Verweis auf dem Parzellenblatt
+**nennt die ausgelagerten Punkte namentlich**: sonst wäre nicht mehr
+erkennbar, ob ein Punkt geprüft oder vergessen wurde. Die Tier-A-Liste
+(«automatisch geprüft») wird nie zusammengefasst — das sind Befunde zu DIESER
+Parzelle, und dass sie zufällig gleich lauten, macht sie nicht zu einer
+Aussage über alle.
 
 ---
 
@@ -561,6 +631,11 @@ Bei Abweichungen gilt das Register, nicht diese Tabelle — siehe §11.
 
 ## 8. Behobene Fehler
 
+* **Bericht widersprach sich selbst** (Multi-Parzellen-Export 31.08.2026):
+  ein Grundstück unter drei Namen, «gerechnet & dargestellt» auf einer nicht
+  darstellbaren Attika, «14.3 × −1.8 m» im Kundendokument, 37 m² auf 2.7 m
+  Tiefe als «Realistisches Szenario». Alle vier **behoben** — Regeln und
+  Begründungen in §12, durch Golden-Tests gesichert.
 * **A. Mehr Parzellen → weniger Geschossfläche** (4872+4258: 213 → 185 m²):
   **behoben** — die Längenteilung bestimmt nur noch die Zeichnung, nicht die
   Bezugsfläche (3.8). Invariante durch Test gesichert.

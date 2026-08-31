@@ -78,8 +78,14 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     // ---- 1. PARZELLE ----------------------------------------------------
     const zoneRechtsstatus = anchor.zoneSource ? anchor.zoneSource.rechtsstatus : 'inKraft';
     const parzelleRows = [
-      row('Adresse', anchor.address || anchor.parcelNumber || '—', 'GEHOLT',
-        'Adresssuche geo.admin.ch → ein Treffer, daraus die Parzelle', 'Adressregister'),
+      // EIN Name je Grundstueck, aus js/core/format.js — dieselbe Kette,
+      // die Deckblatt, Trennseite und Kopfzeile benutzen. Vorher las diese
+      // Zeile `anchor.address`, die EINGETIPPTE Adresse: bei drei getrennt
+      // gerechneten Parzellen trug die Tafel jeder von ihnen den Namen des
+      // gesuchten Nachbarhauses oder die nackte Nummer.
+      row('Adresse', T.betreffVon(r), 'GEHOLT',
+        'Adressregister (GWR) zur Parzelle; ohne Treffer die eingetippte Adresse, sonst die Parzellennummer',
+        'Adressregister'),
       row('Gemeinde / Parzelle', `${rules.gemeinde} · ${selection.map((p) => p.parcelNumber).join(' + ')}`,
         'GEHOLT', null, 'Amtliche Vermessung'),
       row('EGRID', selection.map((p) => p.egrid).join(', '), 'GEHOLT', null, 'Amtliche Vermessung'),

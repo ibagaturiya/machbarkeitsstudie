@@ -58,6 +58,96 @@ function check(name, actual, expected, tol = 0.01) {
 }
 
 // ---------------------------------------------------------------------------
+// 00000) Was der Bericht ueber ein Grundstueck BEHAUPTET, muss stimmen
+//      Vier Befunde aus dem Export Zumikon 5030+5029+5028 vom 31.8.2026. Jeder
+//      war eine Aussage, die das Dokument selbst an anderer Stelle bestreitet —
+//      die teuerste Fehlerklasse hier, weil keine Zahl falsch war und der
+//      Widerspruch trotzdem im Kundendokument stand.
+// ---------------------------------------------------------------------------
+{
+  // (a) EIN Name je Grundstueck. Deckblatt und Trennseite lasen das
+  //     Adressregister, die Innenseiten die eingetippte Adresse oder die
+  //     nackte Nummer — dasselbe Grundstueck trug drei Namen. Gemischt wird
+  //     nie: entweder eine Adresse, oder «Parzelle NNNN».
+  const mitAdresse = {
+    selection: [{ parcelNumber: '5028', adressen: { label: 'Haldenstrasse 5a, 8126 Zumikon' } }],
+    anchor: { address: 'Haldenstrasse 5' },
+  };
+  check('Adressregister schlaegt die eingetippte Adresse',
+    T.betreffVon(mitAdresse), 'Haldenstrasse 5a, 8126 Zumikon');
+  check('Tabellenzeile nennt Adresse UND Parzelle',
+    T.grundstueckLabel(mitAdresse), 'Haldenstrasse 5a, 8126 Zumikon · Parzelle 5028');
+
+  const ohneAdresse = { selection: [{ parcelNumber: '5028' }], anchor: {} };
+  check('ohne Registertreffer und ohne Eingabe: die Parzellennummer',
+    T.betreffVon(ohneAdresse), 'Parzelle 5028');
+  check('… und dann NICHT zusaetzlich «· Parzelle 5028» dahinter',
+    T.grundstueckLabel(ohneAdresse), 'Parzelle 5028');
+
+  const nurEingabe = { selection: [{ parcelNumber: '5030' }], anchor: { address: 'Haldenstrasse 5' } };
+  check('die eingetippte Adresse traegt, wenn das Register nichts liefert',
+    T.betreffVon(nurEingabe), 'Haldenstrasse 5');
+
+  // (b) Eine Kantenlaenge kann nicht negativ sein. Ist der Attika-Ruecksprung
+  //     tiefer als der halbe Baukoerper, war die Restbreite rechnerisch
+  //     negativ und stand als «ergibt 14.3 × −1.8 m» im Kundendokument.
+  const engerBau = {
+    attikaSetbackM: 2.25,
+    attikaDiagnostics: [{ belowLengthM: 18.8, belowWidthM: 2.7, narrowestM: -1.8, bergseite: false }],
+  };
+  const satz = T.attikaSuppressRechnung(engerBau);
+  check('kein negatives Mass im Hinweistext', /[−-]\s?\d/.test(satz.replace(/\d+\.\d+ m/g, 'X m')), false);
+  check('stattdessen die Aussage «keine Restfläche»', satz.includes('Es bleibt keine Restfläche'), true);
+  check('… mit dem Mindestmass als Massstab',
+    satz.includes(`mindestens ${T.MIN_PRIMITIVE_WIDTH_M} m`), true);
+
+  const weiterBau = {
+    attikaSetbackM: 2.3,
+    attikaDiagnostics: [{ belowLengthM: 14.7, belowWidthM: 7.1, narrowestM: 2.5, bergseite: false }],
+  };
+  check('bei positivem Rest wird weiterhin gerechnet gezeigt',
+    T.attikaSuppressRechnung(weiterBau).includes('ergibt'), true);
+
+  // (c) 37 m² auf 2.7 m Tiefe sind ein Streifen, kein Baufeld. Als
+  //     «Realistisches Szenario» ausgewiesen war das eine Zusage, die die
+  //     Zahl nicht deckt. Schwelle ist MIN_PRIMITIVE_WIDTH_M — kein zweiter,
+  //     eigens erfundener Grenzwert.
+  const streifen = T.faktischNichtBebaubar({
+    reconciled: { usableFootprintAreaM2: 36.7 }, footprintRect: { lengthM: 14.3, widthM: 2.7 },
+  });
+  check('Streifen unter der Mindestbreite: faktisch nicht bebaubar', streifen.ja, true);
+  check('… und die Begruendung nennt die gemessene Tiefe', streifen.tiefeM, 2.7);
+
+  const baufeld = T.faktischNichtBebaubar({
+    reconciled: { usableFootprintAreaM2: 132 }, footprintRect: { lengthM: 18.6, widthM: 7.1 },
+  });
+  check('ein normales Baufeld bleibt unbeanstandet', baufeld.ja, false);
+
+  const genauAufDerSchwelle = T.faktischNichtBebaubar({
+    reconciled: { usableFootprintAreaM2: 50 },
+    footprintRect: { lengthM: 14.3, widthM: T.MIN_PRIMITIVE_WIDTH_M },
+  });
+  check('genau auf der Schwelle gilt noch als bebaubar', genauAufDerSchwelle.ja, false);
+
+  check('ohne bebaubare Flaeche wird nicht zusaetzlich etikettiert',
+    T.faktischNichtBebaubar({ reconciled: { usableFootprintAreaM2: 0 }, footprintRect: null }).ja, false);
+
+  // (d) Die Falle hinter der Variantenkarte: die GEWAEHLTE Variante ist
+  //     zugleich die gesperrte, wenn ihre Attika am 45°-Profil scheitert.
+  //     Wer `active` vor `suppressed` prueft, druckt «gerechnet &
+  //     dargestellt» auf eine Variante, die nicht gebaut wird.
+  const mm = {
+    storeyOptions: [2, 3], ordinaryMax: 2, requestedStoreys: 3, storeys: 3,
+    attikaSuppressed: true, ordinaryStoreyHeightM: 3.25, attikaStoreyHeightM: 3.25,
+  };
+  const varianten = T.storeyVariantData(mm, { maxGfaM2: 221.9, usableFootprintAreaM2: 36.7, parcelAreaM2: 919.8 });
+  const gewaehlt = varianten.find((v) => v.active);
+  check('die gewaehlte Variante kann zugleich gesperrt sein',
+    !!(gewaehlt && gewaehlt.suppressed), true);
+  check('… und traegt dann keine Attika-Hoehe', gewaehlt.heightM, 2 * 3.25);
+}
+
+// ---------------------------------------------------------------------------
 // 0000) Ausgefallene Quelle wird BENANNT — js/core/netz.js
 //      Anlass: eine Studie brach mit «Fehler: Load failed» ab. Das ist
 //      Safaris Wortlaut fuer ein fetch(), das nie zustande kam, und er sagt

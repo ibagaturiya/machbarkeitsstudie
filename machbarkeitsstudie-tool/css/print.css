@@ -332,6 +332,45 @@
 #print-doc .kap-z b { font-size: 15pt; }
 #print-doc .kap-text { font-size: 9pt; color: var(--p-muted); margin: 8mm 0 0; max-width: 120mm; }
 
+/* Verweis auf den gemeinsamen Anhang. Tritt bei mehreren Grundstuecken an
+   die Stelle eines Blocks, der auf jedem Parzellenblatt wortgleich stuende.
+   Bewusst leise gesetzt: er ersetzt Inhalt, er kuendigt keinen an — und er
+   muss sich von den Pruefpunkten daneben unterscheiden, damit ihn niemand
+   fuer einen weiteren haelt. */
+#print-doc .verweis {
+  margin: 2.5mm 0; padding: 2mm 0 2mm 3mm;
+  border-left: 2px solid var(--p-hair);
+  font-size: 7.5pt; line-height: 1.5; color: var(--p-muted);
+}
+
+/* Merkzeile — dieselbe Bauform wie die Attika-Zeile darunter (Balken links,
+   Schlagwort, Satz), fuer die zwei Befunde, die seit dem 31.8.2026 auf der
+   ERSTEN Seite jedes Grundstuecks stehen statt im Anhang: ob der bebaubare
+   Rest ueberhaupt ein Gebaeude traegt, und mit welchem Rechtsstand der BZO
+   gerechnet wurde. Beides entscheidet ueber die Gueltigkeit der Zahlen
+   daneben und darf nicht 40 Seiten hinter ihnen stehen. */
+#print-doc .merkzeile {
+  display: flex; gap: 3mm; align-items: baseline;
+  margin: 4mm 0 3mm; padding: 2.5mm 0 2.5mm 3mm;
+  border-left: 3px solid var(--p-hair); font-size: 8pt; line-height: 1.5;
+}
+#print-doc .merkzeile.is-nein { border-left-color: var(--p-ink); background: var(--p-tint); }
+#print-doc .merkzeile.is-warn { border-left-color: var(--p-acc); }
+#print-doc .merkzeile .mz-k {
+  flex: none; width: 20mm; font-size: 7.5pt; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--p-faint);
+}
+#print-doc .merkzeile .mz-t { flex: 1 1 auto; }
+
+/* Kapitelblatt: der Befund «traegt keinen Baukörper» gehoert schon auf die
+   Trennseite — wer nur den Abschnitt einer Parzelle aufschlaegt, soll ihn
+   nicht erst auf dem Blatt danach finden. */
+#print-doc .kap-befund {
+  margin: 6mm 0 0; padding: 3mm 0 3mm 3.5mm; max-width: 120mm;
+  border-left: 3px solid var(--p-ink); background: var(--p-tint);
+  font-size: 8.5pt; line-height: 1.5;
+}
+
 /* Attika-Befund auf dem Kopfblatt: die Frage «geht ein Attikageschoss?»
    entscheidet ueber eine ganze Wohnung und stand bisher nur zwischen den
    Zeilen (Variantenkarte, Anhang). Der Balken links traegt die Antwort:

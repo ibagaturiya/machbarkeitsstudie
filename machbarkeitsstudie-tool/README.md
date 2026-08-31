@@ -194,6 +194,30 @@ page in the legal PDF) — and opens it as a full-screen preview:
    the rest of the phase still owes.
 10. **Quellen und Vorbehalte** — sources and limits, with the full wording
 
+### Several parcels in one file
+
+With the **Areal** switch off, each parcel is analysed on its own and the
+export becomes one continuous file: title page, contents, an **Übersicht**
+comparing all parcels, then a separator page and a full section per parcel,
+and finally the document-wide appendix.
+
+Four rules govern what such a file may claim; the reasoning is in
+`REGELN.md` §12.
+
+* **One name per parcel.** Address register → typed address → `Parzelle NNNN`,
+  from a single source (`T.betreffVon`, `js/core/format.js`). Never mixed.
+* **The Übersicht carries the Areal figure.** Besides the per-parcel rows and
+  their sum it shows the parcels computed as *one* Baugrundstück — footprint,
+  floor area, and the delta. That row comes from a second full `analyse()` run
+  over the union, not from extrapolating the sum. The Grundbuch caveat stays.
+* **A residue too narrow to build on says so.** Below `MIN_PRIMITIVE_WIDTH_M`
+  the headline changes from "Realistisches Szenario" to "Für sich allein
+  faktisch nicht bebaubar" and points at the Areal row. No figure changes.
+* **Repetition is not diligence.** Where commune *and* zone match, the checks
+  that do not depend on the individual parcel, the parking footnotes and the
+  confidence legend move to a shared appendix (A.3) — but only where the
+  wording is provably identical, and the per-parcel sheet names what moved.
+
 **"PDF exportieren"** sits in the header next to **"Analysieren"** and does the
 whole thing in one press — compose, rasterise, open. There is no preview step:
 the document is built off-screen (class `exporting`, so it has a layout without
