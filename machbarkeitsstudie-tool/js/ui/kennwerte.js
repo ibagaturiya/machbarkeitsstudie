@@ -62,6 +62,11 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
         label, wert: value, kind, source, prov,
         schluessel: opts.schluessel || null,
         quelleAusgefallen: !!opts.quelleAusgefallen,
+        // Leerer Wert wegen offenem Rechtsstand (Revisions-Pendenz) — die
+        // Kaskade begruendet dann mit «Rechtsstand unklar» statt mit «Regel
+        // nicht anwendbar»: Wert und Begruendung duerfen sich nicht
+        // widersprechen (REGELN.md §12).
+        rechtsstandUnklar: !!opts.rechtsstandUnklar,
       });
       return {
         label, value, kind, formula: formula || null,
@@ -143,9 +148,24 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
         ? row('Fussabdruck nach Grünflächenziffer-Deckel', `${fmt(reconciled.footprintAfterGreenCapAreaM2)} m²`, 'BERECHNET',
             `höchstens ${100 - rules.gruenflaechenziffer_min_pct} % von ${fmt(reconciled.anrechenbareFlaecheM2)} m² überbaut → ${fmt(reconciled.footprintAfterGreenCapAreaM2)} m²`,
             art('gruenflaechenziffer_min_pct'), null, { dependsOn: ['anrechenbar', 'bebaubar'] })
-        : row('Grünflächenziffer-Deckel', '— keine GFZ', 'GEPRÜFT',
-            `Regel geprüft und übersprungen: die BZO ${rules.gemeinde} führt für diese Zone keine Grünflächenziffer`,
-            `BZO ${rules.gemeinde}`),
+        : (() => {
+            // Eine Revisions-Pendenz (data/bzo-*.json, revision_pendenzen)
+            // verwandelt «gibt es hier nicht» in «ungeprüft»: die
+            // Teilrevision 2025 weitet die GFZ auf W2/25 aus, und ob die
+            // Nichtgenehmigung vom 01.04.2026 genau das trifft, ist offen.
+            // Gerechnet wird weiterhin ohne Deckel — NICHT konservativ,
+            // falls die revidierte Vorschrift gilt; genau deshalb steht es
+            // hier und faellt in der Kaskade auf «nicht ermittelbar».
+            const pend = ((rules.meta && rules.meta.revision_pendenzen) || []).find((p) =>
+              p.betrifft === 'gruenflaechenziffer_min_pct' && (!p.zonen || p.zonen.includes(anchor.zone)));
+            return pend
+              ? row('Grünflächenziffer-Deckel', '— ungeprüft / Rechtsstand unklar', 'GEPRÜFT',
+                  `${pend.stand} Gerechnet wird ohne GFZ-Deckel — nicht konservativ, falls die revidierte Vorschrift gilt. (${pend.quelle})`,
+                  `BZO ${rules.gemeinde}`, null, { rechtsstandUnklar: true })
+              : row('Grünflächenziffer-Deckel', '— keine GFZ', 'GEPRÜFT',
+                  `Regel geprüft und übersprungen: die BZO ${rules.gemeinde} führt für diese Zone keine Grünflächenziffer`,
+                  `BZO ${rules.gemeinde}`);
+          })(),
       ...(reconciled.hasUeberbauungsCap ? [row('Fussabdruck nach Überbauungsziffer',
         `${fmt(reconciled.footprintAfterUeberbauungsCapM2)} m²`, 'BERECHNET',
         `höchstens ${rules.ueberbauungsziffer_hauptgebaeude_max_pct} % von ${fmt(reconciled.anrechenbareFlaecheM2)} m² → ${fmt(reconciled.footprintAfterUeberbauungsCapM2)} m²`,
@@ -180,9 +200,12 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
         ] : []),
         row('Nutzbare Geschossfläche total', `${fmt(mm.nutzflaecheTotalM2)} m²`, 'BERECHNET',
           `${fmt(mm.floorplateM2 * mm.ordinaryStoreys)} (Vollgeschosse)` +
-          `${mm.attikaStoreys > 0 ? ` + ${fmt(mm.attikaFloorplateM2 * mm.attikaStoreys)} (Attika)` : ''}` +
+          // Je Geschoss zaehlt min(Freibetrag, geometrisch darstellbar) —
+          // fuer die Attika kann das 45°-Profil (Art. 31 BZO) kleiner sein
+          // als der Freibetrag (js/core/envelope.js, begrenzeAttikaAufGeometrie).
+          `${mm.attikaStoreys > 0 ? ` + ${fmt((mm.attikaNutzM2 ?? mm.attikaFloorplateM2) * mm.attikaStoreys)} (Attika${mm.attikaGeometrischBegrenzt ? ', geometrisch begrenzt — 45°-Profil' : ''})` : ''}` +
           `${mm.ugStoreys > 0 ? ` + ${fmt(mm.ugFloorplateM2 * mm.ugStoreys)} (Untergeschoss)` : ''}` +
-          ` = ${fmt(mm.nutzflaecheTotalM2)} m²`,
+          ` = ${fmt(mm.nutzflaecheTotalM2)} m² — je Geschoss min(Freibetrag § 255 Abs. 3, geometrisch darstellbar)`,
           null, null, { id: 'nutzflaeche', dependsOn: ['maxGfa', 'nutzbarerFussabdruck'] }),
       ] : []),
     ];

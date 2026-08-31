@@ -200,9 +200,14 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     if (istLeerwert(wert)) {
       return {
         stufe: 'NICHT_ERMITTELBAR',
-        grund: kind === 'GEPRÜFT'
-          ? 'Regel geprüft und nicht anwendbar — kein Wert, ausdrücklich nicht 0'
-          : 'kein Wert ermittelbar',
+        // rechtsstandUnklar: die Regel FEHLT nicht, ihr Bestehen ist offen
+        // (Revisions-Pendenz, z.B. GFZ-Ausweitung Zumikon W2/25). «nicht
+        // anwendbar» wäre hier die Aussage, die der Wert daneben bestreitet.
+        grund: (d && d.rechtsstandUnklar)
+          ? 'Rechtsstand unklar — die Regel könnte seit der Teilrevision bestehen; kein Wert erfasst, ausdrücklich nicht 0'
+          : kind === 'GEPRÜFT'
+            ? 'Regel geprüft und nicht anwendbar — kein Wert, ausdrücklich nicht 0'
+            : 'kein Wert ermittelbar',
         register: null,
       };
     }

@@ -13,13 +13,21 @@
     "bfs_nr": 160,
     "version": "Bau- und Zonenordnung Gemeinde Zumikon, 17.09.2019",
     "article_grundmasse": "Art. 17, BZO Zumikon",
-    "legal_status": "In Kraft (Genehmigung BD 08.02.2019, Inkraftsetzung 11.10.2019). Hinweis: es existiert eine teilweise Nichtgenehmigung vom 1. April 2026 zu einer Teilrevision -- vor Verwendung prüfen, ob die hier erfassten Werte davon betroffen sind.",
+    "legal_status": "In Kraft (Genehmigung BD 08.02.2019, Inkraftsetzung 11.10.2019). Hinweis: es existiert eine teilweise Nichtgenehmigung vom 1. April 2026 zu einer Teilrevision -- vor Verwendung prüfen, ob die hier erfassten Werte davon betroffen sind. Namentlich betroffen: die Teilrevision (Gemeindeversammlung 2025) weitet die Grünflächenziffer auf die Zone W2/25 aus; ob die Nichtgenehmigung genau diesen Punkt trifft, ist ungeklärt -- die Grünflächenziffer ist hier deshalb als ungeprüft ausgewiesen (nicht als 'gibt es nicht'), bis die revidierte BZO in der Datengrundlage erfasst ist.",
+    "revision_pendenzen": [
+      {
+        "betrifft": "gruenflaechenziffer_min_pct",
+        "zonen": ["W2/25"],
+        "stand": "Die Teilrevision der BZO (Gemeindeversammlung 2025) weitet die Grünflächenziffer auf die Zone W2/25 aus. Die teilweise Nichtgenehmigung vom 01.04.2026 könnte genau diesen Teil betreffen oder nicht -- Rechtsstand unklar; die revidierte BZO ist in der Datengrundlage nicht erfasst.",
+        "quelle": "Angabe Auftraggeber, 31.08.2026 -- revidierter BZO-Text liegt dem Werkzeug nicht vor"
+      }
+    ],
     "data_last_verified": "2026-08-24",
     "source_pdf": "source/bzo-zumikon-2019.pdf",
     "hoehenmetrik": "Gebäudehöhe",
     "_hoehenmetrik_note": "Zumikon regelt die Höhe als Gebäudehöhe (plus separater Firsthöhen-Zuschlag), NICHT als traufseitige Fassadenhöhe wie die Stadt Zürich. Nicht als dasselbe Mass behandeln.",
     "_grenzabstand_note": "Zumikon kennt zwei Grenzabstände (Art. 17/18): der GROSSE gilt in W2/25 für die BEIDEN am stärksten nach Süden gerichteten Gebäudeseiten (grosser_grenzabstand_suedseiten: 2), in W2/35, W2/40 und W2/60 für die längere, am stärksten gegen Süden gerichtete Seite (grosser_grenzabstand_suedseiten: 1); der KLEINE für alle übrigen Seiten. Massgebend ist das flächenkleinste Rechteck, welches das GEBÄUDE umfasst (Art. 18 Abs. 2) -- nicht die Parzellengrenze.",
-    "_gruenflaechenziffer_note": "Die BZO Zumikon kennt in Art. 17 keine Grünflächenziffer für die Wohnzonen. Dieses Kriterium entfällt daher hier (null), es wird NICHT als 0% behandelt. ABER: Art. 29 Abs. 2 verlangt im Perimeter 'Gemeindegebiet mit hohem Grünanteil' in der Regel mindestens 25% Begrünung der massgeblichen Grundfläche -- als Checklisten-Punkt zu prüfen (Perimeter im Zonenplan).",
+    "_gruenflaechenziffer_note": "Die BZO Zumikon 2019 kennt in Art. 17 keine Grünflächenziffer für die Wohnzonen. Dieses Kriterium bleibt daher null (NICHT 0%). Seit der Teilrevision 2025 gilt fuer W2/25 die Pendenz in revision_pendenzen: Status 'ungeprüft / Rechtsstand unklar' statt 'nicht anwendbar'; gerechnet wird weiterhin ohne GFZ-Deckel -- das ist NICHT konservativ, falls die revidierte Vorschrift gilt, und wird deshalb ausgewiesen. ABER: Art. 29 Abs. 2 verlangt im Perimeter 'Gemeindegebiet mit hohem Grünanteil' in der Regel mindestens 25% Begrünung der massgeblichen Grundfläche -- als Checklisten-Punkt zu prüfen (Perimeter im Zonenplan).",
     "_firsthoehe_note": "Firsthöhe ist im altrechtlichen System (§ 281 aPBG) der ZUSCHLAG über der Gebäudehöhe-Schnittlinie: der First muss innerhalb von 45°-Ebenen ab der Schnittlinie Dachfläche/Fassade liegen und darf höchstens um den Tabellenwert über diese Linie steigen. Deshalb heisst das Feld hier firsthoehe_zuschlag_m -- 4.50 m ZUSÄTZLICH zur Gebäudehöhe 6.50 m in W2/25, nicht 4.50 m absolut.",
     "begruenung_perimeter_min_pct": 25,
     "abgrabung_max_m": 1.0,

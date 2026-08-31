@@ -1033,6 +1033,11 @@
         if (attikaResult.anyImpossible && attikaResult.attikaAreaM2 <= 0) {
           T.suppressAttikaStorey(massingModel);
         }
+        // Nutzbare Geschossflaeche je Geschoss: min(Freibetrag § 255 Abs. 3
+        // PBG, geometrisch darstellbare Flaeche nach Art. 31 BZO) — die
+        // Regel und ihre Begruendung stehen in js/core/envelope.js. Nach
+        // suppressAttikaStorey ein No-op (attikaStoreys ist dann 0).
+        T.begrenzeAttikaAufGeometrie(massingModel);
       }
     }
 
@@ -1843,7 +1848,17 @@
       massRow('Kleiner Grenzabstand (Grundabstand) min.', rules.grundabstand_min_m, ' m', ['grundabstand_min_m'], null),
       ...(rules.grosser_grenzabstand_min_m != null
         ? [massRow('Grosser Grenzabstand min.', rules.grosser_grenzabstand_min_m, ' m', ['grosser_grenzabstand_min_m', 'grundabstand_min_m'], null)] : []),
-      massRow('Grünflächenziffer min.', rules.gruenflaechenziffer_min_pct, ' %', ['gruenflaechenziffer_min_pct'], 'gruenflaechenziffer_min_pct'),
+      // Eine Revisions-Pendenz (revision_pendenzen in data/bzo-*.json) macht
+      // aus «nicht festgelegt» ein «ungeprüft» — sonst behauptete der
+      // Steckbrief, was der Rechtsstand daneben selbst offenlaesst.
+      (() => {
+        const gfzPend = rules.gruenflaechenziffer_min_pct == null
+          && ((rules.meta && rules.meta.revision_pendenzen) || []).find((p) =>
+            p.betrifft === 'gruenflaechenziffer_min_pct' && (!p.zonen || p.zonen.includes(anchor.zone)));
+        return gfzPend
+          ? row('Grünflächenziffer min.', esc('— ungeprüft (Rechtsstand unklar, siehe «Rechtsstatus der Grundlage»)'))
+          : massRow('Grünflächenziffer min.', rules.gruenflaechenziffer_min_pct, ' %', ['gruenflaechenziffer_min_pct'], 'gruenflaechenziffer_min_pct');
+      })(),
       ...(rules.ueberbauungsziffer_hauptgebaeude_max_pct != null
         ? [massRow('Überbauungsziffer Hauptgebäude max.', rules.ueberbauungsziffer_hauptgebaeude_max_pct, ' %', ['ueberbauungsziffer_hauptgebaeude_max_pct'], 'ueberbauungsziffer_hauptgebaeude_max_pct')] : []),
       ...(rules.attika_profil_ueberhoehung_m != null || (rules.meta && rules.meta.attika_profil_ueberhoehung_m != null)
@@ -2233,7 +2248,13 @@
           : (hg && mmForFlags.bergseiteRiseM != null
               ? ` Bergseiten-Ausnahme (Art. 31 Abs. 2) NICHT angewandt: der Terrainanstieg über die Gebäudetiefe (ca. ${fmt(mmForFlags.bergseiteRiseM)} m) reicht nicht aus, um die zulässige Gebäudehöhe samt Attika auf der Bergseite einzuhalten — der Rücksprung gilt allseitig.`
               : ` Ohne Terraindaten wird der allseitige Rücksprung angenommen.`);
-        flags.push(`Attikageschoss nach Art. 31 BZO: ${profilText}. Attikafläche: ${fmt(mmForFlags.attikaFootplateM2)} m².${bergText} Bis ${fmt(mmForFlags.perStoreyFreeM2)} m² je Dach-/Attika-/Untergeschoss bleibt die Fläche nach § 255 Abs. 3 PBG ohne Anrechnung an die Ausnützungsziffer.`);
+        // Greift die geometrische Grenze, wird das GESAGT — sonst stuende
+        // die nutzbare Geschossflaeche kleiner da als Freibetrag × Geschosse,
+        // ohne dass irgendwo steht, warum (min-Regel, js/core/envelope.js).
+        const begrenztText = mmForFlags.attikaGeometrischBegrenzt
+          ? ` Die Attika ist geometrisch auf ${fmt(mmForFlags.attikaNutzM2)} m² begrenzt, der Freibetrag von ${fmt(mmForFlags.perStoreyFreeM2)} m² damit nicht ausgeschöpft (${fmt(mmForFlags.attikaFreibetragUngenutztM2)} m² bleiben ungenutzt) — die nutzbare Geschossfläche total rechnet je Geschoss mit min(Freibetrag, geometrisch darstellbare Fläche).`
+          : '';
+        flags.push(`Attikageschoss nach Art. 31 BZO: ${profilText}. Attikafläche: ${fmt(mmForFlags.attikaFootplateM2)} m².${bergText} Bis ${fmt(mmForFlags.perStoreyFreeM2)} m² je Dach-/Attika-/Untergeschoss bleibt die Fläche nach § 255 Abs. 3 PBG ohne Anrechnung an die Ausnützungsziffer.${begrenztText}`);
       }
     }
     if (mmForFlags && mmForFlags.droppedBlockCount > 0) {

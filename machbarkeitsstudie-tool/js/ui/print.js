@@ -838,6 +838,9 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       ...(massingModel && massingModel.nutzflaecheTotalM2 > reconciled.maxGfaM2 + 1e-6
         ? [`Nutzbar sind dennoch ${fmt(massingModel.nutzflaecheTotalM2, 0)} m²: Dach-, Attika- und Untergeschosse bleiben nach § 255 Abs. 3 PBG je Geschoss bis zu einem Freibetrag ohne Anrechnung an die Ausnützungsziffer.`]
         : []),
+      ...(massingModel && massingModel.attikaGeometrischBegrenzt
+        ? [`Die Attika ist geometrisch auf ${fmt(massingModel.attikaNutzM2, 0)} m² begrenzt (45°-Profil, Art. 31 BZO) — der Freibetrag von ${fmt(massingModel.perStoreyFreeM2, 0)} m² ist nicht ausgeschöpft; die nutzbare Geschossfläche rechnet je Geschoss mit min(Freibetrag, geometrisch darstellbar).`]
+        : []),
     ];
     const s1 = sheet('Das Wichtigste in Kürze',
       betreffVon(r),
@@ -868,6 +871,19 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
               + ` Baukörper bepreisen, den dieses Grundstück für sich allein nicht trägt.`
               + `</span></div>`
             : ''}
+          ${(() => {
+            // Der Bestandswiderspruch gehoert auf Blatt 1, nicht nur in den
+            // Anhang A.2: ohne diese Zeile liest sich «für sich allein nicht
+            // bebaubar» wie ein Rechenfehler — dabei steht auf der Parzelle
+            // ein bewilligtes Gebaeude, und die Kurzfassung sagt, warum
+            // beides zugleich wahr ist (REGELN.md §12.9).
+            const konflikt = ((r.bestandsPruefung && r.bestandsPruefung.eintraege) || [])
+              .filter((g) => g.passt === false);
+            if (!konflikt.length) return '';
+            const namen = konflikt.map((g) => `«${g.name}», ${g.status}, ${fmt(g.laenge_m)} × ${fmt(g.breite_m)} m`).join(' und ');
+            return `<div class="merkzeile is-warn"><span class="mz-k">Bestand</span>`
+              + `<span class="mz-t">${esc(`Auf ${konflikt.length > 1 ? 'diesen Parzellen stehen bewilligte Gebäude' : 'dieser Parzelle steht ein bewilligtes Gebäude'} (${namen}), ${konflikt.length > 1 ? 'die' : 'das'} im hier berechneten bebaubaren Bereich keinen Platz ${konflikt.length > 1 ? 'finden' : 'findet'} — kein Rechenfehler, sondern der Rechtszustand ohne die Sicherungen der Bewilligung (gemeinsame Beurteilung mehrerer Parzellen, Servitut), die eine getrennte Rechnung bewusst nicht abbildet. Einzelheiten in Anhang A.2.`)}</span></div>`;
+          })()}
           ${(() => {
             const ab = attikaBefund(massingModel, rules);
             if (!ab) return '';
@@ -950,6 +966,14 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     if (massingModel && (massingModel.attikaStoreys > 0 || massingModel.ugStoreys > 0)) {
       derivation.push(['Freibetrag Dach-/Attika-/UG (§ 255 Abs. 3 PBG)',
         `je Geschoss bis ${fmt(massingModel.perStoreyFreeM2)} m² frei`, '']);
+      // Je Geschoss zaehlt min(Freibetrag, geometrisch darstellbar): wo das
+      // 45°-Profil die Attika kleiner macht als den Freibetrag, steht der
+      // Schritt HIER in der Kette — sonst spraeche die Summe darunter von
+      // einer Flaeche, die das Attika-Profil dieses Dokuments bestreitet.
+      if (massingModel.attikaGeometrischBegrenzt) {
+        derivation.push(['Attika geometrisch begrenzt (45°-Profil, Art. 31 BZO)',
+          `${fmt(massingModel.attikaNutzM2)} m² statt ${fmt(massingModel.perStoreyFreeM2)} m² — Freibetrag nicht ausgeschöpft`, 'minus']);
+      }
       derivation.push(['Nutzbare Geschossfläche total', fmt(massingModel.nutzflaecheTotalM2) + ' m²', 'result']);
     }
 

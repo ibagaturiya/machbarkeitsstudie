@@ -19,6 +19,41 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
 (function () {
   const fmt = (n, d = 1) => window.MachbarkeitTool.fmt(n, d);
 
+  // ---- Nutzbare Geschossflaeche: der Freibetrag trifft die Geometrie ----
+  // § 255 Abs. 3 PBG stellt Dach-, Attika- und Untergeschosse je Geschoss
+  // bis zum Freibetrag anrechnungsfrei — er sagt aber nicht, dass diese
+  // Flaeche BAUBAR ist. Fuer die Attika begrenzt Art. 31 BZO (45°-Profil)
+  // die Form: auf Zumikon 5030 laesst das Profil 79.9 m² zu, der Freibetrag
+  // betruege 180.7 m². Bis zum 31.08.2026 zaehlte die nutzbare
+  // Geschossflaeche den vollen Freibetrag (722.8 m²) — eine Flaeche, die
+  // das eigene Attika-Blatt bestreitet. Regel jetzt: je Geschoss
+  // min(Freibetrag, geometrisch darstellbare Flaeche) → 5030: 622.0 m².
+  //
+  // Aufgerufen aus js/app.js, NACHDEM computeAttikaFootprints die
+  // geometrische Attika bestimmt hat (mm.attikaFootplateM2). Ohne
+  // Geometrie (reine Modellrechnung, kein Baukoerper) bleibt der
+  // Freibetrag stehen — es gibt dann keine Grenze zu kennen. UG bleibt
+  // unveraendert: es liegt UNTER dem Baukoerper, seine Geometrie ist die
+  // Grundflaeche selbst. attikaFloorplateM2 (Rechtsgroesse des Freibetrags)
+  // und das Volumen bleiben unveraendert — hier aendert allein die
+  // GESCHOSSFLAECHEN-Summe und was von ihr abgeleitet wird (Parkierung).
+  function begrenzeAttikaAufGeometrie(mm) {
+    if (!mm || !(mm.attikaStoreys > 0)) return mm;
+    if (!Number.isFinite(mm.attikaFootplateM2)) return mm;
+    const freiM2 = mm.attikaFloorplateM2;
+    const geometrischM2 = mm.attikaFootplateM2;
+    mm.attikaNutzM2 = Math.min(freiM2, geometrischM2);
+    if (geometrischM2 >= freiM2 - 0.05) return mm; // der Freibetrag bindet ohnehin
+    mm.attikaGeometrischBegrenzt = true;
+    mm.attikaFreibetragUngenutztM2 = freiM2 - mm.attikaNutzM2;
+    mm.nutzflaecheTotalM2 =
+      mm.floorplateM2 * mm.ordinaryStoreys +
+      mm.attikaNutzM2 * mm.attikaStoreys +
+      mm.ugFloorplateM2 * mm.ugStoreys;
+    return mm;
+  }
+  window.MachbarkeitTool.begrenzeAttikaAufGeometrie = begrenzeAttikaAufGeometrie;
+
   // ---- Fuer sich allein faktisch nicht bebaubar -------------------------
   // Eine Restflaeche kann rechnerisch bestehen und trotzdem kein Gebaeude
   // tragen: Zumikon 5028 behaelt nach Grundabstand und Waldabstand 36.7 m²

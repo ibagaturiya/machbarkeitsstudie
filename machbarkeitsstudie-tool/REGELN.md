@@ -128,6 +128,16 @@ arithmetisch fehlerfrei und trug trotzdem vier Aussagen, die das Dokument an
 anderer Stelle selbst bestreitet. Diese Klasse ist hier festgehalten, weil
 kein Test über Zahlen sie findet.
 
+**12.9 Ein Bestandswiderspruch steht auf Blatt 1, nicht nur im Anhang.**
+Findet ein bekanntes bewilligtes Gebäude im berechneten bebaubaren Bereich
+keinen Platz (13.3), liest sich «für sich allein faktisch nicht bebaubar»
+ohne Erklärung wie ein Rechenfehler. Blatt 1 («Das Wichtigste in Kürze»)
+trägt deshalb eine Kurzfassung direkt unter dem Bebaubarkeits-Verdikt:
+bewilligtes Gebäude mit Mass, «kein Rechenfehler, sondern der Rechtszustand
+ohne die Sicherungen der Bewilligung», Verweis auf Anhang A.2. Der volle
+Hinweis bleibt in A.2 (`kapitelSheet`-Umfeld in `js/ui/print.js`, Merkzeile
+«Bestand»).
+
 **12.1 Ein Grundstück trägt EINEN Namen.** Die Kette ist: Adressregister (GWR)
 → eingetippte Adresse → `Parzelle NNNN`. Das Register geht vor der Eingabe,
 weil die Eingabe zur Parzelle führt und nicht zu ihrer Adresse. Sie steht
@@ -541,8 +551,16 @@ Offene Gewässer und Flächenanteile ausserhalb der
 Bauzone werden **nicht** automatisch erkannt — dauerhafter Warnhinweis.
 
 ### 3.10 Fussabdruck-Deckel: Grünflächenziffer und Überbauungsziffer
-* `Fläche_max(GFZ) = anrechenbare Fläche × (1 − GFZ/100)`. Fehlt die GFZ
-  (Zumikon), entfällt die Vorschrift.
+* `Fläche_max(GFZ) = anrechenbare Fläche × (1 − GFZ/100)`. Fehlt die GFZ in
+  der erfassten BZO, entfällt die Vorschrift — **Zumikon W2/25 ist seit dem
+  31.08.2026 ein Sonderfall**: die Teilrevision (Gemeindeversammlung 2025)
+  weitet die GFZ auf W2/25 aus, und ob die teilweise Nichtgenehmigung vom
+  01.04.2026 genau diesen Punkt trifft, ist offen. Die Zeile lautet dort
+  «ungeprüft / Rechtsstand unklar» statt «nicht anwendbar»
+  (`revision_pendenzen` in `data/bzo-zumikon.json`; Quelle: Angabe
+  Auftraggeber, revidierter BZO-Text nicht erfasst). Gerechnet wird weiterhin
+  **ohne** Deckel — nicht konservativ, falls die revidierte Vorschrift gilt;
+  der Rechtsstand-Hinweis auf Blatt 1 nennt den Punkt ausdrücklich.
 * **NEU — Überbauungsziffer (§ 256 PBG; Art. 62 E-BZO):** in W2bI/W2bII (22 %)
   und W2bIII (25 %) zusätzlich `Fläche_max(ÜZ) = anrechenbare Fläche × ÜZ`.
 * Bebaubare Fläche = Minimum aus Setback-Fläche, GFZ- und ÜZ-Deckel. Welche
@@ -565,6 +583,17 @@ zulässige Vollgeschosszahl ergäbe. Umsetzung:
   Fläche ausgewiesen (nicht gezeichnet — Schrägdach-Daten fehlen).
 * Ausgewiesen werden getrennt: anrechenbare GFA (AZ-relevant) und **nutzbare
   Geschossfläche total** inkl. freier Geschosse.
+* **NEU (31.08.2026) — je Geschoss gilt min(Freibetrag, geometrisch
+  darstellbare Fläche).** Der Freibetrag befreit von der Anrechnung, er
+  schafft keine Baubarkeit: die Attika ist durch das 45°-Profil (3.13)
+  regelmässig kleiner als der Freibetrag, und die nutzbare Geschossfläche
+  zählte trotzdem den vollen Betrag — auf 5030 722.8 m², während das eigene
+  Attika-Blatt 79.9 m² auswies. Jetzt 622.0 m²
+  (`begrenzeAttikaAufGeometrie`, `js/core/envelope.js`; greift auch im
+  Areal-Lauf und in der Parkierungs-Bezugsgrösse). Wo die Geometrie bindet,
+  sagt es ein Hinweis («Attika geometrisch auf X m² begrenzt, Freibetrag
+  nicht ausgeschöpft»). Volumen und gezeichnete Körper waren schon vorher
+  geometrisch und bleiben unverändert.
 
 ### 3.12 Geschosse und Höhen
 * Geschosszahl ist eine **Entwurfsentscheidung, kein Ergebnis** (unverändert).
@@ -792,6 +821,11 @@ Bei Abweichungen gilt das Register, nicht diese Tabelle — siehe §11.
 
 ## 8. Behobene Fehler
 
+* **Nutzbare Geschossfläche zählte den vollen Attika-Freibetrag**, obwohl das
+  45°-Profil die Attika kleiner macht (5030: 722.8 m² ausgewiesen, 79.9 m²
+  Attika gezeichnet). **Behoben** (31.08.2026): je Geschoss
+  min(Freibetrag, geometrisch darstellbar) — Regel in 3.11, Code in
+  `js/core/envelope.js`.
 * **Grosser Grenzabstand an Parzellenkanten statt Gebäudeseiten** (31.08.2026):
   Art. 18 Abs. 2 BZO Zumikon misst am Gebäude (flächenkleinstes Rechteck);
   das Werkzeug hängte die 10 m an Parzellenkanten. **Behoben** — iteratives

@@ -58,6 +58,60 @@ function check(name, actual, expected, tol = 0.01) {
 }
 
 // ---------------------------------------------------------------------------
+// 00000000) Nutzbare Geschossflaeche: je Geschoss min(Freibetrag § 255
+//      Abs. 3 PBG, geometrisch darstellbare Flaeche) — und die GFZ-Pendenz
+//      der Teilrevision 2025. REGELN.md 3.10 / 3.11 / 12.9.
+//      Anlass: 5030 wies 722.8 m² nutzbar aus (voller Attika-Freibetrag
+//      180.7 m²), waehrend das 45°-Profil nur 79.9 m² Attika zulaesst.
+// ---------------------------------------------------------------------------
+{
+  const rules = await T.getZoneRules({ zone: 'W2/25', gemeinde: 'Zumikon', kantonaleWerte: {} });
+  const rec = T.reconcileEnvelope({
+    parcelAreaM2: 1000, anrechenbareFlaecheM2: 1000, flaechenAbzuege: null,
+    setbackFootprintAreaM2: 400, rules,
+  });
+  // Referenz wie Abschnitt 1: 2 VG à 125, Attika-Freibetrag 125, UG 125 → 500 m².
+  const mm = T.buildMassingModel({ footprintFeature: { fake: true }, reconciled: rec, rules });
+  check('vor der Geometrie zaehlt der Freibetrag voll (500 m²)', mm.nutzflaecheTotalM2, 500);
+  mm.attikaFootplateM2 = 60; // das 45°-Profil laesst nur 60 m² zu
+  T.begrenzeAttikaAufGeometrie(mm);
+  check('min(Freibetrag, Geometrie): Attika zaehlt 60 m²', mm.attikaNutzM2, 60);
+  check('… nutzbare Geschossflaeche 2×125 + 60 + 125 = 435 m²', mm.nutzflaecheTotalM2, 435);
+  check('… als geometrisch begrenzt markiert', mm.attikaGeometrischBegrenzt, true);
+  check('… ungenutzter Freibetrag 65 m²', mm.attikaFreibetragUngenutztM2, 65);
+  check('… keine andere Zahl aendert sich (Volumen 1218.75 m³)', mm.volumeM3, 1218.75);
+
+  const mm2 = T.buildMassingModel({ footprintFeature: { fake: true }, reconciled: rec, rules });
+  mm2.attikaFootplateM2 = 125;
+  T.begrenzeAttikaAufGeometrie(mm2);
+  check('Geometrie ≥ Freibetrag: 500 m² bleiben', mm2.nutzflaecheTotalM2, 500);
+  check('… und keine Begrenzungs-Markierung', !!mm2.attikaGeometrischBegrenzt, false);
+
+  const mm3 = T.buildMassingModel({ footprintFeature: { fake: true }, reconciled: rec, rules });
+  T.begrenzeAttikaAufGeometrie(mm3);
+  check('ohne Geometrie-Angabe bleibt der Freibetrag stehen', mm3.nutzflaecheTotalM2, 500);
+
+  check('Referenz 5030: 722.8 − (180.7 − 79.9) = 622.0 m²', 722.8 - (180.7 - 79.9), 622.0, 0.01);
+
+  // GFZ-Pendenz (Teilrevision 2025, W2/25): «ungeprüft», nicht «gibt es nicht»
+  // — und ausdruecklich KEIN erfundener Deckel (Zero-Assumption, CLAUDE.md §2).
+  const pend = (rules.meta.revision_pendenzen || [])[0];
+  check('GFZ-Pendenz erfasst', !!(pend && pend.betrifft === 'gruenflaechenziffer_min_pct'), true);
+  check('… fuer die Zone W2/25', !!(pend && pend.zonen.includes('W2/25')), true);
+  check('… mit benannter Quelle (Angabe Auftraggeber)', !!(pend && /Auftraggeber/.test(pend.quelle)), true);
+  check('Rechtsstand-Hinweis nennt die GFZ-Ausweitung', /Grünflächenziffer/.test(rules.meta.legal_status), true);
+  check('GFZ-Wert bleibt null — kein erfundener Deckel', rules.gruenflaechenziffer_min_pct, null);
+  const recGfz = T.reconcileEnvelope({ parcelAreaM2: 1000, anrechenbareFlaecheM2: 1000, setbackFootprintAreaM2: 400, rules });
+  check('… und weiterhin kein Gruen-Deckel in der Rechnung', recGfz.hasGreenCap, false);
+  // Wert und Einstufungs-Begruendung duerfen sich nicht widersprechen: bei
+  // offener Pendenz sagt die Kaskade «Rechtsstand unklar», nicht «Regel
+  // geprueft und nicht anwendbar».
+  const st = T.stufeVon({ wert: '— ungeprüft / Rechtsstand unklar', kind: 'GEPRÜFT', rechtsstandUnklar: true, label: 'GFZ' });
+  check('Kaskade begruendet mit Rechtsstand unklar', /Rechtsstand unklar/.test(st.grund), true);
+  check('… und stuft weiterhin nicht ermittelbar ein', st.stufe, 'NICHT_ERMITTELBAR');
+}
+
+// ---------------------------------------------------------------------------
 // 0000000) Grosser Grenzabstand am GEBÄUDE (Art. 18 Abs. 2 BZO Zumikon) und
 //      Plausibilitaetspruefung gegen den Bestand — REGELN.md §13.
 //      Anlass: auf Zumikon 5028 kollabierte die bebaubare Flaeche (154.3 m²
@@ -840,6 +894,8 @@ function check(name, actual, expected, tol = 0.01) {
     byLabel('Anrechenbare Grundstücksfläche').sicherheit, 'VEREINFACHT');
   check('Grünflächenziffer Zumikon ⇒ nicht ermittelbar (nie 0)',
     byLabel('Grünflächenziffer-Deckel').sicherheit, 'NICHT_ERMITTELBAR');
+  check('… und sagt seit der Teilrevisions-Pendenz «ungeprüft», nicht «keine GFZ»',
+    byLabel('Grünflächenziffer-Deckel').value, '— ungeprüft / Rechtsstand unklar');
   check('Attikahöhe ohne Höhenzuschlag ⇒ Annahme',
     byLabel('Attikahöhe').sicherheit, 'ANNAHME');
   check('Geschosszahl ist Entwurf ⇒ Annahme', byLabel('Bebaubar als').sicherheit, 'ANNAHME');
