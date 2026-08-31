@@ -280,3 +280,54 @@
 #print-doc tr.bel-r-VEREINFACHT td { color: #4a4a4a; }
 #print-doc tr.bel-r-ANNAHME td { color: #6a6a6a; }
 #print-doc tr.bel-r-NICHT_ERMITTELBAR td { color: #8a8a8a; font-style: italic; }
+
+/* --- Titelliste, Inhalt, Kapitelseiten (31.8.2026) -------------------------
+   Bei mehreren Grundstuecken traegt das Titelblatt sie alle als Liste, Seite
+   zwei den Inhalt, und vor jedem Grundstueck steht eine Trennseite. Wer drei
+   Auswertungen in einer Datei bekommt, muss beim Blaettern jederzeit wissen,
+   von welchem Grundstueck die Seite gerade spricht. */
+#print-doc .titel-liste {
+  list-style: none; margin: 6mm 0 0; padding: 0;
+  border-top: 1px solid var(--p-hair);
+}
+#print-doc .titel-liste li {
+  display: grid; grid-template-columns: 7mm 1fr auto; gap: 3mm;
+  align-items: baseline; padding: 2.4mm 0;
+  border-bottom: 1px solid var(--p-hair); font-size: 9.5pt;
+}
+#print-doc .titel-liste .tl-n { color: var(--p-faint); }
+#print-doc .titel-liste .tl-a { font-weight: 700; }
+#print-doc .titel-liste .tl-p { color: var(--p-muted); font-size: 8.5pt; }
+
+/* Inhalt: eine Zeile je Blatt, Unterpunkte eingerueckt. Die Fuehrungslinie
+   ist ein Rahmen am Titel, kein Punktmuster -- gepunktete Fuehrungen setzen
+   je nach Betrachter unterschiedlich und wandern dann gegen die Zahl. */
+#print-doc .ivz { columns: 2; column-gap: 10mm; }
+#print-doc .ivz-row {
+  display: flex; align-items: baseline; gap: 3mm;
+  padding: 1.5mm 0; border-bottom: 1px solid var(--p-hair);
+  font-size: 9pt; break-inside: avoid;
+}
+#print-doc .ivz-row.is-sub { padding-left: 6mm; font-size: 8.5pt; color: var(--p-muted); }
+#print-doc .ivz-t { flex: 1 1 auto; }
+#print-doc .ivz-row:not(.is-sub) .ivz-t { font-weight: 700; }
+#print-doc .ivz-p { flex: none; font-variant-numeric: tabular-nums; color: var(--p-muted); }
+
+/* Kapitelseite: bewusst leer bis auf das Noetige. Sie soll beim Blaettern
+   auffallen, nicht gelesen werden. */
+#print-doc .sheet-kapitel { justify-content: center; }
+#print-doc .kap-mitte { padding: 0 4mm; }
+#print-doc .kap-zaehler {
+  font-size: 8.5pt; letter-spacing: .16em; text-transform: uppercase;
+  color: var(--p-faint); margin-bottom: 3mm;
+}
+#print-doc .kap-adresse { font-size: 26pt; line-height: 1.1; margin: 0 0 2mm; font-weight: 700; }
+#print-doc .kap-meta { font-size: 10pt; color: var(--p-muted); margin-bottom: 8mm; }
+#print-doc .kap-zahlen {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 3mm 8mm;
+  border-top: 2px solid var(--p-acc); padding-top: 4mm; max-width: 120mm;
+}
+#print-doc .kap-z { display: flex; flex-direction: column; gap: 1mm; }
+#print-doc .kap-z span { font-size: 8pt; letter-spacing: .1em; text-transform: uppercase; color: var(--p-faint); }
+#print-doc .kap-z b { font-size: 15pt; }
+#print-doc .kap-text { font-size: 9pt; color: var(--p-muted); margin: 8mm 0 0; max-width: 120mm; }

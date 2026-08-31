@@ -358,17 +358,37 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   // Erste Seite des Exports: Adresse, zwei Saetze dazu, was das Dokument ist,
   // Absender und Stand. Bewusst fast leer — die Dichte kommt auf den
   // Folgeblaettern.
-  function titleSheet(r, foot) {
+  // Ein Grundstueck als Zeile: Adresse, sonst die Parzellennummer.
+  function betreffVon(r) {
+    return r.anchor.address
+      || r.selection.map((p) => `Parzelle ${p.parcelNumber}`).join(' + ');
+  }
+
+  // `liste` sind die Auswertungen des Dokuments — im Arealmodus eine, sonst
+  // eine je Parzelle. Das Titelblatt nennt sie ALLE: wer drei Grundstuecke
+  // pruefen laesst, muss auf der ersten Seite sehen, dass alle drei drin
+  // stehen, und nicht nur das erste.
+  function titleSheet(liste, foot) {
+    const r = liste[0];
     const { selection, anchor, rules } = r;
-    const multi = selection.length > 1;
-    const subject = anchor.address || selection.map((p) => `Parzelle ${p.parcelNumber}`).join(' + ');
+    const mehrere = liste.length > 1;
+    const alleParzellen = liste.flatMap((x) => x.selection);
+    const multi = alleParzellen.length > 1;
+    const subject = mehrere
+      ? `${liste.length} Grundstücke in ${rules.gemeinde}`
+      : betreffVon(r);
     const dateStr = new Date().toLocaleDateString('de-CH');
     return `<section class="sheet sheet-title">
       <div class="titel-mitte">
         <div class="titel-kicker">Baurechtliche Machbarkeitsstudie</div>
         <h1 class="titel-adresse">${esc(subject)}</h1>
-        <div class="titel-meta">Gemeinde ${esc(rules.gemeinde)} · ${multi ? 'Parzellen' : 'Parzelle'} ${esc(selection.map((p) => p.parcelNumber).join(' + '))} · Zone ${esc(anchor.zone)}${anchor.zoneLabel ? ` (${esc(anchor.zoneLabel)})` : ''}</div>
-        <p class="titel-text">Diese Studie zeigt, was auf ${multi ? 'den gewählten Parzellen' : 'der gewählten Parzelle'} nach geltendem Baurecht gebaut werden darf: Fläche, Geschosse, Volumen und eine erste Kostenschätzung. Grundlage sind die amtliche Vermessung, die kantonalen Geodaten sowie die Bau- und Zonenordnung der Gemeinde — jede Zahl nennt ihre Quelle. Erstellt hat sie ein Programm: es wendet die zitierten Bestimmungen als fest verdrahtete Regeln an, rechnet deterministisch und ohne KI und liefert für dieselbe Parzelle immer dieselben Zahlen.</p>
+        <div class="titel-meta">Gemeinde ${esc(rules.gemeinde)} · ${multi ? 'Parzellen' : 'Parzelle'} ${esc(alleParzellen.map((p) => p.parcelNumber).join(' + '))} · Zone ${esc(anchor.zone)}${anchor.zoneLabel ? ` (${esc(anchor.zoneLabel)})` : ''}</div>
+        ${mehrere ? `<ul class="titel-liste">${liste.map((x, i) =>
+          `<li><span class="tl-n">${i + 1}</span><span class="tl-a">${esc(betreffVon(x))}</span>`
+          + `<span class="tl-p">Parzelle ${esc(x.selection.map((p) => p.parcelNumber).join(' + '))}</span></li>`).join('')}</ul>` : ''}
+        <p class="titel-text">${mehrere
+          ? `Diese Datei enthält ${liste.length} getrennte Auswertungen — je Grundstück eine, jede für sich gerechnet. Sie zeigen,`
+          : 'Diese Studie zeigt,'} was ${mehrere ? 'dort' : (multi ? 'auf den gewählten Parzellen' : 'auf der gewählten Parzelle')} nach geltendem Baurecht gebaut werden darf: Fläche, Geschosse, Volumen und eine erste Kostenschätzung. Grundlage sind die amtliche Vermessung, die kantonalen Geodaten sowie die Bau- und Zonenordnung der Gemeinde — jede Zahl nennt ihre Quelle. Erstellt hat sie ein Programm: es wendet die zitierten Bestimmungen als fest verdrahtete Regeln an, rechnet deterministisch und ohne KI und liefert für dieselbe Parzelle immer dieselben Zahlen.</p>
       </div>
       <div class="titel-unten">
         <div class="titel-autor">exportiert von ${esc(T.ABSENDER)}</div>
@@ -504,7 +524,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   // strings; grundbuchFootnote may be null.
   // Baut die Blaetter EINER Auswertung und gibt sie in vier Gruppen zurueck,
   // damit der Aufrufer sie fuer mehrere Parzellen zusammensetzen kann.
-  async function buildSheetsForResult(r, grundbuchFootnote) {
+  async function buildSheetsForResult(r, grundbuchFootnote, mehrere) {
     // Die Hinweise haengen am Ergebnis, nicht am Aufruf: bei mehreren
     // Parzellen traegt sonst jede die Hinweise der ersten.
     const flags = r.flags || [];
@@ -561,7 +581,14 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     // The zone rides in the running footer of every sheet: it is the premise
     // of every number in the document, and a page read on its own has to say
     // which zone it is talking about.
-    const foot = `${esc(rules.gemeinde)} · Zone ${esc(anchor.zone)} · ${dateStr}`;
+    // Bei mehreren Grundstuecken traegt die Fusszeile die PARZELLE mit. Ohne
+    // sie sind die Seiten zweier Grundstuecke am Fuss nicht zu unterscheiden
+    // — dieselbe Gemeinde, dieselbe Zone, dasselbe Datum. Wer ein einzelnes
+    // Blatt in der Hand haelt, muss sehen, wovon es spricht.
+    const foot = mehrere
+      ? `${esc(rules.gemeinde)} · Parzelle ${esc(selection.map((p) => p.parcelNumber).join(' + '))}`
+        + ` · Zone ${esc(anchor.zone)} · ${dateStr}`
+      : `${esc(rules.gemeinde)} · Zone ${esc(anchor.zone)} · ${dateStr}`;
 
     // ---- Abschnittsnummern -------------------------------------------------
     // Die Nummern hängen davon ab, welche optionalen Blätter dieses Grundstück
@@ -575,15 +602,6 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     const numWald = showWaldMap ? String(numCursor++) : null;
     const numPk = pk ? String(numCursor++) : null;
     const numKosten = String(numCursor++);
-    const tocEntries = [
-      [numPot, 'Potenzial & Volumetrie'],
-      [numSitu, 'Situation & Grundriss'],
-      [numZone, 'Zone & Regeln'],
-      ...(numWald ? [[numWald, 'Waldabstand']] : []),
-      ...(numPk ? [[numPk, 'Parkierung']] : []),
-      [numKosten, 'Kostenschätzung, grob'],
-      ['A', 'Anhang — Belastbarkeit der Zahlen, Hinweise, Quellen mit Wortlaut'],
-    ];
 
     // ---- Sheet 1: Übersicht ------------------------------------------------
     // ---- Blatt 1: Das Wichtigste in Kürze ---------------------------------
@@ -622,9 +640,10 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
         </div>
         <div>${mapBlock(rings, centerE, centerN, wideSpan, ['cadastre'], null, 900, 540)}
           <div class="caption">Situationsplan — ${multi ? 'gewählte Parzellen' : 'Parzelle'} rot markiert. Amtliche Vermessung (swisstopo / Kantone).</div>
-          <div class="toc">
-            ${tocEntries.map(([n, t]) => `<div class="toc-row" data-toc-for="${esc(n)}"><span class="t-num">${esc(n)}</span><span class="t-title">${esc(t)}</span><span class="t-page"></span></div>`).join('')}
-          </div>
+          ${/* Das Inhaltsverzeichnis steht seit dem 31.8.2026 als eigenes
+               Blatt auf Seite 2 — hier waere es ein zweites, das bei
+               mehreren Grundstuecken ausserdem nur den eigenen Abschnitt
+               kennt. Der Platz gehoert jetzt der Karte. */''}
         </div>
       </div>`, foot,
       sourcesLine(rules, [
@@ -1057,11 +1076,86 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     //             gelten fuer das ganze Dokument und sind wortgleich.
     return {
       foot,
-      titel: titleSheet(r, foot),
       koerper: [s1, s2, s2b, s3, sWald, sPk, s5].join(''),
       belege: [sBel, s4b].join(''),
       schluss: [sAbg, s6].join(''),
     };
+  }
+
+  // ---- Kapitelblatt vor jedem Grundstueck --------------------------------
+  // Eine schmale Trennseite, damit beim Blaettern klar ist, dass hier ein
+  // NEUES Grundstueck anfaengt und nicht dasselbe weitergeht. Sie traegt die
+  // Nummer, die Adresse und die drei Schlagzahlen — genug, um zu wissen, wo
+  // man ist und was kommt, ohne die folgenden Blaetter vorwegzunehmen.
+  // Nur bei getrennter Auswertung: bei einem Grundstueck gaebe es nichts zu
+  // trennen.
+  function kapitelSheet(r, index, total, foot) {
+    const p = r.selection[0];
+    const mm = r.massingModel;
+    const zahl = (label, wert) =>
+      `<div class="kap-z"><span>${esc(label)}</span><b>${esc(wert)}</b></div>`;
+    return `<section class="sheet sheet-kapitel" data-outline-title="${esc(betreffVon(r))}"
+             data-outline-num="K" data-kapitel="${index}">
+      <div class="kap-mitte">
+        <div class="kap-zaehler">Grundstück ${index + 1} von ${total}</div>
+        <h1 class="kap-adresse">${esc(betreffVon(r))}</h1>
+        <div class="kap-meta">Parzelle ${esc(p.parcelNumber || p.egrid)} · Zone ${esc(r.anchor.zone)}
+          · ${esc(r.rules.gemeinde)}</div>
+        <div class="kap-zahlen">
+          ${zahl('Grundstücksfläche', fmt(r.reconciled.parcelAreaM2, 0) + ' m²')}
+          ${zahl('Nutzbarer Fussabdruck', fmt(r.reconciled.usableFootprintAreaM2, 0) + ' m²')}
+          ${zahl('Max. Geschossfläche', fmt(r.reconciled.maxGfaM2, 0) + ' m²')}
+          ${zahl('Bebaubar als', mm ? storeyLabel(mm.ordinaryStoreys, mm.attikaStoreys) : '—')}
+        </div>
+        <p class="kap-text">Auf den folgenden Blättern steht die Auswertung dieses
+          Grundstücks für sich allein: mit seinen eigenen Grenzabständen, seiner
+          eigenen Ausnützung und seinen eigenen Belegen.</p>
+      </div>
+      <footer class="sheet-foot">${foot}</footer>
+    </section>`;
+  }
+
+  // ---- Inhalt (Seite 2) --------------------------------------------------
+  // Das Blatt entsteht LEER und wird nach dem Zusammenbau aus dem
+  // tatsaechlichen Dokument gefuellt (fuelleInhalt). Eine fest verdrahtete
+  // Liste waere sofort falsch: welche Blaetter es gibt, haengt am Grundstueck
+  // (Waldabstand nur wo er greift, Parkierung nur mit kommunaler Regel), und
+  // die Abschnittsnummern wiederholen sich bei mehreren Grundstuecken.
+  function inhaltSheet(liste, foot) {
+    const mehrere = liste.length > 1;
+    return sheet('Inhalt',
+      mehrere ? `${liste.length} Grundstücke, getrennt gerechnet` : 'Was in diesem Dokument steht',
+      mehrere
+        ? 'Zuerst die Übersicht über alle Grundstücke zusammen, danach jedes für sich. '
+          + 'Vor jedem Grundstück steht eine Trennseite mit seiner Adresse.'
+        : 'Die Blätter dieses Dokuments in ihrer Reihenfolge.',
+      '<div class="ivz" data-ivz></div>', foot, '', 'I');
+  }
+
+  // Fuellt das Inhaltsblatt aus den Blaettern, die wirklich da sind.
+  // Laeuft VOR dem Umbruch, damit die Hoehe der Liste beim Umbrechen zaehlt;
+  // die Seitenzahlen kommen danach (sie stehen erst nach dem Umbruch fest).
+  function fuelleInhalt(host) {
+    const ivz = host.querySelector('[data-ivz]');
+    if (!ivz) return;
+    const rows = [];
+    for (const s of host.children) {
+      if (!s.classList.contains('sheet')) continue;
+      if (s.dataset.continuation) continue;          // Fortsetzungen sind keine Eintraege
+      const num = s.dataset.outlineNum || '';
+      if (num === 'I' || s.classList.contains('sheet-title')) continue;
+      const titel = s.dataset.outlineTitle || '';
+      // Oberste Ebene: Uebersicht, Kapitelseiten, Schlussanhang.
+      const oben = num === 'Ü' || num === 'K' || num === 'A.3' || num === 'A.4';
+      const kap = s.dataset.kapitel;
+      const beschriftung = num === 'K'
+        ? `${Number(kap) + 1}. ${titel}`
+        : titel;
+      s.dataset.ivzId = String(rows.length);
+      rows.push(`<div class="ivz-row${oben ? '' : ' is-sub'}" data-toc-sel="${rows.length}">`
+        + `<span class="ivz-t">${esc(beschriftung)}</span><span class="ivz-p"></span></div>`);
+    }
+    ivz.innerHTML = rows.join('');
   }
 
   // ---- Uebersichtsblatt (nur bei getrennter Auswertung) ------------------
@@ -1146,17 +1240,38 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   async function buildPrintDocument(results, grundbuchFootnote) {
     const liste = Array.isArray(results) ? results : [results];
     const teile = [];
-    for (const r of liste) teile.push(await buildSheetsForResult(r, grundbuchFootnote));
+    const mehrere = liste.length > 1;
+    for (const r of liste) teile.push(await buildSheetsForResult(r, grundbuchFootnote, mehrere));
 
     const foot = teile[0].foot;
-    const uebersicht = liste.length > 1 ? await uebersichtSheet(liste, foot) : '';
-    const html = teile[0].titel
+    const uebersicht = mehrere ? await uebersichtSheet(liste, foot) : '';
+    // Blattfolge: Titel · Inhalt · (Uebersicht) · je Grundstueck
+    // Kapitelseite + Koerper + Belege · Schluss.
+    const html = titleSheet(liste, foot)
+      + inhaltSheet(liste, foot)
       + uebersicht
-      + teile.map((t) => t.koerper + t.belege).join('')
+      + teile.map((t, i) => (mehrere ? kapitelSheet(liste[i], i, liste.length, foot) : '')
+          + t.koerper + t.belege).join('')
       + teile[0].schluss;
 
     const host = document.getElementById('print-doc');
     host.innerHTML = html;
+
+    // Jedem Blatt seinen Abschnitt anheften: alles ab einer Kapitelseite bis
+    // zur naechsten gehoert zu diesem Grundstueck. Ohne das liessen sich die
+    // Blaetter spaeter nicht auseinanderhalten — die Abschnittsnummern
+    // wiederholen sich je Grundstueck.
+    let sect = -1;
+    for (const el of host.children) {
+      if (!el.classList.contains('sheet')) continue;
+      if (el.dataset.kapitel !== undefined) sect = Number(el.dataset.kapitel);
+      else if (el.dataset.outlineNum === 'A.3' || el.dataset.outlineNum === 'A.4') sect = -1;
+      if (sect >= 0) el.dataset.sect = String(sect);
+    }
+
+    // Inhalt fuellen, BEVOR umbrochen wird: die Liste hat eine Hoehe, und die
+    // muss beim Umbrechen mitzaehlen.
+    fuelleInhalt(host);
 
     // ERST die Bilder, DANN umbrechen. Ein <img>, das noch laedt, ist null
     // hoch: das Blatt misst sich zu kurz, der Umbruch sieht keinen Grund
@@ -1170,25 +1285,34 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     // …und dann beweisen, dass keiner mehr überläuft.
     pruefeKeinUeberlauf(host);
 
+    // Fortsetzungsblaetter entstehen erst beim Umbruch und haben deshalb
+    // noch keinen Abschnitt. Sie erben ihn vom Blatt davor — sonst faellt
+    // beim Blaettern mitten in einem Grundstueck die Zuordnung weg.
+    let letzterSect = null;
+    for (const el of host.children) {
+      if (!el.classList.contains('sheet')) continue;
+      if (el.dataset.sect !== undefined) letzterSect = el.dataset.sect;
+      else if (el.dataset.continuation && letzterSect !== null) el.dataset.sect = letzterSect;
+      else letzterSect = null;
+    }
+
     // Number the sheets now that we know how many there are.
     const sheets = host.querySelectorAll('.sheet');
     sheets.forEach((s, i) => {
       const f = s.querySelector('.sheet-foot');
       f.innerHTML = `<span>${f.innerHTML}</span><span>Seite ${i + 1} / ${sheets.length}</span>`;
     });
-    // Seitenzahlen ins Mini-Inhaltsverzeichnis — erst JETZT sind sie bekannt.
-    // Bei mehreren Parzellen zeigt jedes Verzeichnis auf die Blaetter SEINES
-    // Abschnitts: gesucht wird ab dem eigenen Blatt vorwaerts, nicht global.
-    host.querySelectorAll('.toc-row').forEach((row) => {
-      const num = row.dataset.tocFor;
-      const eigenesBlatt = row.closest('.sheet');
-      const ab = [...sheets].indexOf(eigenesBlatt);
-      const passt = (s) => (num === 'A'
-        ? (s.dataset.outlineNum || '').startsWith('A.')
-        : s.dataset.outlineNum === num);
-      const target = [...sheets].slice(ab + 1).find(passt) || [...sheets].find(passt);
-      if (!target) { row.remove(); return; }
-      row.querySelector('.t-page').textContent = `Seite ${[...sheets].indexOf(target) + 1}`;
+    // Seitenzahlen ins Inhaltsverzeichnis — erst JETZT sind sie bekannt.
+    // Zugeordnet wird ueber die beim Fuellen vergebene Id, nicht ueber die
+    // Abschnittsnummer: die wiederholt sich bei mehreren Grundstuecken.
+    const nachId = new Map();
+    [...sheets].forEach((s, i) => {
+      if (s.dataset.ivzId !== undefined) nachId.set(s.dataset.ivzId, i + 1);
+    });
+    host.querySelectorAll('.ivz-row').forEach((row) => {
+      const seite = nachId.get(row.dataset.tocSel);
+      if (seite === undefined) { row.remove(); return; }
+      row.querySelector('.ivz-p').textContent = String(seite);
     });
 
     // Zweiter Durchgang: die Fortsetzungsblaetter tragen dieselben, bereits
