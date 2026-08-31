@@ -209,18 +209,38 @@
     if (open) ablaufPanel.redraw();
   });
 
-  // Der Dateiname trägt Adresse (oder Parzellennummern), Datum und die
-  // Werkzeug-Version, damit im Download-Ordner nicht zehn "Machbarkeit.pdf"
-  // nebeneinander liegen und zwei Exporte verschiedener Stände
-  // unterscheidbar bleiben.
+  // Der Dateiname ist: Adresse, Exportdatum, Exportzeit (hhmmss).
+  //
+  // Die Uhrzeit ist der Grund, warum das Datum allein nicht reicht: wer an
+  // einem Nachmittag dieselbe Parzelle dreimal exportiert — nach einer
+  // Aenderung an der Geschosszahl etwa —, hatte vorher dreimal denselben
+  // Namen und im Download-Ordner «(1)», «(2)». Auf die Sekunde genau sind
+  // sie unterscheidbar UND in der Sortierung chronologisch.
+  //
+  // Die Adresse kommt aus derselben Kette wie im Dokument: eingetippte
+  // Adresse, sonst die aus dem Gebaeuderegister, sonst die Parzellennummer.
+  // Erfunden wird auch hier nichts.
   function pdfFilename() {
-    const r = lastResult;
-    const subject = r
-      ? (r.anchor.address || r.selection.map((p) => `Parzelle-${p.parcelNumber}`).join('_'))
-      : '';
+    const liste = lastResults.length ? lastResults : (lastResult ? [lastResult] : []);
+    const r = liste[0];
+    let betreff = '';
+    if (r) {
+      const ausRegister = r.selection
+        .map((p) => (p.adressen && p.adressen.liste && p.adressen.liste[0]) || null)
+        .filter(Boolean);
+      betreff = r.anchor.address
+        || ausRegister[0]
+        || r.selection.map((p) => `Parzelle-${p.parcelNumber}`).join('_');
+      // Mehrere Grundstuecke in einer Datei: die erste Adresse plus die Zahl
+      // der uebrigen. Alle aneinanderzuhaengen ergaebe bei drei Adressen
+      // rund 120 Zeichen, und manche Systeme schneiden das ab.
+      if (liste.length > 1) betreff += `-und-${liste.length - 1}-weitere`;
+    }
     const d = new Date();
-    const stamp = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    return T.safeFilename(['Machbarkeitsstudie', subject, stamp, T.WERKZEUG_VERSION]);
+    const z = (n) => String(n).padStart(2, '0');
+    const datum = `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`;
+    const zeit = `${z(d.getHours())}${z(d.getMinutes())}${z(d.getSeconds())}`;
+    return T.safeFilename([betreff, datum, zeit]);
   }
 
   // Startzustand: ohne Analyse gibt es nichts zu exportieren und nichts
