@@ -21,6 +21,26 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
 (function () {
   const T = window.MachbarkeitTool;
 
+  // Die Waldabstandslinien mehrerer Auswertungen fuer EINE Zeichnung: im
+  // getrennten Modus holt jede Parzelle die Linien ihres eigenen Umkreises,
+  // und dieselbe festgesetzte Linie kommt mehrfach zurueck. Fuer die
+  // Darstellung (durchgehende Linie ueber alle Parzellen) wird je objid nur
+  // ein Feature behalten — reine Deduplizierung, keine Geometrieaenderung.
+  function sammleWaldLinien(results) {
+    const seen = new Set();
+    const out = [];
+    for (const r of (results || [])) {
+      for (const f of ((r && r.wald && r.wald.lines) || [])) {
+        if (!f || !f.geometry) continue;
+        const key = (f.properties && f.properties.objid) || JSON.stringify(coordsOf(f)[0] || f.geometry.coordinates);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(f);
+      }
+    }
+    return out.length ? out : null;
+  }
+
   // § 259 aPBG (Anhang bisheriges Recht): "Ausser Ansatz fallen
   // Waldabstandsflächen, soweit sie mehr als 15 m hinter der
   // Waldabstandslinie liegen, Wald und offene Gewässer." Rechtswert aus dem
@@ -384,6 +404,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     };
   }
 
+  T.sammleWaldLinien = sammleWaldLinien;
   T.waldAusserAnsatz = waldAusserAnsatz;
   T.computeWaldabstand = computeWaldabstand;
   T.computeBaulinien = computeBaulinien;

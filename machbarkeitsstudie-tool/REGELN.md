@@ -701,6 +701,14 @@ Bei Abweichungen gilt das Register, nicht diese Tabelle — siehe §11.
 
 ## 7. Nachvollziehbarkeit
 
+* **Die Waldabstandslinie ist in jeder Zeichnung durchgehend** (Situationsplan,
+  Isometrie, die Blätter «Situation & Grundriss», «Potenzial & Volumetrie» und
+  «Übersicht» des Exports): gezeichnet wird die festgesetzte Linie (ogd-0152)
+  als eigenes Element, nur am Bildrand zugeschnitten — nie an Parzellen- oder
+  Fussabdruckgrenzen (`clipLinesToBboxLV95`, `js/core/coordinates.js`; im
+  getrennten Modus über alle Auswertungen dedupliziert, `sammleWaldLinien`).
+  Die rot schraffierte Abzugsfläche bleibt der parzellenweise gerechnete
+  Verschnitt: die Linie ist die Rechtsgrundlage, der Verschnitt ihr Ergebnis.
 * **Das Protokollfenster** (linke Spalte, dauerhaft sichtbar) zeigt den Lauf,
   während er läuft: eine Zeile je Rechenschritt mit ihrer Dauer, eine je
   Norm, die tatsächlich gegriffen hat (mit Artikel aus dem

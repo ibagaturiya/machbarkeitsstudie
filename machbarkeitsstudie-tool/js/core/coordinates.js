@@ -21,6 +21,55 @@
 window.MachbarkeitTool = window.MachbarkeitTool || {};
 
 (function () {
+  // Linien-Features (LineString/MultiLineString, LV95) auf ein Rechteck
+  // zuschneiden — fuer die DARSTELLUNG der Waldabstandslinie: sie soll in
+  // jeder Zeichnung durchgehend laufen, unbeschnitten von Parzellen- und
+  // Fussabdruckgrenzen, und nur am Bildrand enden. Das ist reiner
+  // Zeichnungszuschnitt (Liang-Barsky je Segment), keine Rechengroesse:
+  // der Waldabzug selbst rechnet weiterhin mit der vollen Liniengeometrie
+  // (js/sources/waldabstand.js).
+  //
+  // Rueckgabe: Liste von Polylinien (Koordinatenlisten). Ein Linienzug, der
+  // das Rechteck verlaesst und wieder eintritt, wird zu MEHREREN Polylinien
+  // — die Luecke ist echt (sie liegt ausserhalb des Bildes), sie darf nicht
+  // durch eine Sehne ueberbrueckt werden.
+  function clipLinesToBboxLV95(lineFeatures, [minE, minN, maxE, maxN]) {
+    const clipSeg = (a, b) => {
+      let t0 = 0, t1 = 1;
+      const dx = b[0] - a[0], dy = b[1] - a[1];
+      const p = [-dx, dx, -dy, dy];
+      const q = [a[0] - minE, maxE - a[0], a[1] - minN, maxN - a[1]];
+      for (let i = 0; i < 4; i++) {
+        if (p[i] === 0) { if (q[i] < 0) return null; continue; }
+        const r = q[i] / p[i];
+        if (p[i] < 0) { if (r > t1) return null; if (r > t0) t0 = r; }
+        else { if (r < t0) return null; if (r < t1) t1 = r; }
+      }
+      return [[a[0] + t0 * dx, a[1] + t0 * dy], [a[0] + t1 * dx, a[1] + t1 * dy]];
+    };
+    const samePt = (u, v) => Math.abs(u[0] - v[0]) < 1e-9 && Math.abs(u[1] - v[1]) < 1e-9;
+    const polylines = [];
+    for (const f of (lineFeatures || [])) {
+      if (!f || !f.geometry) continue;
+      const parts = f.geometry.type === 'LineString' ? [f.geometry.coordinates]
+        : f.geometry.type === 'MultiLineString' ? f.geometry.coordinates : [];
+      for (const coords of parts) {
+        let run = null;
+        for (let i = 0; i < coords.length - 1; i++) {
+          const seg = clipSeg(coords[i], coords[i + 1]);
+          if (!seg) { run = null; continue; }
+          if (run && samePt(run[run.length - 1], seg[0])) {
+            run.push(seg[1]);
+          } else {
+            run = [seg[0], seg[1]];
+            polylines.push(run);
+          }
+        }
+      }
+    }
+    return polylines;
+  }
+
   // Gerichtete Erosion in planarem LV95: der Teil eines Polygons, dessen
   // Punkte sich um distM Meter in EINE Richtung (dirE, dirN) bewegen können,
   // ohne das Polygon zu verlassen — also alle Punkte mit mindestens distM
@@ -565,6 +614,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     return { attikaBlocks, attikaAreaM2, requestedAreaM2, anyImpossible, diagnostics };
   }
 
+  window.MachbarkeitTool.clipLinesToBboxLV95 = clipLinesToBboxLV95;
   window.MachbarkeitTool.erodeDirectionalLV95 = erodeDirectionalLV95;
   window.MachbarkeitTool.safeOp = safeOp;
   window.MachbarkeitTool.exteriorRingsOf = exteriorRingsOf;

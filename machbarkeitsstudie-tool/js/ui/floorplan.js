@@ -87,14 +87,14 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       dimStroke: '#666', dimText: '#444', dimHalo: '#fff',
       blockStroke: '#7a6a55', blockText: '#5b4d3c', blockLabel: '#6d3d07',
       scaleStroke: '#333', facadeOther: '#8a8a8a', clearStroke: '#4a7ba6', clearText: '#2f5a80',
-      contour: '#a08b6a',
+      contour: '#a08b6a', waldLinie: '#2f6b23',
     },
     dark: {
       bg: '#1b1b1f', parcelFill: '#232327', parcelStroke: '#cfcfcf',
       dimStroke: '#a8a8a8', dimText: '#e8e8e8', dimHalo: '#1b1b1f',
       blockStroke: '#c9b48a', blockText: '#f0e4c8', blockLabel: '#ffcf9e',
       scaleStroke: '#cfcfcf', facadeOther: '#77746f', clearStroke: '#7ab0e0', clearText: '#a8d0f0',
-      contour: '#8e7d61',
+      contour: '#8e7d61', waldLinie: '#8fce7f',
     },
   };
 
@@ -135,7 +135,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   function buildFloorPlanSvg({
     parcelFeature, footprintFeature, hullFeature, removedFeature, lengthRect, lengthLimitM, lengthResolved,
     blockCount, blocks, facadeEdges, southFacadeIndex, grosserGrenzabstandM, dragEnabled, dark = false,
-    terrainGrid, hang,
+    terrainGrid, hang, waldLinien = null,
     widthPx, heightPx, padPx = 46,
   }) {
     const pal = dark ? PALETTE.dark : PALETTE.light;
@@ -223,6 +223,30 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     // wo kein Haus darueber steht — und das Haus bleibt lesbar.
     if (removedFeature) {
       out.push(`<path d="${path(allRingsOf(removedFeature))}" fill="url(#fp-hatch)" fill-opacity=".5" fill-rule="evenodd" stroke="#c62828" stroke-width="1.4" stroke-dasharray="6 4"/>`);
+    }
+
+    // Die Waldabstandslinie (ogd-0152) als DURCHGEHENDE Linie: unbeschnitten
+    // von Parzellen- und Fussabdruckgrenzen, nur am Bildrand zugeschnitten
+    // (clipLinesToBboxLV95 — reiner Zeichnungszuschnitt). Die Schraffur
+    // darueber bleibt der parzellenweise gerechnete Abzug; diese Linie ist
+    // die Rechtsgrundlage, an der er haengt, und laeuft deshalb ueber die
+    // ganze Zeichnung statt an jeder Grenze neu anzusetzen.
+    if (waldLinien) {
+      const viewBbox = [
+        minE - offX / scale, minN - offY / scale,
+        minE + (widthPx - offX) / scale, minN + (heightPx - offY) / scale,
+      ];
+      const polylines = T.clipLinesToBboxLV95(waldLinien, viewBbox);
+      if (polylines.length) {
+        const d = polylines.map((line) =>
+          'M' + line.map((c) => px(c).map((v) => v.toFixed(1)).join(',')).join('L')).join(' ');
+        out.push(`<path d="${d}" fill="none" stroke="${pal.waldLinie}" stroke-width="2.2" stroke-dasharray="10 5"/>`);
+        // Beschriftung an der laengsten sichtbaren Polylinie — ohne sie
+        // waere die gruene Linie ein unerklaertes Element der Zeichnung.
+        const longest = polylines.reduce((a, b) => (b.length > a.length ? b : a));
+        const mid = px(longest[Math.floor(longest.length / 2)]);
+        out.push(`<text x="${mid[0].toFixed(1)}" y="${(mid[1] - 5).toFixed(1)}" font-size="10" font-family="Helvetica,Arial" fill="${pal.waldLinie}" paint-order="stroke" stroke="${pal.bg}" stroke-width="3">Waldabstandslinie</text>`);
+      }
     }
 
     // The smallest enclosing rectangle of the UNDIVIDED buildable area -- the

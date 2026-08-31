@@ -145,12 +145,12 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     light: {
       bg: 0xf5f5f5, outline: 0x8a4b08, storeyLine: 0x6d3d07, attikaLine: 0x8a8a8a, attikaTint: 0xffffff,
       ghostColor: 0x8a6a3a, ghostOpacity: 0.09, ghostOutline: 0xb09a72,
-      parcelOutline: 0x333333, ambient: 0.6, sun: 0.8,
+      parcelOutline: 0x333333, ambient: 0.6, sun: 0.8, waldLinie: 0x2f6b23,
     },
     dark: {
       bg: 0x1b1b1f, outline: 0xffb066, storeyLine: 0xffcf9e, attikaLine: 0xffffff, attikaTint: 0xffffff,
       ghostColor: 0xd8b98a, ghostOpacity: 0.16, ghostOutline: 0x8a795f,
-      parcelOutline: 0xcfcfcf, ambient: 0.75, sun: 0.65,
+      parcelOutline: 0xcfcfcf, ambient: 0.75, sun: 0.65, waldLinie: 0x8fce7f,
     },
   };
 
@@ -160,7 +160,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   // weil buildSolidGroup ALLE Ringe auf DIESELBE Hoehe zieht: Parzellen in
   // verschiedenen Zonen stuenden dann falsch hoch da, ohne dass es auffiele.
   // Sie sind Beiwerk — nicht anfassbar, nicht ziehbar, gedaempft gezeichnet.
-  function renderEnvelope(container, { footprintFeature, parcelFeature, heightM, removedFeature, massing = null, weitereMassings = null, interactive = false, dark = false, draggable = false, buildableArea = null, blockGapM = 0, onMove = null, onCamera = null }) {
+  function renderEnvelope(container, { footprintFeature, parcelFeature, heightM, removedFeature, massing = null, weitereMassings = null, interactive = false, dark = false, draggable = false, buildableArea = null, blockGapM = 0, waldLinien = null, onMove = null, onCamera = null }) {
     const pal = dark ? PALETTE.dark : PALETTE.light;
     const footprintRings = exteriorRingsOf(footprintFeature);
     const parcelRings = exteriorRingsOf(parcelFeature);
@@ -222,6 +222,25 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     removedRings.forEach((ring) => {
       scene.add(buildDashedLoop(ring, centerE, centerN, 0xc62828, 0.08));
     });
+
+    // Die Waldabstandslinie (ogd-0152) DURCHGEHEND auf dem Boden: nicht an
+    // Parzellen- oder Fussabdruckgrenzen beschnitten, nur auf den Umkreis
+    // der Szene zugeschnitten (Parzellen-Bbox + Rand), damit die weit
+    // hinausgeholte Liniengeometrie die Szene nicht sprengt. Die roten
+    // Abzugs-Umrisse darueber bleiben der parzellenweise Verschnitt.
+    if (waldLinien) {
+      const pPts = parcelRings.flat();
+      const margin = 14;
+      const sceneBbox = [
+        Math.min(...pPts.map((p) => p[0])) - margin, Math.min(...pPts.map((p) => p[1])) - margin,
+        Math.max(...pPts.map((p) => p[0])) + margin, Math.max(...pPts.map((p) => p[1])) + margin,
+      ];
+      // buildDashedLoop zeichnet THREE.Line (offen) — fuer eine Polylinie
+      // genau richtig; nur der Name stammt vom Ring-Anwendungsfall.
+      T.clipLinesToBboxLV95(waldLinien, sceneBbox).forEach((line) => {
+        scene.add(buildDashedLoop(line, centerE, centerN, pal.waldLinie, 0.1));
+      });
+    }
 
     parcelRings.forEach((ring) => scene.add(buildOutlineLoop(ring, centerE, centerN, pal.parcelOutline)));
 

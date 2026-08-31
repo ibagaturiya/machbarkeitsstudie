@@ -77,6 +77,24 @@ function check(name, actual, expected, tol = 0.01) {
   const toWorld = (u, v) => [E + u * Math.cos(phi) - v * Math.sin(phi), N + u * Math.sin(phi) + v * Math.cos(phi)];
   const rectParcel = (L, W) => turf.polygon([[toWorld(0, 0), toWorld(L, 0), toWorld(L, W), toWorld(0, W), toWorld(0, 0)]]);
 
+  // (0) Zeichnungszuschnitt der Waldabstandslinie (clipLinesToBboxLV95):
+  //     die Linie laeuft in jeder Zeichnung DURCHGEHEND und wird nur am
+  //     Bildrand beschnitten — nie an Parzellen- oder Fussabdruckgrenzen.
+  //     Verlaesst sie das Bild und kehrt zurueck, entstehen ZWEI Polylinien;
+  //     die Luecke wird nicht durch eine Sehne ueberbrueckt.
+  {
+    const bbox = [E, N, E + 100, N + 100];
+    const quer = T.clipLinesToBboxLV95([turf.lineString([[E - 50, N + 50], [E + 150, N + 50]])], bbox);
+    check('Linienzuschnitt: quer durchs Bild ergibt EINE Polylinie', quer.length, 1);
+    const q = quer[0];
+    check('… von Bildrand zu Bildrand (100 m)',
+      Math.hypot(q[q.length - 1][0] - q[0][0], q[q.length - 1][1] - q[0][1]), 100, 0.001);
+    check('Linienzuschnitt: ganz ausserhalb ergibt nichts',
+      T.clipLinesToBboxLV95([turf.lineString([[E - 50, N - 50], [E - 10, N - 10]])], bbox).length, 0);
+    const v = T.clipLinesToBboxLV95([turf.lineString([[E + 10, N + 10], [E + 50, N - 30], [E + 90, N + 10]])], bbox);
+    check('Linienzuschnitt: Aus- und Wiedereintritt ergibt ZWEI Polylinien', v.length, 2);
+  }
+
   // (a) Gerichtete Erosion: exakt fuer konvexe Polygone. 10 m entlang der
   //     Suednormale der langen Seite lassen von 47 × 20 genau 47 × 10 uebrig.
   const suedNormal = [Math.sin(phi), -Math.cos(phi)]; // Aussennormale der v=0-Seite

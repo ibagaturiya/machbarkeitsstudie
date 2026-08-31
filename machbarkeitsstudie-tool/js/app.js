@@ -1482,6 +1482,10 @@
       dark: isDark(),
       terrainGrid: r.terrainGrid,
       hang: r.hang,
+      // Die Waldabstandslinie laeuft DURCHGEHEND ueber die Zeichnung —
+      // unbeschnitten von Parzellengrenzen; im getrennten Modus ueber alle
+      // Auswertungen gesammelt und dedupliziert (js/sources/waldabstand.js).
+      waldLinien: mehrere ? T.sammleWaldLinien(alle) : T.sammleWaldLinien([r]),
       widthPx: 900, heightPx: 640,
     });
     // Clicking a boundary edge picks it as the Hauptfassade -- overrides the
@@ -1660,6 +1664,7 @@
         ? T.multiPolygonAus(alle.map((x) => x.merged)) : r.merged,
       removedFeature: mehrere
         ? T.multiPolygonAus(alle.map((x) => x.waldRemoved)) : r.waldRemoved,
+      waldLinien: mehrere ? T.sammleWaldLinien(alle) : T.sammleWaldLinien([r]),
       heightM: r.rules.heightM,
       massing: mm,
       weitereMassings: mehrere ? alle.slice(1).map((x) => x.massingModel) : null,

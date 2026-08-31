@@ -744,6 +744,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
           footprintFeature: setbackFootprint,
           parcelFeature: merged,
           removedFeature: waldRemoved,
+          waldLinien: (wald && wald.lines) || null,
           heightM: rules.heightM,
           massing: massingModel,
         }, 1600, 1080)
@@ -1019,7 +1020,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
               footprintFeature: massingModel ? massingModel.footprintFeature : setbackFootprint,
               removedFeature: waldRemoved, lengthRect: massing && !massing.impossible ? areaRect : footprintRect,
               lengthLimitM, lengthResolved: !!(massing && !massing.impossible), blockCount: massing ? massing.count : 0,
-              terrainGrid, hang,
+              terrainGrid, hang, waldLinien: (wald && wald.lines) || null,
               widthPx: 1500, heightPx: 1010 })
           : '<div class="empty">Keine bebaubare Grundfläche.</div>'}
         </div>
@@ -1037,6 +1038,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
           ${legend([
             ['background:#d9a066;border:1px solid #8a4b08;', 'bebaubare Grundfläche'],
             ...(waldRemoved ? [['background:repeating-linear-gradient(45deg,#c62828 0 3px,transparent 3px 6px);border:1px dashed #c62828;', 'durch Waldabstand entfallen']] : []),
+            ...((wald && wald.lines) ? [['background:transparent;border-top:2.5px dashed #2f6b23;height:0;margin-top:6px;', 'Waldabstandslinie (durchgehend, ogd-0152)']] : []),
             ['background:#fafafa;border:1px solid #333;', 'Parzelle'],
           ])}
           <div class="note-box small">
@@ -1524,6 +1526,9 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       parcelFeature: parzellen,
       footprintFeature: fussabdruecke,
       removedFeature: entfallen,
+      // EINE durchgehende Waldabstandslinie ueber alle Parzellen — je
+      // Auswertung geholt, hier dedupliziert (sammleWaldLinien).
+      waldLinien: T.sammleWaldLinien(liste),
       blocks: liste.flatMap(T.bloeckeVon),
       blockCount: liste.reduce((n, r) => n + (r.massing ? r.massing.count : 0), 0),
       // Bemassung, Laengenrechteck und Hauptfassade gehoeren je EINER
@@ -1539,6 +1544,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       footprintFeature: T.multiPolygonAus(liste.map((r) => r.setbackFootprint)),
       parcelFeature: parzellen,
       removedFeature: entfallen,
+      waldLinien: T.sammleWaldLinien(liste),
       heightM: liste[0].rules.heightM,
       massing: liste[0].massingModel,
       weitereMassings: liste.slice(1).map((r) => r.massingModel),
