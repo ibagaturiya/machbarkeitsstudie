@@ -1369,6 +1369,12 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   function kapitelSheet(r, index, total, foot) {
     const p = r.selection[0];
     const mm = r.massingModel;
+    // Einmal bestimmt, zweimal verwendet: die Kennzahl «Bebaubar als» und
+    // der Befundabsatz darunter muessen vom selben Verdikt sprechen. Die
+    // Uebersichtstabelle traegt bei diesem Fall «(rechnerisch)» — dieselbe
+    // Zahl hier ohne den Zusatz las sich eine Seite weiter wie ein anderes
+    // Grundstueck (REGELN.md §12.4).
+    const nb = T.faktischNichtBebaubar(r);
     const zahl = (label, wert) =>
       `<div class="kap-z"><span>${esc(label)}</span><b>${esc(wert)}</b></div>`;
     return `<section class="sheet sheet-kapitel" data-outline-title="${esc(betreffVon(r))}"
@@ -1382,22 +1388,16 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
           ${zahl('Grundstücksfläche', fmt(r.reconciled.parcelAreaM2, 0) + ' m²')}
           ${zahl('Nutzbarer Fussabdruck', fmt(r.reconciled.usableFootprintAreaM2, 0) + ' m²')}
           ${zahl('Max. Geschossfläche', fmt(r.reconciled.maxGfaM2, 0) + ' m²')}
-          ${zahl('Bebaubar als', mm ? storeyLabel(mm.ordinaryStoreys, mm.attikaStoreys) : '—')}
+          ${zahl('Bebaubar als', mm ? storeyLabel(mm.ordinaryStoreys, mm.attikaStoreys) + (nb.ja ? ' (rechnerisch)' : '') : '—')}
         </div>
         <p class="kap-text">Auf den folgenden Blättern steht die Auswertung dieses
           Grundstücks für sich allein: mit seinen eigenen Grenzabständen, seiner
           eigenen Ausnützung und seinen eigenen Belegen.</p>
-        ${(() => {
-          // Gleicher Befund wie auf dem Blatt danach (T.faktischNichtBebaubar),
-          // nur kuerzer: die Trennseite verspricht sonst einen Abschnitt ueber
-          // ein Baugrundstueck, das keines ist.
-          const nb = T.faktischNichtBebaubar(r);
-          return nb.ja
-            ? `<p class="kap-befund"><b>Für sich allein faktisch nicht bebaubar.</b>
-                 ${esc(nb.grund)} Der Wert dieses Grundstücks liegt in der
-                 Arealzusammenfassung auf dem Blatt «Übersicht — getrennt gerechnet».</p>`
-            : '';
-        })()}
+        ${nb.ja
+          ? `<p class="kap-befund"><b>Für sich allein faktisch nicht bebaubar.</b>
+               ${esc(nb.grund)} Der Wert dieses Grundstücks liegt in der
+               Arealzusammenfassung auf dem Blatt «Übersicht — getrennt gerechnet».</p>`
+          : ''}
       </div>
       <footer class="sheet-foot">${foot}</footer>
     </section>`;

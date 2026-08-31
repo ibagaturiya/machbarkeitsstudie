@@ -2265,7 +2265,14 @@
       const basis = `${esc(rules.gemeinde)} kennt zwei Grenzabstände (Art. 17/18 BZO ${esc(rules.gemeinde)}): ${rules.grundabstand_min_m} m normal, ${rules.grosser_grenzabstand_min_m} m für ${two ? 'die BEIDEN am meisten gegen Süden gerichteten GEBÄUDEseiten' : 'die längere, am stärksten gegen Süden gerichtete GEBÄUDEseite'} (Art. 18 Abs. 1), bestimmt am flächenkleinsten Rechteck, das das Gebäude umfasst (Abs. 2), gemessen nach § 22 ABV rechtwinklig zur Fassade — der kleine Abstand schlägt radial um die Ecken (§ 22 Abs. 2 ABV).`;
       if (v && v.methode === 'gebaeuderechteck') {
         const seiten = (v.suedSeiten || []).map((s) => `${fmt(s.bearingDeg, 0)}° (${compassLabel(s.bearingDeg)})`).join(' und ');
+        // Der Vergleichssatz nur, wenn er etwas vergleicht: liefern beide
+        // Verfahren denselben ANZEIGEwert, stand hier «ergäbe 164.3 m² statt
+        // 164.3 m²» — ein Satz, der seine eigene Aussage bestreitet.
+        // Verglichen werden die formatierten Werte, weil der Leser genau
+        // diese sieht; eine Abweichung unterhalb der Anzeigerundung ist
+        // keine mitteilenswerte Differenz.
         const vergleich = v.vergleichParzellenkantenM2 != null
+          && fmt(v.vergleichParzellenkantenM2) !== fmt(r.footprintBeforeWaldM2)
           ? ` Zum Vergleich: die frühere Näherung über die Parzellenkanten ergäbe ${fmt(v.vergleichParzellenkantenM2)} m² nach Grundabstand statt ${fmt(r.footprintBeforeWaldM2)} m² — sie ist NICHT verlässlich konservativ (sie hängt an der zufälligen Stückelung der Parzellenkanten) und dient nur noch als Vergleichswert.`
           : '';
         flags.push(`${basis} Umsetzung iterativ: grösstmögliches Gebäuderechteck im ${fmt(r.grundabstandUsedM ?? rules.grundabstand_min_m)}-m-Bereich platzieren, dessen Südseiten bestimmen, dort ${rules.grosser_grenzabstand_min_m} m rechtwinklig zur Fassade ansetzen, wiederholen bis stabil — hier nach ${v.iterationen} Iteration${v.iterationen === 1 ? '' : 'en'} stabil, Südrichtungen ${seiten}.${vergleich} Im Grundriss ist die Hauptfassaden-Kante anklickbar, falls die tatsächliche Hauptfassade in eine andere Richtung weist; die Stellung des künftigen Gebäudes bleibt eine Entwurfsentscheidung, die das Rechteck nur nähert.`);

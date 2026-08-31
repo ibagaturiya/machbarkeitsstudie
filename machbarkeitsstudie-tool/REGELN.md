@@ -93,6 +93,29 @@ anrechenbaren Fläche** (> 15 m hinter der Linie, § 259 aPBG) sind zwei
 verschiedene Grössen; das Waldabstands-Blatt des Exports weist beide getrennt
 aus und sagt das jetzt ausdrücklich.
 
+**13.5 Nachprüfung der Linienverarbeitung (31.08.2026, Verdacht «ogd-0152
+falsch verarbeitet» — nicht bestätigt).** Geprüft mit den echten Geometrien,
+Zwischenausgaben (Vertices, Seiten, Verbotsflächen) im Prüfprotokoll der
+Session: (a) Massgebendes Feature ist objid `z56d5b107bbc70069`
+(Waldabstandslinie, wirksamkeit «rechts», festgesetzt 20.11.1984, genehmigt
+RRB 17.04.1985 Nr. 1424, rechtsstatus inKraft) — dicht digitalisiert, nicht
+generalisiert. (b) Die Verbotsfläche liegt nördlich der Linie Richtung Wald;
+Punktprobe auf beiden Seiten stimmig, `sideUndetermined` false, Einzel- und
+Areal-Lauf ordnen identisch zu (0.0 m² Differenz — der Suchradius-Mechanismus
+aus A.1 greift hier nicht verfälschend). (c) Kein Puffer um ogd-0111 — die
+Fläche ist ausschliesslich der Parzellenteil zwischen Linie und Wald.
+Härtester Beleg: die GWR-Punkte der **bewilligten** Häuser stehen 3.2 m (5a)
+und 3.6 m (5b) SÜDLICH der Linie, ausserhalb der Verbotsfläche — Linie und
+Bewilligung decken sich. Passprobe zur Verantwortlichkeit: mit nur 5 m
+Grenzabstand ringsum passt der Bestand TROTZ vollem Waldabzug (5028:
+192.3 m² Restfläche, Haus A passt; 5029: 157.5 m², Haus B passt); mit dem
+Art.-18-Verfahren scheitert er bereits OHNE jeden Waldabzug (164.3 bzw.
+218.3 m², Streifentiefe unter der Gebäudetiefe). Nicht der Waldabzug trennt
+Rechnung und Bewilligung, sondern der grosse Grenzabstand (13.3). Die 119.4
+bzw. 177.5 m² im Fussabdruck und die 24.8 bzw. 44.2 m² der Baueingabe sind
+zwei verschiedene Grössen (§ 262 PBG Bauverbot vs. § 259 aPBG
+Anrechenbarkeit); der § 259-Wert des Werkzeugs trifft die Baueingabe (13.4).
+
 Golden-Tests: Abschnitt 0000000 in `tests/run-tests.mjs`.
 
 ---
