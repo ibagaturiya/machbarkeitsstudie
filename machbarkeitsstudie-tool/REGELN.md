@@ -8,7 +8,7 @@ Tool einen **§-Knopf**, der das Quell-PDF auf der zitierten Seite mit markierte
 Textstelle öffnet (`js/ui/evidence.js`); die Belege stehen als `_provenance` in den
 Datendateien.
 
-Stand: 31.08.2026 (Berichtsprüfung Multi-Parzellen-Export; Commits im Git-Log).
+Stand: 31.08.2026 (Berichtsprüfung Multi-Parzellen-Export, 2. Runde; Commits im Git-Log).
 Zahlenbeispiele durchgehend Zumikon W2/25.
 
 ---
@@ -51,16 +51,35 @@ gemessen wird am flächenkleinsten Rechteck, nicht am achsparallelen Umschlag
 (`faktischNichtBebaubar`, `js/core/envelope.js`).
 
 **12.5 Die Areal-Variante steht als Zahl da.** Bei getrennter Rechnung führt
-das Übersichtsblatt zusätzlich die vereinigte Fläche als eigene Zeile
-(Fussabdruck, Geschossfläche, Differenz zur Summe). Sie kommt aus einem
-**vollen zweiten Lauf** von `analyse()` über die Vereinigung
+das Übersichtsblatt zusätzlich die vereinigte Fläche als eigene Zeile. Sie
+kommt aus einem **vollen zweiten Lauf** von `analyse()` über die Vereinigung
 (`arealVergleich`, `js/app.js`) — keine Hochrechnung aus den Einzelwerten.
-Die max. **anrechenbare** Geschossfläche ändert sich dabei in der Regel nicht
-(die Ausnützungsziffer bezieht sich auf dieselbe anrechenbare Grundstücks-
-fläche); was sich ändert, ist der Fussabdruck und damit die Frage, ob ein
-Baukörper sie aufnehmen kann. Beides wird nebeneinander ausgewiesen. Der
+Scheitert der Lauf, entfällt die Zeile **mit benannter Begründung** (§2). Der
 Vorbehalt Parzellenvereinigung / grundbuchlich gesicherte Übertragung bleibt.
-Scheitert der Lauf, entfällt die Zeile **mit benannter Begründung** (§2).
+
+Die Tabelle führt **zwei** Geschossflächen in getrennten Spalten, weil sie
+verschiedene Fragen beantworten:
+
+| Spalte | Bedeutung | Zumikon 5030+5029+5028 |
+|---|---|---|
+| **anrechenbar** | rechtliche Obergrenze, § 255 PBG — AZ × anrechenbare Grundstücksfläche | 794 m² getrennt · 794 m² als Areal · **± 0** |
+| **nutzbar** | was das Modell auf dem tatsächlichen Fussabdruck unterbringt | 1149 m² getrennt · 1588 m² als Areal · **+ 439 m²** |
+
+Die anrechenbare ändert sich durch eine Vereinigung **nicht** — die Bezugs-
+fläche ist dieselbe. Bis zum 31.08.2026 stand nur sie in der Tabelle; die
+Areal-Zeile las sich damit als «± 0», also als Gewinn von nichts, während der
+eigentliche Unterschied nur im Fliesstext darunter stand. Beide Spalten
+nebeneinander: die Tabelle trägt die Aussage, nicht der Absatz.
+
+**12.8 Kein Preis für einen Baukörper, den es nicht gibt.** Greift die
+Schwelle aus 12.4, entfällt das Kostenblatt dieser Parzelle, seine
+Abschnittsnummer wird nicht verbraucht (sonst fehlte im Inhalt eine Ziffer),
+und die Kennzahl «Kosten grob (BKP 2)» auf Blatt 1 wird zu
+«— (nicht bebaubar)» mit einem Satz dazu, warum. Parzelle 5028 trug bis zum
+31.08.2026 «Für sich allein faktisch nicht bebaubar» und zwei Blätter weiter
+CHF 220'000 BKP 2 für eben diesen Streifen — eine Zahl, die ihre eigene
+Voraussetzung bestreitet. Das **Volumen** bleibt gerechnet und steht in der
+Volumetrie; nur der Preis dafür wird nicht mehr genannt.
 
 **12.6 Der Rechtsstand steht auf Seite 1 jedes Grundstücks.** Der Vorbehalt
 aus `legal_status` (Zumikon: teilweise Nichtgenehmigung vom 01.04.2026)
@@ -68,13 +87,35 @@ entscheidet, ob die Grundmasse daneben gelten. Er bleibt auf dem Quellenblatt
 und steht zusätzlich, im Wortlaut der Datendatei, beim BZO-Versionsvermerk auf
 dem ersten Blatt jeder Parzelle.
 
-**12.7 Wiederholung ist keine Sorgfalt.** Bei mehreren Grundstücken im selben
-Rechtsrahmen (gleiche Gemeinde **und** gleiche Zone) stehen die Prüfpunkte, die
-nicht am einzelnen Grundstück hängen, die Parkierungs-Fussnoten und die
-Belastbarkeits-Legende einmal im gemeinsamen Anhang A.3. Zusammengefasst wird
-**nur, was nachweislich wortgleich ist** — verglichen wird der fertige
-Wortlaut, nicht die Annahme «gleiche Gemeinde, also gleicher Text». Weicht ein
-Grundstück ab, bleibt sein Punkt bei ihm. Der Verweis auf dem Parzellenblatt
+**12.7 Wiederholung ist keine Sorgfalt — aber Wortgleichheit ist nicht
+Gemeinsamkeit.** Bei mehreren Grundstücken im selben Rechtsrahmen (gleiche
+Gemeinde **und** gleiche Zone) stehen die Prüfpunkte, die nicht am einzelnen
+Grundstück hängen, die Parkierungs-Fussnoten und die Belastbarkeits-Legende
+einmal im gemeinsamen Anhang A.3. Ein Text muss dafür **zwei** Schranken
+passieren:
+
+1. **Wortgleich in allen Auswertungen** — verglichen wird der fertige
+   Wortlaut, nicht die Annahme «gleiche Gemeinde, also gleicher Text».
+2. **Frei von Einzelfall-Tatsachenbehauptungen** — `T.istEinzelfallAussage`
+   (`js/sources/checklist.js`). Jeder Prüfpunkt trägt dazu ein `einzelfall`-
+   Merkmal, gesetzt an dem Zweig, der seinen Text erzeugt; zusätzlich greift
+   eine Wortprobe auf Ergebnis-Verben (*schneidet, abgezogen, gefunden,
+   erscheint, unterliegt, betroffen*) und konkrete Flächenangaben. Die
+   Wortprobe **überstimmt** ein `einzelfall: false` und meldet den Widerspruch
+   in der Konsole: sie irrt in die sichere Richtung (der Punkt bleibt beim
+   Grundstück und wird höchstens wiederholt), und sie fängt den Punkt, den
+   jemand künftig ohne Kennzeichnung hinzufügt.
+
+Anlass: der Werkleitungs-Punkt lautete auf allen drei Zumikoner Grundstücken
+identisch «Eine solche Linie **schneidet diese Parzelle** und ist oben
+abgezogen» — bestand also Schranke 1 — und behauptete das im gemeinsamen
+Anhang für alle drei, während ihre eigenen Blätter dreimal das Gegenteil
+festhielten («PASS Baulinien — schneidet diese Parzelle **nicht**»). Drei
+gleichlautende **Befunde** sind keine gemeinsame Regel: die Gleichheit ist
+Zufall der Datenlage, nicht ihre Bedeutung. Der Punkt sagt jetzt nur noch, was
+gerechnet wird und was nicht, und verweist für das Ergebnis auf den Punkt
+«Baulinien» des jeweiligen Grundstücks. Weicht ein Grundstück ab, bleibt sein
+Punkt bei ihm. Der Verweis auf dem Parzellenblatt
 **nennt die ausgelagerten Punkte namentlich**: sonst wäre nicht mehr
 erkennbar, ob ein Punkt geprüft oder vergessen wurde. Die Tier-A-Liste
 («automatisch geprüft») wird nie zusammengefasst — das sind Befunde zu DIESER

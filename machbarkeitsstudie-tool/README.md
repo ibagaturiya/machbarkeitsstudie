@@ -210,13 +210,25 @@ Four rules govern what such a file may claim; the reasoning is in
   their sum it shows the parcels computed as *one* Baugrundstück — footprint,
   floor area, and the delta. That row comes from a second full `analyse()` run
   over the union, not from extrapolating the sum. The Grundbuch caveat stays.
+  Floor area appears in **two** columns: *anrechenbar* (the § 255 PBG ceiling,
+  unchanged by a merger — same reference area) and *nutzbar* (what the model
+  actually fits on the footprint). The second column is where the difference
+  is: for Zumikon 5030+5029+5028, ± 0 against + 439 m².
 * **A residue too narrow to build on says so.** Below `MIN_PRIMITIVE_WIDTH_M`
   the headline changes from "Realistisches Szenario" to "Für sich allein
-  faktisch nicht bebaubar" and points at the Areal row. No figure changes.
-* **Repetition is not diligence.** Where commune *and* zone match, the checks
-  that do not depend on the individual parcel, the parking footnotes and the
-  confidence legend move to a shared appendix (A.3) — but only where the
-  wording is provably identical, and the per-parcel sheet names what moved.
+  faktisch nicht bebaubar" and points at the Areal row. No figure changes —
+  but the cost sheet for that parcel is dropped and its BKP-2 key figure
+  becomes "— (nicht bebaubar)": pricing a Baukörper the parcel cannot carry
+  would contradict the headline above it.
+* **Repetition is not diligence — but identical wording is not shared
+  meaning.** Where commune *and* zone match, the checks that do not depend on
+  the individual parcel, the parking footnotes and the confidence legend move
+  to a shared appendix (A.3). A text needs two things to get there: identical
+  wording across all parcels, *and* no single-case assertion
+  (`T.istEinzelfallAussage`, `js/sources/checklist.js` — a declared
+  `einzelfall` flag plus a word probe on result verbs and concrete areas; the
+  probe overrides the flag and logs the conflict). The per-parcel sheet names
+  what moved.
 
 **"PDF exportieren"** sits in the header next to **"Analysieren"** and does the
 whole thing in one press — compose, rasterise, open. There is no preview step:

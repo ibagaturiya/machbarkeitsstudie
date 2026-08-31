@@ -8,6 +8,59 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   // Netzabrufe laufen ueber T.fetchQuelle (js/core/netz.js): faellt eine
   // Quelle aus, nennt der Fehler sie beim Namen statt «Load failed».
   const T = window.MachbarkeitTool;
+
+  // ---- Was ein gemeinsamer Text NICHT sagen darf ------------------------
+  // Bei mehreren Grundstuecken im selben Rechtsrahmen fasst der PDF-Export
+  // die Pruefpunkte zusammen, die auf jedem Blatt wortgleich stuenden
+  // (js/ui/print.js, REGELN.md §12.7). Wortgleich reicht dafuer nicht.
+  //
+  // Der Werkleitungs-Punkt lautete auf allen drei Zumikoner Grundstuecken
+  // identisch «Eine solche Linie schneidet diese Parzelle und ist oben
+  // abgezogen» — und stand damit im gemeinsamen Anhang als Aussage ueber
+  // alle drei, waehrend ihre eigenen Blaetter dreimal das Gegenteil
+  // festhielten («PASS Baulinien — schneidet diese Parzelle nicht»). Drei
+  // gleichlautende BEFUNDE sind nicht dasselbe wie eine gemeinsame Regel:
+  // die Gleichheit ist Zufall der Datenlage, nicht ihre Bedeutung.
+  //
+  // Zwei Schranken, beide muessen passieren:
+  //
+  //   1. `einzelfall` am Punkt selbst. Hier ist bekannt, ob der Text aus
+  //      einer Abfrage ueber DIESE Parzelle stammt oder eine Abgrenzung des
+  //      Werkzeugs wiedergibt — die belastbare Auskunft, weil sie an dem
+  //      Zweig haengt, der den Text erzeugt.
+  //
+  //   2. Die Wortprobe unten als Rueckfallebene. Sie faengt den Punkt, den
+  //      jemand kuenftig hinzufuegt, ohne an die Kennzeichnung zu denken —
+  //      genau der Fehler, der oben passiert ist. Sie irrt in die sichere
+  //      Richtung: ein faelschlich als Einzelfall gelesener Text bleibt beim
+  //      Grundstueck stehen und wird hoechstens wiederholt. Der umgekehrte
+  //      Irrtum waere eine falsche Aussage im Dokument.
+  //
+  // Gesucht sind Verben eines ERGEBNISSES (etwas wurde festgestellt,
+  // gefunden, abgezogen) und konkrete Flaechen- oder Volumenangaben.
+  // Regeltexte kommen ohne sie aus: sie sagen, was gilt, nicht was hier der
+  // Fall ist.
+  const EINZELFALL_MARKER =
+    /\b(schneidet|schneiden|abgezogen|gefunden|erscheint|liegt innerhalb|unterliegt|betroffen|nachgewiesen)\b|\d[\d'.,]*\s*m[²³]/i;
+
+  function istEinzelfallAussage(item) {
+    if (!item) return false;
+    if (item.einzelfall === true) return true;
+    if (EINZELFALL_MARKER.test(item.text || '')) {
+      // Kennzeichnung und Wortlaut widersprechen sich. Die Wortprobe gewinnt
+      // (sichere Richtung), aber still bleibt der Fall nicht: entweder fehlt
+      // dem Punkt die Kennzeichnung, oder sein Text ist unnoetig konkret
+      // formuliert — beides gehoert korrigiert, nicht ausgesessen.
+      if (item.einzelfall === false && typeof console !== 'undefined') {
+        console.warn('[Prüfliste] Punkt ist als parzellenunabhängig gekennzeichnet, '
+          + 'liest sich aber wie ein Einzelfall-Befund — bleibt beim Grundstück:',
+          item.key || item.label);
+      }
+      return true;
+    }
+    return false;
+  }
+  T.istEinzelfallAussage = istEinzelfallAussage;
   const WFS_BASE = 'https://www.ogd.stadt-zuerich.ch/wfs/geoportal/Nutzungsplanung___kommunale_Bau__und_Zonenordnung__BZO_';
   const DENKMAL_WFS_BASE = 'https://www.ogd.stadt-zuerich.ch/wfs/geoportal/Denkmalpflege_Inventar';
 
@@ -186,18 +239,34 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       // Werkleitungen liegen auf zwei Ebenen, und nur eine davon ist
       // gerechnet. Das getrennt zu sagen ist der ganze Punkt: "Baulinie
       // geprueft" ist keine Antwort auf "liegt da ein Rohr?".
+      // Der Punkt sagt, WAS an Werkleitungen gerechnet ist und was nicht —
+      // eine Abgrenzung des Werkzeugs, keine Feststellung ueber diese
+      // Parzelle. Bis zum 31.8.2026 trug er zusaetzlich das Ergebnis der
+      // Baulinien-Abfrage («Eine solche Linie schneidet diese Parzelle und
+      // ist oben abgezogen»). Bei mehreren Grundstuecken wanderte der Satz
+      // damit in den gemeinsamen Anhang und behauptete dort fuer alle drei,
+      // was auf ihren eigenen Blaettern dreimal verneint war («PASS
+      // Baulinien — schneidet diese Parzelle nicht»). Das Ergebnis steht
+      // jetzt nur noch dort, wo es hingehoert: im Punkt «Baulinien».
+      //
+      // `einzelfall` sagt, ob der Text eine Tatsache ueber DIESE Parzelle
+      // behauptet. Nur was das nicht tut, darf in einen gemeinsamen
+      // Abschnitt (REGELN.md §12.7).
       {
         key: 'werkleitungen',
         label: 'Werkleitungen',
         status: 'review',
-        text: baulinien && baulinien.applies
-          ? 'Gerechnet ist nur die Baulinie für Versorgungsleitungen (§ 96 Abs. 2 lit. c PBG), soweit im kantonalen Datensatz ogd-0158 geführt — innerhalb der Baulinie gilt Bauverbot (§ 99 PBG), auf ihr darf nur gebaut werden, wenn die Grenz- und Gebäudeabstände es erlauben (§ 268 PBG). Eine solche Linie schneidet diese Parzelle und ist oben abgezogen. NICHT geprüft: die tatsächlich verlegten Werkleitungen (Werkleitungskataster der Gemeinde) sowie Durchleitungs- und Leitungsbaurechte im Grundbuch. Beides kann Untergeschoss, Fundation und Erschliessung einschränken — Werkleitungsplan bei der Gemeinde und Grundbuchauszug einholen.'
-          : 'Baulinien für Versorgungsleitungen (§ 96 Abs. 2 lit. c PBG) werden aus dem kantonalen Datensatz ogd-0158 gerechnet; für diese Parzelle wurde keine gefunden. NICHT geprüft: die tatsächlich verlegten Werkleitungen (Werkleitungskataster der Gemeinde) sowie Durchleitungs- und Leitungsbaurechte im Grundbuch — eine Leitung kann bestehen, ohne dass eine Baulinie festgesetzt ist. Beides kann Untergeschoss, Fundation und Erschliessung einschränken; Werkleitungsplan bei der Gemeinde und Grundbuchauszug einholen.',
+        einzelfall: false,
+        text: 'Gerechnet werden ausschliesslich Baulinien für Versorgungsleitungen (§ 96 Abs. 2 lit. c PBG), soweit im kantonalen Datensatz ogd-0158 geführt — innerhalb der Baulinie gilt Bauverbot (§ 99 PBG), auf ihr darf nur gebaut werden, wenn die Grenz- und Gebäudeabstände es erlauben (§ 268 PBG). Das Ergebnis dieser Abfrage steht je Grundstück auf dessen eigenem Blatt unter «Baulinien», zusammen mit der Fläche, die sie dort kostet. NICHT geprüft: die tatsächlich verlegten Werkleitungen (Werkleitungskataster der Gemeinde) sowie Durchleitungs- und Leitungsbaurechte im Grundbuch — eine Leitung kann bestehen, ohne dass eine Baulinie festgesetzt ist. Beides kann Untergeschoss, Fundation und Erschliessung einschränken; Werkleitungsplan bei der Gemeinde und Grundbuchauszug einholen.',
       },
       {
         key: 'sonderbauvorschriften',
         label: 'Sonderbauvorschriften / Gestaltungsplan',
         status: !cityDataAvailable || sbvHits == null ? 'review' : sbvHits.length > 0 ? 'review' : 'pass',
+        // Wurde wirklich abgefragt, ist der Text ein BEFUND zu dieser
+        // Parzelle — auch das leere «nichts gefunden». Deckt der Datensatz
+        // die Gemeinde gar nicht ab, ist er eine Aussage ueber den Datensatz.
+        einzelfall: !!cityDataAvailable,
         text: !cityDataAvailable
           ? `Nicht geprüft: die verwendeten Datensätze für Sonderbauvorschriften und Gestaltungspläne decken nur die Stadt Zürich ab, diese Parzelle liegt in ${gemeinde}. Manuell prüfen — solche Überlagerungen überschreiben die Grundmasse oben.`
           : sbvHits == null
@@ -211,6 +280,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
         key: 'ortsbildschutz',
         label: 'Ortsbildschutz / Denkmalpflege',
         status: !cityDataAvailable || heritageHits == null ? 'review' : heritageHits.length > 0 ? 'review' : 'pass',
+        einzelfall: !!cityDataAvailable,
         text: !cityDataAvailable
           ? `Nicht geprüft: das verwendete Denkmalpflege-Inventar deckt nur die Stadt Zürich ab, diese Parzelle liegt in ${gemeinde}. Manuell prüfen (kommunales Inventar der Gemeinde sowie kantonales Inventar).`
           : heritageHits == null
@@ -222,18 +292,21 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       },
       ...(rules.meta && rules.meta.strassenabstand_ohne_baulinien_m != null ? [{
         key: 'strassenabstand',
+        einzelfall: false,
         label: 'Strassenabstand',
         status: 'review',
         text: `Art. 32 BZO ${gemeinde}: Wo Verkehrsbaulinien fehlen, gilt ein Abstand von ${rules.meta.strassenabstand_ohne_baulinien_m} m gegenüber öffentlichen Strassen, Plätzen und Wegen (auch für unterirdische Gebäude). Nicht automatisch geprüft — bei Parzellen an öffentlichen Strassen ohne Baulinie manuell berücksichtigen.`,
       }] : []),
       ...(rules.meta && rules.meta.begruenung_perimeter_min_pct != null ? [{
         key: 'begruenung',
+        einzelfall: false,
         label: 'Begrünung (Perimeter hoher Grünanteil)',
         status: 'review',
         text: `Art. 29 Abs. 2 BZO ${gemeinde}: Im Perimeter "Gemeindegebiet mit hohem Grünanteil" sind in der Regel mindestens ${rules.meta.begruenung_perimeter_min_pct}% der massgeblichen Grundfläche zu begrünen. Ob die Parzelle im Perimeter liegt, wurde nicht automatisch geprüft (Zonenplan/Ergänzungsplan konsultieren).`,
       }] : []),
       {
         key: 'kronenbedeckungsgrad',
+        einzelfall: false,
         label: 'Kronenbedeckungsgrad',
         status: 'review',
         text: rules.kronenbedeckungsgrad_min_pct != null

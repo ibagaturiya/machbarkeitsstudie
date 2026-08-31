@@ -270,15 +270,30 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     return gemeinsam;
   }
 
+  // Ob ein Pruefpunkt eine Tatsache ueber EINE Parzelle behauptet, entscheidet
+  // T.istEinzelfallAussage (js/sources/checklist.js) — dort, wo die Punkte
+  // entstehen und wo ihre Kennzeichnung gepflegt wird. Nur was die Probe
+  // besteht, darf in den gemeinsamen Anhang (REGELN.md §12.7).
+  const istEinzelfallAussage = (item) => T.istEinzelfallAussage(item);
+
   function ermittleGemeinsames(liste) {
     if (!gleicherRechtsrahmen(liste)) return null;
 
     const tierB = schnittmenge(liste, (r) =>
-      (r.checklist && r.checklist.tierB || []).map((i) => [i.key || i.label, `${i.status}|${i.text}`]));
+      (r.checklist && r.checklist.tierB || [])
+        .filter((i) => !istEinzelfallAussage(i))
+        .map((i) => [i.key || i.label, `${i.status}|${i.text}`]));
     const tierBItems = (liste[0].checklist.tierB || []).filter((i) => tierB.has(i.key || i.label));
 
+    // Dieselbe Schranke fuer die Parkierungs-Fussnoten: die aus der BZO
+    // (Auslegung von «GNF», nicht angewandte ÖV-Reduktion) sind Regeltexte,
+    // die hergeleiteten (Wohnungszahl, Besucherplaetze) tragen Zahlen dieses
+    // Grundstuecks und bleiben bei ihm — auch wenn sie zufaellig einmal
+    // gleich lauten sollten.
     const pkHinweise = schnittmenge(liste, (r) =>
-      (r.parkierung && r.parkierung.hinweise || []).map((h) => [h, h]));
+      (r.parkierung && r.parkierung.hinweise || [])
+        .filter((h) => !istEinzelfallAussage({ text: h }))
+        .map((h) => [h, h]));
 
     // Die Werkzeug-Annahme-Tafel des Parkierungsblatts: gleich, wenn Artikel,
     // Flaechenannahmen und Unterbringungssatz uebereinstimmen.
@@ -731,6 +746,22 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
         ? `${storeyLabel(massingModel.ordinaryStoreys, massingModel.attikaStoreys)} à ${fmt(massingModel.floorplateM2, 0)} m²`
         : `${rules.vollgeschosse_max} Vollgeschosse`;
 
+    // ---- Traegt dieser Rest ueberhaupt ein Gebaeude? ---------------------
+    // T.faktischNichtBebaubar (js/core/envelope.js) misst die Tiefe des
+    // bebaubaren Rests am flaechenkleinsten Rechteck. Bleibt sie unter der
+    // Mindestbreite eines Baukoerpers, ist «Realistisches Szenario» als
+    // Ueberschrift eine Zusage, die die Zahl nicht deckt: Parzelle 5028
+    // behaelt 36.7 m² — als Streifen von 2.7 m Tiefe. Gerechnet wird
+    // unveraendert weiter; es wechselt die Beschriftung, keine Zahl.
+    //
+    // Steht hier oben, weil zwei Dinge davon abhaengen, die vor dem ersten
+    // Blatt feststehen muessen: die Beschriftung auf Blatt 1 und die Frage,
+    // ob es ein Kostenblatt gibt (und damit die Abschnittsnummern).
+    const nichtBebaubar = T.faktischNichtBebaubar(r);
+    const arealVerweis = mehrere
+      ? 'Der Wert dieses Grundstücks liegt in der Arealzusammenfassung — Blatt «Übersicht — getrennt gerechnet» am Anfang dieses Dokuments zeigt sie als gerechnete Variante.'
+      : 'Zusammen mit einem Nachbargrundstück gerechnet, entfällt der Grenzabstand an der gemeinsamen Grenze und der bebaubare Rest wird grösser — dafür wäre eine Parzellenvereinigung oder eine im Grundbuch gesicherte Übertragung nötig.';
+
     const BINDING = {
       grundabstand: 'Grundabstand',
       gruenflaechenziffer: 'Grünflächenziffer',
@@ -771,7 +802,10 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     let numCursor = 4;
     const numWald = showWaldMap ? String(numCursor++) : null;
     const numPk = pk ? String(numCursor++) : null;
-    const numKosten = String(numCursor++);
+    // Kein Kostenblatt fuer einen Streifen, auf dem nichts steht. Die Nummer
+    // wird dann auch nicht verbraucht — sonst fehlte im Inhalt eine Ziffer
+    // und der Leser suchte ein Blatt, das es absichtlich nicht gibt.
+    const numKosten = nichtBebaubar.ja ? null : String(numCursor++);
 
     // ---- Sheet 1: Übersicht ------------------------------------------------
     // ---- Blatt 1: Das Wichtigste in Kürze ---------------------------------
@@ -790,18 +824,6 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
         ? [`Nutzbar sind dennoch ${fmt(massingModel.nutzflaecheTotalM2, 0)} m²: Dach-, Attika- und Untergeschosse bleiben nach § 255 Abs. 3 PBG je Geschoss bis zu einem Freibetrag ohne Anrechnung an die Ausnützungsziffer.`]
         : []),
     ];
-    // ---- Traegt dieser Rest ueberhaupt ein Gebaeude? ---------------------
-    // T.faktischNichtBebaubar (js/core/envelope.js) misst die Tiefe des
-    // bebaubaren Rests am flaechenkleinsten Rechteck. Bleibt sie unter der
-    // Mindestbreite eines Baukoerpers, ist «Realistisches Szenario» als
-    // Ueberschrift eine Zusage, die die Zahl nicht deckt: Parzelle 5028
-    // behaelt 36.7 m² — als Streifen von 2.7 m Tiefe. Gerechnet wird
-    // unveraendert weiter; es wechselt die Beschriftung, keine Zahl.
-    const nichtBebaubar = T.faktischNichtBebaubar(r);
-    const arealVerweis = mehrere
-      ? 'Der Wert dieses Grundstücks liegt in der Arealzusammenfassung — Blatt «Übersicht — getrennt gerechnet» am Anfang dieses Dokuments zeigt sie als gerechnete Variante.'
-      : 'Zusammen mit einem Nachbargrundstück gerechnet, entfällt der Grenzabstand an der gemeinsamen Grenze und der bebaubare Rest wird grösser — dafür wäre eine Parzellenvereinigung oder eine im Grundbuch gesicherte Übertragung nötig.';
-
     const s1 = sheet('Das Wichtigste in Kürze',
       betreffVon(r),
       'Was hier gebaut werden darf, auf welcher Fläche und mit welchen Grenzen — nach amtlicher Vermessung und den Bauvorschriften von Kanton und Gemeinde.',
@@ -820,11 +842,16 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
             ${kpi(multi ? 'Fläche zusammengefasst' : 'Parzellenfläche', fmt(reconciled.parcelAreaM2) + ' m²')}
             ${kpi('Max. Geschossfläche', fmt(reconciled.maxGfaM2) + ' m²')}
             ${kpi('Nutzbarer Fussabdruck', fmt(reconciled.usableFootprintAreaM2) + ' m²')}
-            ${kpi('Kosten grob (BKP 2)', '≈ CHF ' + fmtInt(cost.totalChf))}
+            ${kpi('Kosten grob (BKP 2)', nichtBebaubar.ja
+              ? '— (nicht bebaubar)'
+              : '≈ CHF ' + fmtInt(cost.totalChf))}
           </div>
           ${nichtBebaubar.ja
             ? `<div class="merkzeile is-nein"><span class="mz-k">Bebaubarkeit</span>`
-              + `<span class="mz-t">${esc(nichtBebaubar.grund)} ${esc(arealVerweis)}</span></div>`
+              + `<span class="mz-t">${esc(nichtBebaubar.grund)} ${esc(arealVerweis)}`
+              + ` Eine Kostenschätzung ist deshalb nicht ausgewiesen: sie würde einen`
+              + ` Baukörper bepreisen, den dieses Grundstück für sich allein nicht trägt.`
+              + `</span></div>`
             : ''}
           ${(() => {
             const ab = attikaBefund(massingModel, rules);
@@ -1122,7 +1149,13 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
       : '';
 
     // ---- Sheet 5: Kosten ---------------------------------------------------
-    const s5 = sheet('Kostenschätzung, grob', 'Sehr grob — keine Kostenplanung',
+    // Entfaellt, wo der bebaubare Rest kein Gebaeude traegt. Parzelle 5028
+    // trug bis zum 31.8.2026 «Für sich allein faktisch nicht bebaubar» und
+    // zwei Blaetter weiter CHF 220'000 BKP 2 fuer eben diesen Streifen —
+    // eine Zahl, die ihre eigene Voraussetzung bestreitet. Das Volumen
+    // darunter bleibt gerechnet (es steckt in der Volumetrie); nur der
+    // Preis dafuer wird nicht mehr genannt.
+    const s5 = nichtBebaubar.ja ? '' : sheet('Kostenschätzung, grob', 'Sehr grob — keine Kostenplanung',
       'Überschlägige Gebäudekosten (BKP 2) aus dem hergeleiteten Volumen und einem Erfahrungskennwert für den Raum Zürich — eine Grössenordnung, keine Kostenplanung.',
       `<div class="cols c-5050">
         <div>
@@ -1495,6 +1528,7 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
         + `<td>${fmt(r.reconciled.parcelAreaM2, 0)} m²</td>`
         + `<td>${fmt(r.reconciled.usableFootprintAreaM2, 0)} m²</td>`
         + `<td>${fmt(r.reconciled.maxGfaM2, 0)} m²</td>`
+        + `<td>${mm ? fmt(mm.nutzflaecheTotalM2, 0) + ' m²' : '—'}</td>`
         + `<td>${mm ? storeyLabel(mm.ordinaryStoreys, mm.attikaStoreys) : '—'}</td></tr>`;
     }).join('');
     const summeVon = (f) => liste.reduce((a, r) => a + f(r), 0);
@@ -1511,19 +1545,24 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
     // mit Parzellenvereinigung oder einer im Grundbuch gesicherten
     // Uebertragung. Ohne diese Sicherung ist die getrennte Summe der Zustand.
     const delta = (wert) => `${wert >= 0 ? '+' : '−'} ${fmt(Math.abs(wert), 0)} m²`;
-    // Die nutzbare Geschossflaeche ist NICHT die anrechenbare: die
-    // Ausnuetzungsziffer bezieht sich auf die anrechenbare Grundstuecksflaeche,
-    // und die ist in beiden Rechnungen dieselbe — die Spalte
-    // «Geschossfläche» kann deshalb ±0 zeigen, obwohl der Unterschied
-    // erheblich ist. Was sich wirklich aendert, ist der Fussabdruck, der
-    // diese Flaeche tragen muss: Zumikon 5028 darf getrennt 222 m²
-    // ausnuetzen und kann davon auf 37 m² Streifen nichts unterbringen.
-    // Deshalb wird beides gegenuebergestellt.
+    // Zwei Geschossflaechen, zwei Spalten. Die ANRECHENBARE ist die
+    // rechtliche Obergrenze (§ 255 PBG) und in beiden Rechnungen dieselbe:
+    // die Ausnuetzungsziffer bezieht sich auf die anrechenbare
+    // Grundstuecksflaeche, und die aendert sich durch eine Vereinigung nicht.
+    // Bis zum 31.8.2026 stand nur sie in der Tabelle — die Areal-Zeile las
+    // sich damit als «± 0», also als Gewinn von nichts, waehrend der
+    // eigentliche Unterschied im Fliesstext darunter versteckt war.
+    //
+    // Die NUTZBARE ist, was das Modell auf dem tatsaechlichen Fussabdruck
+    // unterbringt. Sie ist der Unterschied: Zumikon 5028 darf getrennt
+    // 222 m² ausnuetzen und kann davon auf einem 2.7 m breiten Streifen
+    // fast nichts bauen. Beide Spalten stehen nebeneinander, damit die
+    // Tabelle allein die Aussage traegt und nicht der Absatz darunter.
     const nutzVon = (r) => (r.massingModel ? r.massingModel.nutzflaecheTotalM2 : 0);
     const arealZeilen = (() => {
       if (!areal) return '';
       if (areal.fehler || !areal.areal) {
-        return `<tr class="minus"><td colspan="5">Als ein Areal zusammengefasst: nicht gerechnet — `
+        return `<tr class="minus"><td colspan="6">Als ein Areal zusammengefasst: nicht gerechnet — `
           + `${esc(areal.fehler || 'die Auswertung der vereinigten Fläche kam nicht zustande')}. `
           + `Die Zeile fehlt deshalb, statt geschätzt zu werden.</td></tr>`;
       }
@@ -1533,11 +1572,13 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
         + `<td>${fmt(a.reconciled.parcelAreaM2, 0)} m²</td>`
         + `<td>${fmt(a.reconciled.usableFootprintAreaM2, 0)} m²</td>`
         + `<td>${fmt(a.reconciled.maxGfaM2, 0)} m²</td>`
+        + `<td>${fmt(nutzVon(a), 0)} m²</td>`
         + `<td>${amm ? storeyLabel(amm.ordinaryStoreys, amm.attikaStoreys) : '—'}</td></tr>`
         + `<tr class="minus"><td>Differenz zur getrennten Summe</td>`
         + `<td>${delta(a.reconciled.parcelAreaM2 - summeVon((r) => r.reconciled.parcelAreaM2))}</td>`
         + `<td>${delta(a.reconciled.usableFootprintAreaM2 - summeVon((r) => r.reconciled.usableFootprintAreaM2))}</td>`
         + `<td>${delta(a.reconciled.maxGfaM2 - summeVon((r) => r.reconciled.maxGfaM2))}</td>`
+        + `<td>${delta(nutzVon(a) - summeVon(nutzVon))}</td>`
         + `<td>—</td></tr>`;
     })();
 
@@ -1551,32 +1592,29 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
        ${iso ? `<img class="render" src="${iso}" alt="Isometrie aller Parzellen">` : ''}
        <table class="derive">
          <tr><td><b>Grundstück</b></td><td><b>Fläche</b></td><td><b>Fussabdruck</b></td>
-             <td><b>Geschossfläche</b></td><td><b>Bebaubar als</b></td></tr>
+             <td><b>Geschossfläche<br>anrechenbar</b></td><td><b>Geschossfläche<br>nutzbar</b></td>
+             <td><b>Bebaubar als</b></td></tr>
          ${zeilen}
          <tr class="result"><td>Summe — getrennt gerechnet</td><td>${summe((r) => r.reconciled.parcelAreaM2)} m²</td>
            <td>${summe((r) => r.reconciled.usableFootprintAreaM2)} m²</td>
-           <td>${summe((r) => r.reconciled.maxGfaM2)} m²</td><td>—</td></tr>
+           <td>${summe((r) => r.reconciled.maxGfaM2)} m²</td>
+           <td>${summe(nutzVon)} m²</td><td>—</td></tr>
          ${arealZeilen}
        </table>
        <div class="note-box small">
          Die Summe ist die getrennte Rechnung: jede Parzelle mit ihren eigenen
          Grenzabständen ringsum. Als EIN Areal zusammengefasst fällt der
-         Grenzabstand an den inneren Grenzen weg, und der bebaubare
-         Fussabdruck wird grösser${areal && areal.areal ? ' — um den Betrag in der Zeile «Differenz» oben' : ''} —
-         dafür setzt die Zusammenfassung eine
-         Parzellenvereinigung oder eine im Grundbuch gesicherte Übertragung
-         voraus.${areal && areal.areal
-           ? ` Die Areal-Zeile ist mit derselben Rechenkette und denselben Quellen`
-             + ` ermittelt wie die Zeilen darüber, in einem eigenen Lauf über die`
-             + ` vereinigte Fläche — keine Hochrechnung aus der Summe.`
-             + ` <b>Die Geschossfläche in der Tabelle ist die maximal ANRECHENBARE:`
-             + ` sie bezieht sich auf die anrechenbare Grundstücksfläche, und die ist`
-             + ` in beiden Rechnungen dieselbe.</b> Der Unterschied liegt darin, ob`
-             + ` ein Baukörper sie überhaupt aufnehmen kann: getrennt gerechnet`
-             + ` bringt das Modell ${fmt(summeVon(nutzVon), 0)} m² nutzbare Geschossfläche unter,`
-             + ` als ein Areal ${fmt(nutzVon(areal.areal), 0)} m².`
-             + ` Ohne die grundbuchliche Sicherung bleibt die getrennte Summe der`
-             + ` massgebliche Zustand.`
+         Grenzabstand an den inneren Grenzen weg — dafür setzt die
+         Zusammenfassung eine Parzellenvereinigung oder eine im Grundbuch
+         gesicherte Übertragung voraus. Ohne diese Sicherung bleibt die
+         getrennte Summe der massgebliche Zustand.${areal && areal.areal
+           ? ` <b>Anrechenbar</b> ist die rechtliche Obergrenze (§ 255 PBG) — sie`
+             + ` bezieht sich auf die anrechenbare Grundstücksfläche und ändert sich`
+             + ` durch eine Vereinigung nicht. <b>Nutzbar</b> ist, was ein Baukörper`
+             + ` auf dem tatsächlichen Fussabdruck unterbringt; dort steht der`
+             + ` Unterschied. Die Areal-Zeile ist mit derselben Rechenkette und`
+             + ` denselben Quellen ermittelt wie die Zeilen darüber, in einem eigenen`
+             + ` Lauf über die vereinigte Fläche — keine Hochrechnung aus der Summe.`
            : ''}
        </div>`,
       foot, '', 'Ü');

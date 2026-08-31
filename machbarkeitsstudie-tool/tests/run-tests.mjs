@@ -58,6 +58,68 @@ function check(name, actual, expected, tol = 0.01) {
 }
 
 // ---------------------------------------------------------------------------
+// 000000) Ein gemeinsamer Abschnitt darf nichts ueber EINE Parzelle behaupten
+//      Der PDF-Export fasst bei mehreren Grundstuecken die Pruefpunkte
+//      zusammen, die auf jedem Blatt wortgleich stuenden. Wortgleich ist
+//      dafuer nicht genug: der Werkleitungs-Punkt lautete auf allen drei
+//      Zumikoner Grundstuecken identisch «… schneidet diese Parzelle und ist
+//      oben abgezogen» und behauptete das im gemeinsamen Anhang fuer alle
+//      drei — waehrend ihre eigenen Blaetter dreimal das Gegenteil
+//      festhielten. Drei gleichlautende Befunde sind keine gemeinsame Regel.
+//      REGELN.md §12.7.
+// ---------------------------------------------------------------------------
+{
+  const einzelfall = (o) => T.istEinzelfallAussage(o);
+
+  // Die Wortprobe: Verben eines Ergebnisses und konkrete Flaechen.
+  check('«schneidet diese Parzelle» ist eine Einzelfall-Aussage',
+    einzelfall({ text: 'Eine solche Linie schneidet diese Parzelle und ist oben abgezogen.' }), true);
+  check('«… gefunden» ebenso (auch der leere Befund)',
+    einzelfall({ text: 'Kein Eintrag im kommunalen Denkmalpflege-Inventar für diese Parzelle gefunden.' }), true);
+  check('eine konkrete Flaechenangabe ebenso',
+    einzelfall({ text: 'Davon entfallen 117.6 m² auf die Waldseite.' }), true);
+  check('ein reiner Regeltext nicht',
+    einzelfall({ text: 'Art. 32 BZO Zumikon: Wo Verkehrsbaulinien fehlen, gilt ein Abstand von 2 m gegenüber öffentlichen Strassen.' }), false);
+
+  // Die Kennzeichnung am Punkt schlaegt zu, auch wenn der Wortlaut harmlos ist.
+  check('`einzelfall: true` genuegt allein',
+    einzelfall({ einzelfall: true, text: 'Nicht geprüft.' }), true);
+  // … und die Wortprobe schlaegt zu, auch wenn die Kennzeichnung fehlt.
+  check('`einzelfall: false` hebt die Wortprobe NICHT auf',
+    einzelfall({ einzelfall: false, text: 'Eine Baulinie schneidet diese Parzelle.' }), true);
+
+  // Der reale Punkt, an dem es passiert ist: er darf jetzt gemeinsam stehen —
+  // und muss dafuer ohne Befund auskommen.
+  const cl = await T.buildChecklist({
+    parcelPolygon: turf.polygon([[[2690300, 1242900], [2690340, 1242900], [2690340, 1242940], [2690300, 1242940], [2690300, 1242900]]]),
+    restrictions: {
+      waldabstand: { concerned: false }, gewaesserraum: { concerned: false }, baulinien: { concerned: false },
+    },
+    rules: await T.getZoneRules({ zone: 'W2/25' }, 'Zumikon'),
+    gemeinde: 'Zumikon', bfsNr: 160,
+    wald: { applies: false }, waldLossInFootprintM2: 0,
+    baulinien: { applies: true }, baulinienLossM2: 0,
+  });
+  const werk = cl.tierB.find((i) => i.key === 'werkleitungen');
+  check('der Werkleitungs-Punkt existiert', !!werk, true);
+  check('… und behauptet nichts ueber die einzelne Parzelle', einzelfall(werk), false);
+  check('… nennt aber, WO das Ergebnis steht',
+    werk.text.includes('auf dessen eigenem Blatt'), true);
+  check('… und weiterhin, was NICHT geprueft ist',
+    werk.text.includes('Werkleitungskataster'), true);
+
+  // Ausserhalb der Stadt Zuerich wird gar nicht abgefragt — dann ist der Text
+  // eine Aussage ueber den DATENSATZ und darf gemeinsam stehen.
+  const sbv = cl.tierB.find((i) => i.key === 'sonderbauvorschriften');
+  check('Sonderbauvorschriften ohne Abfrage: parzellenunabhaengig', einzelfall(sbv), false);
+
+  // Jeder Punkt, der als gemeinsam durchgeht, muss BEIDE Schranken passieren.
+  const gemeinsamTauglich = cl.tierB.filter((i) => !einzelfall(i));
+  check('kein gemeinsam-tauglicher Punkt traegt einen Einzelfall-Marker',
+    gemeinsamTauglich.every((i) => !/\b(schneidet|abgezogen|gefunden)\b/i.test(i.text)), true);
+}
+
+// ---------------------------------------------------------------------------
 // 00000) Was der Bericht ueber ein Grundstueck BEHAUPTET, muss stimmen
 //      Vier Befunde aus dem Export Zumikon 5030+5029+5028 vom 31.8.2026. Jeder
 //      war eine Aussage, die das Dokument selbst an anderer Stelle bestreitet —

@@ -78,7 +78,9 @@ window.MachbarkeitTool = window.MachbarkeitTool || {};
   // v1.2: Vektor-Satz — waehlbarer Text statt Seiten-JPEGs.
   // v1.3: Berichtspruefung Multi-Parzellen — eine Adressquelle, Areal-Zeile
   //       als Zahl, gemeinsamer Anhang statt dreifacher Wiederholung.
-  window.MachbarkeitTool.WERKZEUG_VERSION = 'v1.3';
+  // v1.4: nutzbare Geschossflaeche als eigene Spalte, keine Einzelfall-
+  //       Behauptung im gemeinsamen Anhang, kein Kostenblatt ohne Baukoerper.
+  window.MachbarkeitTool.WERKZEUG_VERSION = 'v1.4';
 
   // Every user- and API-sourced string passes through here before innerHTML.
   // Escapes the single quote too, so a value is safe in a single-quoted
